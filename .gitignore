@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# SpacetimeDB builds
+spacetimedb/target/
+
 # macOS
 .DS_Store
 *.pem
