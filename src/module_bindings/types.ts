@@ -7,11 +7,10 @@ import {
   TypeBuilder as __TypeBuilder,
   t as __t,
   type AlgebraicTypeType as __AlgebraicTypeType,
-  type Infer as __Infer,
+  type Infer as __Infer
 } from "spacetimedb";
 
 export const Person = __t.object("Person", {
-  name: __t.string(),
+  name: __t.string()
 });
 export type Person = __Infer<typeof Person>;
-

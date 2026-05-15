@@ -11,4 +11,3 @@ import SayHelloReducer from "../say_hello_reducer";
 
 export type AddParams = __Infer<typeof AddReducer>;
 export type SayHelloParams = __Infer<typeof SayHelloReducer>;
-

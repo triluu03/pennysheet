@@ -30,7 +30,7 @@ import {
   type ReducerEventContextInterface as __ReducerEventContextInterface,
   type RemoteModule as __RemoteModule,
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
-  type SubscriptionHandleImpl as __SubscriptionHandleImpl,
+  type SubscriptionHandleImpl as __SubscriptionHandleImpl
 } from "spacetimedb";
 
 // Import all reducer arg schemas
@@ -46,38 +46,31 @@ import PersonRow from "./person_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
-  person: __table({
-    name: 'person',
-    indexes: [
-    ],
-    constraints: [
-    ],
-  }, PersonRow),
+  person: __table(
+    {
+      name: "person",
+      indexes: [],
+      constraints: []
+    },
+    PersonRow
+  )
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
-const reducersSchema = __reducers(
-  __reducerSchema("add", AddReducer),
-  __reducerSchema("say_hello", SayHelloReducer),
-);
+const reducersSchema = __reducers(__reducerSchema("add", AddReducer), __reducerSchema("say_hello", SayHelloReducer));
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
-const proceduresSchema = __procedures(
-);
+const proceduresSchema = __procedures();
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */
 const REMOTE_MODULE = {
   versionInfo: {
-    cliVersion: "2.2.0" as const,
+    cliVersion: "2.2.0" as const
   },
   tables: tablesSchema.schemaType.tables,
   reducers: reducersSchema.reducersType.reducers,
-  ...proceduresSchema,
-} satisfies __RemoteModule<
-  typeof tablesSchema.schemaType,
-  typeof reducersSchema.reducersType,
-  typeof proceduresSchema
->;
+  ...proceduresSchema
+} satisfies __RemoteModule<typeof tablesSchema.schemaType, typeof reducersSchema.reducersType, typeof proceduresSchema>;
 
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */
 export const tables: __QueryBuilder<typeof tablesSchema.schemaType> = __makeQueryBuilder(tablesSchema.schemaType);
@@ -109,7 +102,10 @@ export class DbConnectionBuilder extends __DbConnectionBuilder<DbConnection> {}
 export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
   /** Creates a new {@link DbConnectionBuilder} to configure and connect to the remote SpacetimeDB instance. */
   static builder = (): DbConnectionBuilder => {
-    return new DbConnectionBuilder(REMOTE_MODULE, (config: __DbConnectionConfig<typeof REMOTE_MODULE>) => new DbConnection(config));
+    return new DbConnectionBuilder(
+      REMOTE_MODULE,
+      (config: __DbConnectionConfig<typeof REMOTE_MODULE>) => new DbConnection(config)
+    );
   };
 
   /** Creates a new {@link SubscriptionBuilder} to configure a subscription to the remote SpacetimeDB instance. */
@@ -117,4 +113,3 @@ export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
     return new SubscriptionBuilder(this);
   };
 }
-
