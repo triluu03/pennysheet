@@ -1,8 +1,0 @@
-{
-  "dev": {
-    "run": "npm run dev"
-  },
-  "module-path": "./spacetimedb",
-  "database": "pennysheet-db",
-  "server": "maincloud"
-}
