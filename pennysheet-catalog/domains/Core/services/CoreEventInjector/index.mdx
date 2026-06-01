@@ -1,0 +1,22 @@
+---
+id: CoreEventInjector
+name: Core Event Injector
+version: 0.0.1
+summary: Writes transactions import outcome events to the event store.
+sends:
+  - id: TransactionImportCompleted
+    version: 0.0.1
+  - id: TransactionImportFailed
+    version: 0.0.1
+writesTo:
+  - id: CoreEventStore
+    version: 0.0.1
+---
+
+## Overview
+
+The Core Event Injector writes events directly to the [[container|CoreEventStore]] without going through the [[service|CoreAggregate]] command pipeline. It is called directly by the [[service|EnableBankingAPIGateway]] after the Enable Banking API delivers its response.
+
+On success it appends [[event|TransactionImportCompleted]] summarising the fetched transaction batch. On failure it appends [[event|TransactionImportFailed]] with the error context, allowing the projector and notifier to react accordingly.
+
+<NodeGraph />

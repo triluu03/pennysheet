@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier"
+    },
+    "placeholder_field": {
+      "type": "string",
+      "description": "Placeholder field"
+    }
+  },
+  "required": ["id", "placeholder_field"]
+}

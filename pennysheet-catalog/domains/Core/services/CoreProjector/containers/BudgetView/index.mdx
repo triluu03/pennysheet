@@ -1,0 +1,23 @@
+---
+id: BudgetView
+name: Budget View
+version: 0.0.1
+summary: Per-budget read model tracking spending progress.
+container_type: database
+technology: postgres
+classification: internal
+access_mode: readWrite
+schemaPath: schema.json
+badges:
+  - content: Read Model
+    backgroundColor: purple
+    textColor: white
+---
+
+## Overview
+
+[[container|BudgetView]] is a database table (read model) maintained by the [[service|CoreProjector]]. It tracks the current spending state for each budget, including how much has been spent, whether the threshold has been reached, and whether the limit has been exceeded.
+
+## Schema
+
+<SchemaViewer file="schema.json" search="true" expand="true" />

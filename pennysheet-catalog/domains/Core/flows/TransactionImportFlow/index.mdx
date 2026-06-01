@@ -1,0 +1,98 @@
+---
+id: TransactionImportFlow
+name: Transaction Import Flow
+version: 0.0.1
+summary: Import transactions from Enable Banking — request to completion or failure.
+steps:
+
+  - id: user
+    title: User
+    actor:
+      name: User
+    next_step:
+      id: import_cmd
+      label: via client-side application
+
+  - id: import_cmd
+    title: Import Transactions
+    message:
+      id: ImportTransactions
+      version: 0.0.1
+    next_step:
+      id: core_aggregate
+      label: handled by aggregate
+
+  - id: core_aggregate
+    title: Core Aggregate
+    service:
+      id: CoreAggregate
+      version: 0.0.1
+    next_step:
+      id: import_requested
+      label: emits events
+
+  - id: import_requested
+    title: Import Transactions Requested
+    message:
+      id: ImportTransactionsRequested
+      version: 0.0.1
+    next_step:
+      id: enable_banking_gateway
+      label: received by API Gateway
+
+  - id: enable_banking_gateway
+    title: Enable Banking API Gateway
+    service:
+      id: EnableBankingAPIGateway
+      version: 0.0.1
+    next_step:
+      id: enable_banking_api
+      label: fetches transactions
+
+  - id: enable_banking_api
+    title: Enable Banking API
+    externalSystem:
+      name: Enable Banking API
+      summary: Open banking aggregator that provides access to user account transactions across connected banks.
+      url: https://enablebanking.com
+    next_step:
+      id: enable_banking_gateway_response
+      label: returns transactions or error response
+
+  - id: enable_banking_gateway_response
+    title: Enable Banking API Gateway (response received)
+    service:
+      id: EnableBankingAPIGateway
+      version: 0.0.1
+    next_step:
+      id: core_event_injector
+      label: call event injector
+
+  - id: core_event_injector
+    title: Core Event Injector
+    service:
+      id: CoreEventInjector
+      version: 0.0.1
+    next_steps:
+      - id: import_completed
+        label: Import succeeded
+      - id: import_failed
+        label: Import failed
+
+  - id: import_completed
+    title: Transaction Import Completed
+    message:
+      id: TransactionImportCompleted
+      version: 0.0.1
+
+  - id: import_failed
+    title: Transaction Import Failed
+    message:
+      id: TransactionImportFailed
+      version: 0.0.1
+
+---
+
+End-to-end import flow for the Core domain. When a user requests a transaction import, this flow drives the fetch from the Enable Banking open banking API and asynchronously records the outcome in the event store.
+
+<NodeGraph />

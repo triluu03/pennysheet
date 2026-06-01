@@ -1,0 +1,29 @@
+---
+id: Core
+name: Core Domain
+version: 0.0.1
+summary: Manages personal finance transactions and budgets using event sourcing.
+services:
+  - id: CoreAggregate
+    version: 0.0.1
+  - id: CoreEventInjector
+    version: 0.0.1
+  - id: CoreNotifier
+    version: 0.0.1
+  - id: CoreProjector
+    version: 0.0.1
+  - id: EnableBankingAPIGateway
+    version: 0.0.1
+flows:
+  - id: TransactionImportFlow
+    version: 0.0.1
+---
+
+## Domain Overview
+
+The Core domain is the foundational finance domain of Pennysheet. It manages the full lifecycle of financial transactions and budgets using an event-sourced architecture.
+
+
+## Architecture
+
+<NodeGraph />

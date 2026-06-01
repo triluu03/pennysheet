@@ -1,0 +1,23 @@
+---
+id: DashboardView
+name: Dashboard View
+version: 0.0.1
+summary: Aggregated financial summary for the dashboard.
+container_type: database
+technology: postgres
+classification: internal
+access_mode: readWrite
+schemaPath: schema.json
+badges:
+  - content: Read Model
+    backgroundColor: purple
+    textColor: white
+---
+
+## Overview
+
+[[container|DashboardView]] is a database table (read model) maintained by the [[service|CoreProjector]]. It provides a high-level aggregated summary of the user's financial picture — total income, total expenses, net balance, and budget health — optimised for dashboard-style rendering.
+
+## Schema
+
+<SchemaViewer file="schema.json" search="true" expand="true" />

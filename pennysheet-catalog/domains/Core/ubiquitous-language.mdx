@@ -1,0 +1,79 @@
+---
+dictionary:
+  - id: Aggregate
+    name: Aggregate
+    summary: "Write-side component that handles commands and emits events for the Transaction and Budget aggregate roots."
+    description: |
+      The CoreAggregate is the consistency boundary for all finance operations. All successful state transitions are appended as events to the CoreEventStore.
+    icon: Box
+
+  - id: Transaction
+    name: Transaction
+    summary: "A single financial movement — income or expense — recorded by the user."
+    description: |
+      Identified by a transaction_id. Lifecycle events: TransactionRecorded, TransactionCategorized, TransactionTagged, TransactionNoteUpdated. Transactions are immutable once recorded; enrichment (categorisation, tagging, notes) is modelled as separate events.
+    icon: ArrowLeftRight
+
+  - id: Budget
+    name: Budget
+    summary: "A user-defined spending limit for a category over a time period."
+    description: |
+      Lifecycle: BudgetCreated → (BudgetUpdated) → BudgetReached → BudgetExceeded → (BudgetDeleted). Budgets track cumulative spending and trigger threshold notifications when limits approach or are breached.
+    icon: Wallet
+
+  - id: EventStore
+    name: Event Store
+    summary: "Append-only log that persists all domain events — the source of truth for the Core domain."
+    description: |
+      The CoreEventStore holds every event emitted by the CoreAggregate and injected by the CoreEventInjector. The CoreProjector and CoreNotifier consume from this store to build read models and dispatch notifications.
+    icon: Database
+
+  - id: EventInjector
+    name: Event Injector
+    summary: "Service that writes events directly to the event store, bypassing the command pipeline — used for transaction imports."
+    description: |
+      The CoreEventInjector handles scenarios where events originate outside the normal command flow, such as CSV imports from a bank export. It appends a TransactionImportCompleted event when the import finishes.
+    icon: ArrowDownToLine
+
+  - id: Projector
+    name: Projector
+    summary: "Read-side component that consumes events and maintains denormalised query-optimised views."
+    description: |
+      The CoreProjector listens to all Core events and keeps three read models up to date: TransactionView (per-transaction list), BudgetView (spending progress), and DashboardView (aggregated financial summary).
+    icon: LayoutDashboard
+
+  - id: Notifier
+    name: Notifier
+    summary: "Reactive service that dispatches user notifications when budget thresholds are reached or exceeded."
+    description: |
+      The CoreNotifier subscribes to BudgetReached and BudgetExceeded events and sends out-of-band notifications (e.g. push notifications or in-app alerts). It does not write back to the event store.
+    icon: Bell
+
+  - id: TransactionView
+    name: Transaction View
+    summary: "Read model table providing a per-transaction projection for list and search queries."
+    description: |
+      Maintained by the CoreProjector. Contains denormalised transaction data including category, tags, note, amount, and date.
+    icon: List
+
+  - id: BudgetView
+    name: Budget View
+    summary: "Read model table tracking spending progress and threshold status per budget."
+    description: |
+      Maintained by the CoreProjector. Tracks how much has been spent against each budget, whether the threshold has been reached, and whether the limit has been exceeded.
+    icon: BarChart
+
+  - id: DashboardView
+    name: Dashboard View
+    summary: "Read model table providing an aggregated financial summary for dashboard rendering."
+    description: |
+      Maintained by the CoreProjector. Summarises total income, total expenses, net balance, and overall budget health for a user.
+    icon: LayoutGrid
+
+  - id: TransactionImport
+    name: Transaction Import
+    summary: "The process of ingesting transactions from an external source such as a bank CSV export via Enable Banking."
+    description: |
+      Triggered by the ImportTransactions command. The CoreEventInjector writes TransactionImportCompleted or TransactionImportFailed to the CoreEventStore after the Enable Banking API responds.
+    icon: Upload
+---
