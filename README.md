@@ -2,9 +2,9 @@
 
 A personal finance tracking application that connects to your bank accounts via the [Enable Banking API](https://enablebanking.com/).
 
-## Architecture
+Link to the architecture design docs: https://triluu03.github.io/pennysheet/
 
-At the moment, the design of the backend system is hosted at: https://triluu03.github.io/pennysheet-catalog/ from the repository: https://github.com/triluu03/pennysheet-catalog. It will be moved soon into `./pennysheet-catalog/`.
+## Project Structure
 
 ```
 pennysheet/
