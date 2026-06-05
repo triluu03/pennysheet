@@ -8,7 +8,7 @@ export default {
   organizationName: 'Pennysheet',
   theme: 'forest',
   homepageLink: 'https://github.com/triluu03/pennysheet',
-  editUrl: 'https://github.com/triluu03/pennysheet-catalog',
+  editUrl: 'https://github.com/triluu03/pennysheet/tree/main/pennysheet-catalog',
 
   // Supports static or server. Static renders a static site, server renders a server side rendered site
   // large catalogs may benefit from server side rendering
@@ -19,7 +19,7 @@ export default {
 
   // Change to make the base url of the site different, by default https://{website}.com/docs,
   // changing to /company would be https://{website}.com/company/docs,
-  base: '/pennysheet-catalog/',
+  base: '/pennysheet/',
 
   // Resource search is the default lightweight search. Change this to { type: 'indexed' }
   // to enable full-content search. Indexed search requires running a build to generate the index.
@@ -48,5 +48,5 @@ export default {
   // required random generated id used by eventcatalog
   cId: '9c7bd5d1-e04f-4de3-b616-18f27364ce7c',
 
-  repositoryUrl: 'https://github.com/triluu03/pennysheet-catalog'
+  repositoryUrl: 'https://github.com/triluu03/pennysheet'
 };
