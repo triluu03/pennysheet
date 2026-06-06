@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.9"
+sea-orm = { version = "2.0.0-rc", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "mock", "schema-sync", "entity-registry"] }
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 
 [lints.clippy]
 empty_docs = "warn"
