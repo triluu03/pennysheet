@@ -22,6 +22,7 @@ use crate::{
             Command,
             transactions::ImportTransactions,
         },
+        errors::DomainError,
         event_store,
     },
 };
@@ -35,13 +36,13 @@ pub struct ImportTransactionPayload {
 pub async fn import_transaction_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionPayload>,
-) -> axum::response::Result<(StatusCode, String)> {
+) -> axum::response::Result<(StatusCode, String), AppError> {
     let start_date = payload.start_date.unwrap_or("2026-06-06".to_string());
 
     let command = Command::ImportTransactions(ImportTransactions::new(
         &start_date,
         payload.end_date.as_deref(),
-    ));
+    )?);
     let event = CoreAggregate::new().execute(command)?;
 
     let new_event_row = event_store::ActiveModel {

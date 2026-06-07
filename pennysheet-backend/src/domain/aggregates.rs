@@ -1,13 +1,11 @@
 //! Aggregates
 
-use crate::{
-    api::errors::AppError,
-    domain::{
-        commands::Command,
-        events::{
-            transactions::ImportTransactionsRequested,
-            Event,
-        },
+use crate::domain::{
+    commands::Command,
+    errors::DomainError,
+    events::{
+        transactions::ImportTransactionsRequested,
+        Event,
     },
 };
 
@@ -20,7 +18,7 @@ impl CoreAggregate {
     }
 
     /// Execute commands.
-    pub fn execute(&self, command: Command) -> Result<Event, AppError> {
+    pub fn execute(&self, command: Command) -> Result<Event, DomainError> {
         match command {
             Command::ImportTransactions(c) => Ok(Event::ImportTransactionsRequested(
                 ImportTransactionsRequested::new(c.start_date, c.end_date),

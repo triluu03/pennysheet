@@ -15,7 +15,7 @@ pub struct Model {
     pub event_id: Uuid,
     pub event_data: Event,
     #[sea_orm(nullable)]
-    pub medata: Json,
+    pub metadata: Json,
     #[sea_orm(default_expr = "Expr::current_timestamp()")]
     pub created_at: DateTime,
 }
