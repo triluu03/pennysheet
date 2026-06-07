@@ -61,7 +61,9 @@ async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
         .await
     {
         Ok(_) => println!("Created the database 'pennysheet_dev'"),
-        Err(_) => {},
+        Err(error) => {
+            println!("{}", error.to_string())
+        },
     }
 
     let url = format!("{}/{}", DATABASE_URL, DB_NAME);
