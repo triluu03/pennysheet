@@ -22,7 +22,6 @@ use crate::{
             Command,
             transactions::ImportTransactions,
         },
-        errors::DomainError,
         event_store,
     },
 };
