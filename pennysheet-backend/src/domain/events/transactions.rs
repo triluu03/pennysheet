@@ -1,4 +1,4 @@
-//! Transactions-related events.
+//! Transactions-related event data.
 
 use chrono::NaiveDate;
 use serde::{
@@ -27,7 +27,7 @@ pub struct ImportFailedData {
 impl ImportRequestData {
     /// Import transactions requested constructor.
     pub fn new(start_date: NaiveDate, end_date: NaiveDate) -> Self {
-        let uuid_key = "ImportTransactionsRequested:".to_string()
+        let uuid_key = "ImportRequestData:".to_string()
             + &start_date.to_string()
             + ":"
             + &end_date.to_string();

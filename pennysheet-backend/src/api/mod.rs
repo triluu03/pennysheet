@@ -1,4 +1,5 @@
 //! Axum API.
 
-pub mod errors;
-pub mod handlers;
+mod errors;
+mod handlers;
+pub mod routes;

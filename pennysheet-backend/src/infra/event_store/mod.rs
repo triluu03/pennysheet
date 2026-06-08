@@ -1,8 +1,8 @@
 //! Event store.
 
 use sea_orm::{
-    entity::prelude::*,
     ActiveValue::Set,
+    entity::prelude::*,
 };
 
 use crate::domain::events::Event;

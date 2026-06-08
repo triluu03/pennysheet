@@ -7,11 +7,6 @@ use axum::{
     extract::State,
     http::StatusCode,
 };
-use chrono::NaiveDate;
-use sea_orm::{
-    ActiveValue::Set,
-    EntityTrait,
-};
 use serde::Deserialize;
 
 use crate::{
@@ -19,16 +14,13 @@ use crate::{
     api::errors::AppError,
     domain::{
         aggregates::CoreAggregate,
-        commands::{
-            Command,
-            transactions::ImportTransactionsData,
-        },
-        event_store,
+        commands::create_new_import_transactions_command,
     },
+    infra::append_event_to_db,
 };
 
 #[derive(Deserialize)]
-pub struct ImportTransactionPayload {
+pub struct ImportTransactionsPayload {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
 }
@@ -40,31 +32,16 @@ pub struct ImportTransactionPayload {
 /// - Failed to parse the payload into expected format.
 /// - Command is rejected by the aggregate.
 /// - Failed to insert the new event into the store.
-pub async fn import_transaction_handler(
+pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<ImportTransactionPayload>,
+    Json(payload): Json<ImportTransactionsPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let start_date = payload.start_date.unwrap_or("2026-06-06".to_string());
-    let parsed_start_date = NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")?;
-
-    let parsed_end_date = payload
-        .end_date
-        .map(|str| NaiveDate::parse_from_str(&str, "%Y-%m-%d"))
-        .transpose()?;
-
-    let command = Command::ImportTransactions(ImportTransactionsData::new(
-        parsed_start_date,
-        parsed_end_date,
-    ));
+    let command = create_new_import_transactions_command(
+        payload.start_date.as_deref(),
+        payload.end_date.as_deref(),
+    )?;
     let event = CoreAggregate::new().execute(command)?;
-
-    let new_event_row = event_store::ActiveModel {
-        event_data: Set(event),
-        ..Default::default()
-    };
-
-    let res = event_store::Entity::insert(new_event_row)
-        .exec(&state.db)
+    let res = append_event_to_db(&state.db, event)
         .await
         .map_err(AppError::from)?;
 
