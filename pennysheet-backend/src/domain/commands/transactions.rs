@@ -1,26 +1,18 @@
 //! Transactions-related commands.
 
-use sea_orm::prelude::Date;
+use chrono::NaiveDate;
 
-use crate::domain::errors::DomainError;
-
-pub struct ImportTransactions {
-    pub start_date: Date,
-    pub end_date: Date,
+pub struct ImportTransactionsData {
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
 }
 
-impl ImportTransactions {
+impl ImportTransactionsData {
     /// Constructor
-    pub fn new(start_date: &str, end_date: Option<&str>) -> Result<Self, DomainError> {
-        let parsed_start_date = Date::parse_from_str(start_date, "%Y-%m-%d")?;
-        let parsed_end_date = match end_date {
-            Some(end_date) => Date::parse_from_str(end_date, "%Y-%m-%d")?,
-            None => parsed_start_date.clone(),
-        };
-
-        Ok(ImportTransactions {
-            start_date: parsed_start_date,
-            end_date: parsed_end_date,
-        })
+    pub fn new(start_date: NaiveDate, end_date: Option<NaiveDate>) -> Self {
+        ImportTransactionsData {
+            start_date,
+            end_date: end_date.unwrap_or(start_date),
+        }
     }
 }

@@ -8,10 +8,12 @@ use serde::{
 
 pub mod transactions;
 
+use transactions::*;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
 pub enum Event {
     // Transactions-related events.
-    ImportTransactionsRequested(transactions::ImportTransactionsRequested),
-    ImportTransactionsCompleted(transactions::ImportTransactionsCompleted),
-    ImportTransactionsFailed(transactions::ImportTransactionsFailed),
+    ImportTransactionsRequested(ImportRequestData),
+    ImportTransactionsCompleted(ImportCompletedData),
+    ImportTransactionsFailed(ImportFailedData),
 }

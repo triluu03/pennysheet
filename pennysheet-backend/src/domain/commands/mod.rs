@@ -2,6 +2,8 @@
 
 pub mod transactions;
 
+use transactions::*;
+
 pub enum Command {
-    ImportTransactions(transactions::ImportTransactions),
+    ImportTransactions(ImportTransactionsData),
 }

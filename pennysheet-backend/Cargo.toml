@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.9"
+chrono = "0.4.45"
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres", 
 	"runtime-tokio-rustls",
@@ -26,4 +27,3 @@ empty_docs = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"
 missing_safety_doc = "warn"
-missing_docs_in_private_items = "warn"

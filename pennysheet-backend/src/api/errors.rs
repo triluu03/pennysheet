@@ -4,12 +4,14 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use chrono::ParseError;
 
 use crate::domain::errors::DomainError;
 
 pub enum AppError {
     DomainError(DomainError),
     DatabaseError(String),
+    PayloadError(String),
 }
 
 impl IntoResponse for AppError {
@@ -21,6 +23,11 @@ impl IntoResponse for AppError {
             Self::DatabaseError(message) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Database error: {}", message),
+            )
+                .into_response(),
+            Self::PayloadError(message) => (
+                StatusCode::BAD_REQUEST,
+                format!("Payload is not accepted: {}", message),
             )
                 .into_response(),
         }
@@ -36,5 +43,11 @@ impl From<DomainError> for AppError {
 impl From<sea_orm::DbErr> for AppError {
     fn from(value: sea_orm::DbErr) -> Self {
         Self::DatabaseError(value.to_string())
+    }
+}
+
+impl From<ParseError> for AppError {
+    fn from(value: ParseError) -> Self {
+        Self::PayloadError(value.to_string())
     }
 }

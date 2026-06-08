@@ -32,6 +32,12 @@ pub struct AppState {
     db: DatabaseConnection,
 }
 
+/// Main function of Axum application
+///
+/// # Panics
+/// Panic in the following scenarios:
+/// - Cannot connect to database.
+/// - Cannot serve the Axum application to the specified port.
 #[tokio::main]
 async fn main() {
     let db = connect_to_database().await.unwrap();
@@ -62,7 +68,7 @@ async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
     {
         Ok(_) => println!("Created the database 'pennysheet_dev'"),
         Err(error) => {
-            println!("{}", error.to_string())
+            println!("{}", error)
         },
     }
 
