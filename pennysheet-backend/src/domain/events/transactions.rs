@@ -15,12 +15,7 @@ pub struct ImportRequestData {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImportCompletedData {
-    request_id: Uuid,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImportFailedData {
+pub struct ImportStatusData {
     request_id: Uuid,
 }
 

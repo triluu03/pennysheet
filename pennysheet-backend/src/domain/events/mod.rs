@@ -14,6 +14,6 @@ use transactions::*;
 pub enum Event {
     // Transactions-related events.
     ImportTransactionsRequested(ImportRequestData),
-    ImportTransactionsCompleted(ImportCompletedData),
-    ImportTransactionsFailed(ImportFailedData),
+    ImportTransactionsCompleted(ImportStatusData),
+    ImportTransactionsFailed(ImportStatusData),
 }
