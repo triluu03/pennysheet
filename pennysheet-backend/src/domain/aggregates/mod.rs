@@ -13,8 +13,7 @@ use crate::domain::{
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CoreAggregate {
-    /// The ID for the pending transactions import request.
-    pub request_id: Option<Uuid>,
+    request_id: Option<Uuid>,
 }
 
 impl CoreAggregate {
@@ -32,7 +31,7 @@ impl CoreAggregate {
             Command::ImportTransactions(c) => {
                 if let Some(_request_id) = self.request_id {
                     Err(DomainError::CommandRejected(
-                        "There's a pending import request awaiting to be resolved!".to_string(),
+                        "There's a pending request awaiting to be resolved!".to_string(),
                     ))
                 } else {
                     Ok(Event::ImportTransactionsRequested(ImportRequestData::new(
