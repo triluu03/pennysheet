@@ -4,6 +4,7 @@ use core::fmt;
 
 use chrono::ParseError;
 
+#[derive(Debug)]
 pub enum DomainError {
     CommandCreation(String),
     CommandRejected(String),

@@ -70,3 +70,104 @@ impl CoreAggregate {
             .fold(self, |aggregate, event| aggregate.apply(event))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    use super::CoreAggregate;
+    use crate::domain::{
+        commands::create_new_import_transactions_command,
+        events::{
+            transactions::ImportStatusData,
+            Event,
+        },
+    };
+
+    /// Extract the request_id from an [`Event::ImportTransactionsRequested`] event.
+    fn request_id_from_event(event: &Event) -> Uuid {
+        match event {
+            Event::ImportTransactionsRequested(data) => data.request_id,
+            _ => panic!("expected ImportTransactionsRequested, got {event:?}"),
+        }
+    }
+
+    #[test]
+    fn execute_succeeds_with_no_pending_request() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_ok());
+    }
+
+    #[test]
+    fn execute_rejects_when_pending_request_exists() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        let event = aggregate.execute(command).unwrap();
+        let aggregate = aggregate.apply(&event);
+
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_err());
+    }
+
+    #[test]
+    fn apply_completed_event_clears_pending_request() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        let requested = aggregate.execute(command).unwrap();
+        let request_id = request_id_from_event(&requested);
+        let aggregate = aggregate.apply(&requested);
+
+        let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
+        let aggregate = aggregate.apply(&completed);
+
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_ok());
+    }
+
+    #[test]
+    fn apply_failed_event_clears_pending_request() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        let requested = aggregate.execute(command).unwrap();
+        let request_id = request_id_from_event(&requested);
+        let aggregate = aggregate.apply(&requested);
+
+        let failed = Event::ImportTransactionsFailed(ImportStatusData { request_id });
+        let aggregate = aggregate.apply(&failed);
+
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_ok());
+    }
+
+    #[test]
+    fn apply_mismatched_completed_event_keeps_request_pending() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        let requested = aggregate.execute(command).unwrap();
+        let aggregate = aggregate.apply(&requested);
+
+        // A completed event for a different request should not unblock the aggregate.
+        let completed = Event::ImportTransactionsCompleted(ImportStatusData {
+            request_id: Uuid::new_v4(),
+        });
+        let aggregate = aggregate.apply(&completed);
+
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_err());
+    }
+
+    #[test]
+    fn multi_apply_handles_full_request_lifecycle() {
+        let aggregate = CoreAggregate::new();
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        let requested = aggregate.execute(command).unwrap();
+        let request_id = request_id_from_event(&requested);
+        let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
+
+        let aggregate = CoreAggregate::new().multi_apply(&[requested, completed]);
+
+        let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_ok());
+    }
+}
