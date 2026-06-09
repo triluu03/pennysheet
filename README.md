@@ -6,6 +6,7 @@ Link to the architecture design docs: https://triluu03.github.io/pennysheet/
 
 ## Event-sourcing Design
 
+```mermaid
 flowchart LR
 
     %% Style definitions
@@ -75,6 +76,7 @@ flowchart LR
     CoreProjector_0_0_1 -->|"writes to   (postgres)"| BudgetView_0_0_1
     CoreProjector_0_0_1 -->|"writes to   (postgres)"| DashboardView_0_0_1
     CoreEventStore_0_0_1 -->|"reads from   (postgres)"| CoreProjector_0_0_1
+```
 
 ## Project Structure
 
