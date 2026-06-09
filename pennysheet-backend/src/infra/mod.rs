@@ -8,7 +8,10 @@ use sea_orm::{
     DbBackend,
     DbErr,
     EntityTrait,
+    FromQueryResult,
     InsertResult,
+    QueryOrder,
+    QuerySelect,
     Statement,
 };
 
@@ -19,6 +22,11 @@ mod projections;
 
 const DATABASE_URL: &str = "postgres://postgres:postgres@localhost";
 const DB_NAME: &str = "pennysheet_dev";
+
+#[derive(FromQueryResult)]
+struct EventRow {
+    event_data: Event,
+}
 
 /// Connect to the database.
 ///
@@ -53,6 +61,23 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(event_store::Entity)
         .sync(db)
         .await
+}
+
+/// Query the whole event table.
+///
+/// # Errors
+/// Returns [`DbErr`] if the query operation fails.
+pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr> {
+    Ok(event_store::Entity::find()
+        .select_only()
+        .column(event_store::Column::EventData)
+        .order_by_asc(event_store::Column::CreatedAt)
+        .into_model::<EventRow>()
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|entry| entry.event_data)
+        .collect())
 }
 
 /// Append a new event to the database.

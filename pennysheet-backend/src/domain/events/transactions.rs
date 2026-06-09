@@ -9,14 +9,14 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRequestData {
-    request_id: Uuid,
+    pub request_id: Uuid,
     start_date: NaiveDate,
     end_date: NaiveDate,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportStatusData {
-    request_id: Uuid,
+    pub request_id: Uuid,
 }
 
 impl ImportRequestData {

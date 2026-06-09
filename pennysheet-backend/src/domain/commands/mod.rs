@@ -17,7 +17,7 @@ pub enum Command {
 /// Create a new [`Command::ImportTransactions`] command.
 ///
 /// # Errors
-/// Return [`DomainError`] if start date and end date arguments
+/// Return [`DomainError::CommandCreation`] if start date and end date arguments
 /// do not follow the format "%Y-%m-%d".
 pub fn create_new_import_transactions_command(
     start_date: Option<&str>,

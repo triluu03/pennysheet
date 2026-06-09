@@ -16,7 +16,10 @@ use crate::{
         aggregates::CoreAggregate,
         commands::create_new_import_transactions_command,
     },
-    infra::append_event_to_db,
+    infra::{
+        append_event_to_db,
+        get_all_events,
+    },
 };
 
 #[derive(Deserialize)]
@@ -40,7 +43,12 @@ pub async fn import_transactions_handler(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
     )?;
-    let event = CoreAggregate::new().execute(command)?;
+
+    let all_events = get_all_events(&state.db).await?;
+    let event = CoreAggregate::new()
+        .multi_apply(&all_events)
+        .execute(command)?;
+
     let res = append_event_to_db(&state.db, event)
         .await
         .map_err(AppError::from)?;
