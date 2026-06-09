@@ -5,10 +5,25 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.9"
+chrono = "0.4.45"
+sea-orm = { version = "2.0.0-rc", features = [
+	"sqlx-postgres", 
+	"runtime-tokio-rustls",
+	"macros",
+	"mock",
+	"schema-sync",
+	"entity-registry",
+	"with-json",
+	"with-uuid",
+	"with-chrono"
+] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
+uuid = { version = "1.23.2", features = ["v4", "v5"] }
 
 [lints.clippy]
 empty_docs = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"
 missing_safety_doc = "warn"
-missing_docs_in_private_items = "warn"
