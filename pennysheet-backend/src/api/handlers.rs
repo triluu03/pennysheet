@@ -58,3 +58,60 @@ pub async fn import_transactions_handler(
         format!("Event created with ID: {}", res.last_insert_id),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use sea_orm::Database;
+
+    use super::*;
+    use crate::{
+        AppState,
+        domain::events::Event,
+        infra::{
+            get_all_events,
+            sync_database_schema,
+        },
+    };
+
+    #[tokio::test]
+    async fn test_import_transactions_handler() {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        sync_database_schema(&db).await.unwrap();
+
+        let state = Arc::new(AppState { db });
+
+        let response = import_transactions_handler(
+            State(state.clone()),
+            Json(ImportTransactionsPayload {
+                start_date: None,
+                end_date: None,
+            }),
+        )
+        .await;
+
+        let Ok((status, body)) = response else {
+            panic!("expected import_transactions_handler to succeed");
+        };
+        assert_eq!(status, StatusCode::CREATED);
+
+        let inserted_id = body
+            .strip_prefix("Event created with ID: ")
+            .expect("response body should contain the inserted event ID");
+        assert!(!inserted_id.is_empty());
+
+        let events = get_all_events(&state.db).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::ImportTransactionsRequested(_)));
+
+        // Another request failed.
+        let response2 = import_transactions_handler(
+            State(state.clone()),
+            Json(ImportTransactionsPayload {
+                start_date: None,
+                end_date: None,
+            }),
+        )
+        .await;
+        assert!(matches!(response2, Err(AppError::Domain(_))));
+    }
+}
