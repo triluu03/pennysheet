@@ -7,10 +7,9 @@ edition = "2024"
 axum = "0.8.9"
 chrono = "0.4.45"
 sea-orm = { version = "2.0.0-rc", features = [
-	"sqlx-postgres", 
+	"sqlx-postgres",
 	"runtime-tokio-rustls",
 	"macros",
-	"mock",
 	"schema-sync",
 	"entity-registry",
 	"with-json",
@@ -21,6 +20,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.23.2", features = ["v4", "v5"] }
+
+[dev-dependencies]
+sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
 
 [lints.clippy]
 empty_docs = "warn"
