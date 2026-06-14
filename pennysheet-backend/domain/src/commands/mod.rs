@@ -43,8 +43,8 @@ mod tests {
     use chrono::NaiveDate;
 
     use super::{
-        create_new_import_transactions_command,
         Command,
+        create_new_import_transactions_command,
     };
     use crate::errors::DomainError;
 

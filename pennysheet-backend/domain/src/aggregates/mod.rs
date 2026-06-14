@@ -4,8 +4,8 @@ use crate::{
     commands::Command,
     errors::DomainError,
     events::{
-        transactions::ImportRequestData,
         Event,
+        transactions::ImportRequestData,
     },
 };
 use uuid::Uuid;
@@ -82,8 +82,8 @@ mod tests {
     use crate::{
         commands::create_new_import_transactions_command,
         events::{
-            transactions::ImportStatusData,
             Event,
+            transactions::ImportStatusData,
         },
     };
 

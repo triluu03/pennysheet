@@ -3,8 +3,8 @@
 use infra::{
     connect_to_database,
     sync_database_schema,
+    DatabaseConnection,
 };
-use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 mod errors;

@@ -2,8 +2,8 @@
 
 use domain::events::Event;
 use sea_orm::{
-    entity::prelude::*,
     ActiveValue::Set,
+    entity::prelude::*,
 };
 
 #[sea_orm::model]

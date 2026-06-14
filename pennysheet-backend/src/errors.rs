@@ -30,8 +30,8 @@ impl From<DomainError> for AppError {
     }
 }
 
-impl From<sea_orm::DbErr> for AppError {
-    fn from(value: sea_orm::DbErr) -> Self {
+impl From<infra::DatabaseError> for AppError {
+    fn from(value: infra::DatabaseError) -> Self {
         Self::Database(value.to_string())
     }
 }
