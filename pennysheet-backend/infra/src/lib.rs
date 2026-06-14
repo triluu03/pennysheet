@@ -98,8 +98,7 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
             "CREATE OR REPLACE TRIGGER no_delete_events
             BEFORE UPDATE OR DELETE OR TRUNCATE ON {}
             FOR EACH STATEMENT EXECUTE FUNCTION
-            event_store_exception('Cannot delete or update events')
-            ",
+            event_store_exception('Cannot delete or update events')",
             event_store::Entity.table_name()
         ),
     ))
