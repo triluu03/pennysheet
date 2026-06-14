@@ -8,7 +8,6 @@ use crate::infra::{
 };
 
 mod api;
-mod gateway;
 mod infra;
 
 pub struct AppState {
