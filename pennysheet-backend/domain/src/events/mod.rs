@@ -1,5 +1,6 @@
 //! Events.
 
+#[cfg(feature = "sea-orm-support")]
 use sea_orm::FromJsonQueryResult;
 use serde::{
     Deserialize,
@@ -10,7 +11,8 @@ pub mod transactions;
 
 use transactions::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "sea-orm-support", derive(FromJsonQueryResult))]
 pub enum Event {
     // Transactions-related events.
     ImportTransactionsRequested(ImportRequestData),

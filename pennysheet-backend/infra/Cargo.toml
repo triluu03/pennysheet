@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-domain = { version = "0.1.0", path = "../domain" }
+domain = { version = "0.1.0", path = "../domain", features = ["sea-orm-support"] }
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres",
 	"runtime-tokio-rustls",
