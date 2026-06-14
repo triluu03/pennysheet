@@ -2,7 +2,7 @@
 
 use crate::{
     AppState,
-    api::errors::AppError,
+    errors::AppError,
 };
 use axum::{
     Json,

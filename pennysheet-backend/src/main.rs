@@ -7,7 +7,9 @@ use infra::{
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
-mod api;
+mod errors;
+mod handlers;
+mod routes;
 
 pub struct AppState {
     db: DatabaseConnection,
@@ -24,7 +26,7 @@ async fn main() {
     let db = connect_to_database().await.unwrap();
     sync_database_schema(&db).await.unwrap();
 
-    let app = api::routes::app_router().with_state(Arc::new(AppState { db }));
+    let app = routes::app_router().with_state(Arc::new(AppState { db }));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

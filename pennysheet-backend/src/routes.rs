@@ -2,7 +2,7 @@
 
 use crate::{
     AppState,
-    api::handlers::import_transactions_handler,
+    handlers::import_transactions_handler,
 };
 use axum::{
     Router,
