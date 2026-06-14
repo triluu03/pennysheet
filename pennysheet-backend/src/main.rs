@@ -1,14 +1,13 @@
-use std::sync::Arc;
+//! Main entry-point of Pennysheet backend.
 
-use sea_orm::DatabaseConnection;
-
-use crate::infra::{
+use infra::{
     connect_to_database,
     sync_database_schema,
 };
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
 
 mod api;
-mod infra;
 
 pub struct AppState {
     db: DatabaseConnection,

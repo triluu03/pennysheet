@@ -4,7 +4,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-
 use domain::errors::DomainError;
 
 pub enum AppError {

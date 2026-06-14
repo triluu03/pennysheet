@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = [".", "domain", "gateway"]
+members = [".", "domain", "gateway", "infra"]
 
 [dependencies]
 axum = "0.8.9"
 chrono = "0.4.45"
 domain = { version = "0.1.0", path = "domain" }
+infra = { version = "0.1.0", path = "infra" }
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres",
 	"runtime-tokio-rustls",
