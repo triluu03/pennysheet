@@ -8,7 +8,6 @@ use crate::infra::{
 };
 
 mod api;
-mod domain;
 mod gateway;
 mod infra;
 

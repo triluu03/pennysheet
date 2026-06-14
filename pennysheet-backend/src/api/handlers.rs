@@ -12,14 +12,14 @@ use serde::Deserialize;
 use crate::{
     AppState,
     api::errors::AppError,
-    domain::{
-        aggregates::CoreAggregate,
-        commands::create_new_import_transactions_command,
-    },
     infra::{
         append_event_to_db,
         get_all_events,
     },
+};
+use domain::{
+    aggregates::CoreAggregate,
+    commands::create_new_import_transactions_command,
 };
 
 #[derive(Deserialize)]
@@ -66,12 +66,12 @@ mod tests {
     use super::*;
     use crate::{
         AppState,
-        domain::events::Event,
         infra::{
             get_all_events,
             sync_database_schema,
         },
     };
+    use domain::events::Event;
 
     #[tokio::test]
     async fn test_import_transactions_handler() {

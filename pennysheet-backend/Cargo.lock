@@ -726,6 +726,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "domain"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "dotenvy"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1600,6 +1611,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "domain",
  "sea-orm",
  "serde",
  "serde_json",

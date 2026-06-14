@@ -5,7 +5,7 @@ use axum::{
     response::IntoResponse,
 };
 
-use crate::domain::errors::DomainError;
+use domain::errors::DomainError;
 
 pub enum AppError {
     Domain(DomainError),

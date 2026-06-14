@@ -8,7 +8,7 @@ use chrono::{
 };
 use transactions::*;
 
-use crate::domain::errors::DomainError;
+use crate::errors::DomainError;
 
 pub enum Command {
     ImportTransactions(ImportTransactionsData),
@@ -45,10 +45,10 @@ mod tests {
     use chrono::NaiveDate;
 
     use super::{
-        create_new_import_transactions_command,
         Command,
+        create_new_import_transactions_command,
     };
-    use crate::domain::errors::DomainError;
+    use crate::errors::DomainError;
 
     #[test]
     fn both_none_creates_command_with_todays_date() {

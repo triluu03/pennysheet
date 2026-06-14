@@ -1,4 +1,4 @@
-//! Module for domain logic in event-sourcing.
+//! Domain crate.
 
 pub mod aggregates;
 pub mod commands;

@@ -15,7 +15,7 @@ use sea_orm::{
     Statement,
 };
 
-use crate::domain::events::Event;
+use domain::events::Event;
 
 mod event_store;
 mod projections;

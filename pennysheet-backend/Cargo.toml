@@ -3,9 +3,13 @@ name = "pennysheet-backend"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [".", "domain"]
+
 [dependencies]
 axum = "0.8.9"
 chrono = "0.4.45"
+domain = { version = "0.1.0", path = "domain" }
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres",
 	"runtime-tokio-rustls",
@@ -24,7 +28,7 @@ uuid = { version = "1.23.2", features = ["v4"] }
 [dev-dependencies]
 sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
 
-[lints.clippy]
+[workspace.lints.clippy]
 empty_docs = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"
