@@ -117,9 +117,13 @@ mod tests {
     #[test]
     fn execute_rejects_command_with_invalid_dates() {
         let aggregate = CoreAggregate::new();
-        let command =
+        let invalid_command =
             create_new_import_transactions_command(Some("2026-06-05"), Some("2026-06-01")).unwrap();
-        assert!(aggregate.execute(command).is_err());
+        assert!(aggregate.execute(invalid_command).is_err());
+
+        let valid_command =
+            create_new_import_transactions_command(Some("2026-06-05"), Some("2026-06-05")).unwrap();
+        assert!(aggregate.execute(valid_command).is_ok());
     }
 
     #[test]
