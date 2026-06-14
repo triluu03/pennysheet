@@ -24,12 +24,12 @@ pub fn create_new_import_transactions_command(
     end_date: Option<&str>,
 ) -> Result<Command, DomainError> {
     let parsed_start_date = start_date
-        .map(|str| NaiveDate::parse_from_str(str, "%y-%m-%d"))
+        .map(|str| NaiveDate::parse_from_str(str, "%Y-%m-%d"))
         .transpose()?
         .unwrap_or(Local::now().date_naive());
 
     let parsed_end_date = end_date
-        .map(|str| NaiveDate::parse_from_str(str, "%y-%m-%d"))
+        .map(|str| NaiveDate::parse_from_str(str, "%Y-%m-%d"))
         .transpose()?;
 
     let command = Command::ImportTransactions(ImportTransactionsData::new(
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn valid_start_date_creates_command() {
-        let result = create_new_import_transactions_command(Some("24-01-15"), None);
+        let result = create_new_import_transactions_command(Some("2024-01-15"), None);
         let Command::ImportTransactions(data) = result.unwrap();
         assert_eq!(
             data.start_date,
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn valid_start_and_end_dates_creates_command() {
-        let result = create_new_import_transactions_command(Some("24-01-01"), Some("24-01-31"));
+        let result = create_new_import_transactions_command(Some("2024-01-01"), Some("2024-01-31"));
         let Command::ImportTransactions(data) = result.unwrap();
         assert_eq!(
             data.start_date,
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn none_end_date_defaults_end_to_start() {
-        let result = create_new_import_transactions_command(Some("24-06-15"), None);
+        let result = create_new_import_transactions_command(Some("2024-06-15"), None);
         let Command::ImportTransactions(data) = result.unwrap();
         assert_eq!(data.start_date, data.end_date);
     }
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn invalid_end_date_returns_command_creation_error() {
-        let result = create_new_import_transactions_command(Some("24-01-01"), Some("not-a-date"));
+        let result = create_new_import_transactions_command(Some("2024-01-01"), Some("not-a-date"));
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 }
