@@ -1,20 +1,23 @@
 //! Infrastructure management.
 
 use domain::events::Event;
-pub use sea_orm::DatabaseConnection;
-pub use sea_orm::DbErr as DatabaseError;
 use sea_orm::{
     ActiveValue::Set,
     ConnectionTrait,
     Database,
     DbBackend,
     DbErr,
+    EntityName,
     EntityTrait,
     FromQueryResult,
     InsertResult,
     QueryOrder,
     QuerySelect,
     Statement,
+};
+pub use sea_orm::{
+    DatabaseConnection,
+    DbErr as DatabaseError,
 };
 
 mod event_store;
@@ -61,6 +64,48 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(event_store::Entity)
         .sync(db)
         .await
+}
+
+/// Ensure that event store is append-only.
+///
+/// This sets the trigger in the event store table in PostgreSQL to prevent all UPDATE, DELETE, and
+/// TRUNCATE commands from being executed.
+///
+/// # Errors
+/// Return [`DbErr`] if executing the queries fails.
+pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<(), DbErr> {
+    // Setup function for raising exceptions.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE OR REPLACE FUNCTION public.event_store_exception()
+            RETURNS trigger
+            LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            message text;
+        BEGIN
+            message := 'EventStore: ' || TG_ARGV[0];
+            RAISE EXCEPTION USING MESSAGE = message, ERRCODE = 'feature_not_supported';
+        END;
+        $function$",
+    ))
+    .await?;
+
+    // Set the triggers in the event store table.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        format!(
+            "CREATE OR REPLACE TRIGGER no_delete_events
+            BEFORE UPDATE OR DELETE OR TRUNCATE ON {}
+            FOR EACH STATEMENT EXECUTE FUNCTION
+            event_store_exception('Cannot delete or update events')
+            ",
+            event_store::Entity.table_name()
+        ),
+    ))
+    .await?;
+
+    Ok(())
 }
 
 /// Query the whole event table.
