@@ -1,8 +1,7 @@
 //! Domain errors.
 
-use core::fmt;
-
 use chrono::ParseError;
+use core::fmt;
 
 #[derive(Debug)]
 pub enum DomainError {

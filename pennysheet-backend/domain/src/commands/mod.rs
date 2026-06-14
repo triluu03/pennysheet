@@ -1,14 +1,12 @@
 //! Commands.
 
 mod transactions;
-
+use crate::errors::DomainError;
 use chrono::{
     Local,
     NaiveDate,
 };
 use transactions::*;
-
-use crate::errors::DomainError;
 
 pub enum Command {
     ImportTransactions(ImportTransactionsData),
@@ -45,8 +43,8 @@ mod tests {
     use chrono::NaiveDate;
 
     use super::{
-        Command,
         create_new_import_transactions_command,
+        Command,
     };
     use crate::errors::DomainError;
 

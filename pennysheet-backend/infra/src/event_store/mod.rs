@@ -1,11 +1,10 @@
 //! Event store.
 
-use sea_orm::{
-    ActiveValue::Set,
-    entity::prelude::*,
-};
-
 use domain::events::Event;
+use sea_orm::{
+    entity::prelude::*,
+    ActiveValue::Set,
+};
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]

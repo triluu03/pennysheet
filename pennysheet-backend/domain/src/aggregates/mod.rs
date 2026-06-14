@@ -1,15 +1,14 @@
 //! Aggregates
 
-use uuid::Uuid;
-
 use crate::{
     commands::Command,
     errors::DomainError,
     events::{
-        Event,
         transactions::ImportRequestData,
+        Event,
     },
 };
+use uuid::Uuid;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CoreAggregate {
@@ -83,8 +82,8 @@ mod tests {
     use crate::{
         commands::create_new_import_transactions_command,
         events::{
-            Event,
             transactions::ImportStatusData,
+            Event,
         },
     };
 
