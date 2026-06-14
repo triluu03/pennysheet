@@ -14,7 +14,6 @@ use sea_orm::{
     QuerySelect,
     Statement,
 };
-
 use domain::events::Event;
 
 mod event_store;

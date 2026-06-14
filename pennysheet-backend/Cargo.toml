@@ -8,7 +8,6 @@ members = [".", "domain", "gateway", "infra"]
 
 [dependencies]
 axum = "0.8.9"
-chrono = "0.4.45"
 domain = { version = "0.1.0", path = "domain" }
 infra = { version = "0.1.0", path = "infra" }
 sea-orm = { version = "2.0.0-rc", features = [
@@ -22,9 +21,7 @@ sea-orm = { version = "2.0.0-rc", features = [
 	"with-chrono"
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
-uuid = { version = "1.23.2", features = ["v4"] }
 
 [dev-dependencies]
 sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
