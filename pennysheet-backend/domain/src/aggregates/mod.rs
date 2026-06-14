@@ -1,15 +1,14 @@
 //! Aggregates
 
-use uuid::Uuid;
-
-use crate::domain::{
+use crate::{
     commands::Command,
     errors::DomainError,
     events::{
-        transactions::ImportRequestData,
         Event,
+        transactions::ImportRequestData,
     },
 };
+use uuid::Uuid;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct CoreAggregate {
@@ -80,11 +79,11 @@ mod tests {
     use uuid::Uuid;
 
     use super::CoreAggregate;
-    use crate::domain::{
+    use crate::{
         commands::create_new_import_transactions_command,
         events::{
-            transactions::ImportStatusData,
             Event,
+            transactions::ImportStatusData,
         },
     };
 

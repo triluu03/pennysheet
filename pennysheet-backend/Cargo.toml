@@ -3,28 +3,20 @@ name = "pennysheet-backend"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [".", "domain", "gateway", "infra"]
+
 [dependencies]
 axum = "0.8.9"
-chrono = "0.4.45"
-sea-orm = { version = "2.0.0-rc", features = [
-	"sqlx-postgres",
-	"runtime-tokio-rustls",
-	"macros",
-	"schema-sync",
-	"entity-registry",
-	"with-json",
-	"with-uuid",
-	"with-chrono"
-] }
+domain = { version = "0.1.0", path = "domain" }
+infra = { version = "0.1.0", path = "infra" }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
-uuid = { version = "1.23.2", features = ["v4"] }
 
 [dev-dependencies]
 sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
 
-[lints.clippy]
+[workspace.lints.clippy]
 empty_docs = "warn"
 missing_errors_doc = "warn"
 missing_panics_doc = "warn"

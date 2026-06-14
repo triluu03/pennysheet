@@ -1,10 +1,12 @@
 //! Infrastructure management.
 
+use domain::events::Event;
+pub use sea_orm::DatabaseConnection;
+pub use sea_orm::DbErr as DatabaseError;
 use sea_orm::{
     ActiveValue::Set,
     ConnectionTrait,
     Database,
-    DatabaseConnection,
     DbBackend,
     DbErr,
     EntityTrait,
@@ -14,8 +16,6 @@ use sea_orm::{
     QuerySelect,
     Statement,
 };
-
-use crate::domain::events::Event;
 
 mod event_store;
 mod projections;

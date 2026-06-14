@@ -1,7 +1,9 @@
 //! Axum router setup.
 
-use std::sync::Arc;
-
+use crate::{
+    AppState,
+    handlers::import_transactions_handler,
+};
 use axum::{
     Router,
     routing::{
@@ -9,11 +11,7 @@ use axum::{
         post,
     },
 };
-
-use crate::{
-    AppState,
-    api::handlers::import_transactions_handler,
-};
+use std::sync::Arc;
 
 fn transactions_router() -> Router<Arc<AppState>> {
     Router::new().route("/import", post(import_transactions_handler))
