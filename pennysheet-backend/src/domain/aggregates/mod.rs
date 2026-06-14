@@ -33,6 +33,10 @@ impl CoreAggregate {
                     Err(DomainError::CommandRejected(
                         "There's a pending request awaiting to be resolved!".to_string(),
                     ))
+                } else if c.start_date > c.end_date {
+                    Err(DomainError::CommandRejected(
+                        "Start date is set to be after end date in the command!".to_string(),
+                    ))
                 } else {
                     Ok(Event::ImportTransactionsRequested(ImportRequestData::new(
                         c.start_date,
@@ -107,6 +111,14 @@ mod tests {
         let aggregate = aggregate.apply(&event);
 
         let command = create_new_import_transactions_command(None, None).unwrap();
+        assert!(aggregate.execute(command).is_err());
+    }
+
+    #[test]
+    fn execute_rejects_command_with_invalid_dates() {
+        let aggregate = CoreAggregate::new();
+        let command =
+            create_new_import_transactions_command(Some("2026-06-05"), Some("2026-06-01")).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
