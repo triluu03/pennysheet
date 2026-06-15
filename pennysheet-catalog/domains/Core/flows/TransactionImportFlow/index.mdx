@@ -37,6 +37,24 @@ steps:
       id: ImportTransactionsRequested
       version: 0.0.1
     next_step:
+      id: process_manager
+      label: starts process manager
+
+  - id: process_manager
+    title: Core Process Manager
+    service:
+      id: CoreProcessManager
+      version: 0.0.1
+    next_step:
+      id: fetch_transactions_cmd
+      label: triggers gateway
+
+  - id: fetch_transactions_cmd
+    title: Fetch Transactions
+    message:
+      id: FetchTransactions
+      version: 0.0.1
+    next_step:
       id: enable_banking_gateway
       label: received by API Gateway
 
@@ -74,10 +92,21 @@ steps:
       id: CoreEventInjector
       version: 0.0.1
     next_steps:
+      - id: import_continued
+        label: More pages to fetch
       - id: import_completed
         label: Import succeeded
       - id: import_failed
         label: Import failed
+
+  - id: import_continued
+    title: Transaction Import Continued
+    message:
+      id: TransactionImportContinued
+      version: 0.0.1
+    next_step:
+      id: process_manager
+      label: continues process manager
 
   - id: import_completed
     title: Transaction Import Completed
@@ -93,6 +122,6 @@ steps:
 
 ---
 
-End-to-end import flow for the Core domain. When a user requests a transaction import, this flow drives the fetch from the Enable Banking open banking API and asynchronously records the outcome in the event store.
+End-to-end import flow for the Core domain. When a user requests a transaction import, the Core Process Manager drives repeated fetches from the Enable Banking open banking API — via the EnableBankingAPIGateway — until the import completes or fails, asynchronously recording each outcome in the event store.
 
 <NodeGraph />

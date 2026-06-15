@@ -4,7 +4,7 @@ name: Enable Banking API Gateway
 version: 0.0.1
 summary: Fetches transactions from Enable Banking and calls CoreEventInjector with the outcome.
 receives:
-  - id: ImportTransactionsRequested
+  - id: FetchTransactions
     version: 0.0.1
 flows:
   - id: TransactionImportFlow
@@ -15,7 +15,7 @@ flows:
 
 The Enable Banking API Gateway sits between the Core domain and the external [Enable Banking](https://enablebanking.com) open banking API. It has two responsibilities:
 
-1. **Outbound** — subscribes to [[event|ImportTransactionsRequested]] event; on receipt, calls the Enable Banking API to fetch the user's transactions for the requested date range and account.
+1. **Outbound** — subscribes to [[command|FetchTransactions]] from the [[service|CoreProcessManager]]; on receipt, calls the Enable Banking API to fetch the user's transactions for the requested date range and account (or the next page, when continuing).
 2. **Inbound** — once the Enable Banking API responds, calls the [[service|CoreEventInjector]] directly with the fetched transaction payload or the error details.
 
 

@@ -1,0 +1,28 @@
+---
+id: CoreProcessManager
+name: Core Process Manager
+version: 0.0.1
+summary: Coordinates the transaction import saga, driving the Enable Banking API Gateway until the import completes or fails.
+receives:
+  - id: ImportTransactionsRequested
+    version: 0.0.1
+  - id: TransactionImportContinued
+    version: 0.0.1
+  - id: TransactionImportCompleted
+    version: 0.0.1
+  - id: TransactionImportFailed
+    version: 0.0.1
+sends:
+  - id: FetchTransactions
+    version: 0.0.1
+---
+
+## Overview
+
+The Core Process Manager runs the transaction import saga, coordinating repeated calls to the [[service|EnableBankingAPIGateway]] until the import finishes.
+
+- [[event|ImportTransactionsRequested]]: starts a new saga instance and sends [[command|FetchTransactions]] to the [[service|EnableBankingAPIGateway]].
+- [[event|TransactionImportContinued]]: progresses the saga and sends [[command|FetchTransactions]] again, using the continuation key returned by the Enable Banking API.
+- [[event|TransactionImportCompleted]] / [[event|TransactionImportFailed]]: end the saga instance. No further [[command|FetchTransactions]] is sent.
+
+<NodeGraph />
