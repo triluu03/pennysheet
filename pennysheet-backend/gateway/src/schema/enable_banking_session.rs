@@ -18,7 +18,6 @@ pub struct EnableBankingSession {
 
 #[derive(Serialize, Deserialize)]
 struct AccountResource {
-    account_id: Option<String>,
     name: Option<String>,
     currency: String,
     uid: String,
@@ -50,5 +49,12 @@ impl EnableBankingSession {
     /// Returns [`serde_json::Error`] if parsing the JSON payload fails.
     pub fn from_json(session_json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(session_json)
+    }
+
+    /// Get account UUID.
+    ///
+    /// TODO: How to generalize this to support a session with multiple accounts?
+    pub fn get_account_uid(&self) -> &String {
+        &self.accounts[0].uid
     }
 }
