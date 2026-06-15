@@ -22,6 +22,7 @@ use crate::{
 /// Base URL of Enable Banking API.
 const ENABLE_BANKING_BASE_URL: &str = "https://api.enablebanking.com";
 
+#[derive(Debug, Clone)]
 pub struct EnableBankingClient {
     session: EnableBankingSession,
     bearer_token: BearerToken,
@@ -32,6 +33,7 @@ pub struct EnableBankingClient {
     base_url: String,
 }
 
+#[derive(Debug, Clone)]
 struct BearerToken {
     pub token: String,
     pub expires_at: u64,

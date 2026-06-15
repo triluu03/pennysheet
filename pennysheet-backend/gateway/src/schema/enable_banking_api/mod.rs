@@ -9,7 +9,7 @@ pub mod balance;
 pub mod transaction;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct AmountType {
-    currency: String,
-    amount: String,
+pub struct AmountType {
+    pub currency: String,
+    pub amount: String,
 }
