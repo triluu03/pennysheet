@@ -56,7 +56,6 @@ impl EnableBankingClient {
     /// - Fail to parse the session JSON.
     pub fn new(session_json: &str) -> Result<Self, String> {
         let (jwt_token, expires_at) = generate_jwt_token()?;
-
         let session =
             EnableBankingSession::from_json(session_json).map_err(|err| err.to_string())?;
 
