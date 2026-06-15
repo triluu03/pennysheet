@@ -74,3 +74,34 @@ pub fn generate_jwt_token() -> Result<(String, u64), String> {
 
     Ok((jwt_token, jwt_body.exp))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `JWTBody::new` should set the fixed issuer/audience and an expiry exactly
+    /// one hour after the captured issued-at timestamp.
+    #[test]
+    fn jwt_body_new_sets_fixed_claims_and_one_hour_expiry() {
+        let before = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the UNIX epoch")
+            .as_secs();
+
+        let body = JWTBody::new();
+
+        let after = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the UNIX epoch")
+            .as_secs();
+
+        assert_eq!(body.iss, "enablebanking.com");
+        assert_eq!(body.aud, "api.enablebanking.com");
+        assert!(
+            body.iat >= before && body.iat <= after,
+            "iat {} should fall within [{before}, {after}]",
+            body.iat
+        );
+        assert_eq!(body.exp, body.iat + 3600);
+    }
+}

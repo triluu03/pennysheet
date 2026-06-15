@@ -143,3 +143,46 @@ impl EnableBankingClient {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Current UNIX time in seconds, mirroring the production clock read.
+    fn now_secs() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after the UNIX epoch")
+            .as_secs()
+    }
+
+    /// A token expiring well beyond the 30-second skew is not considered expired.
+    #[test]
+    fn token_far_in_future_is_not_expired() {
+        let token = BearerToken {
+            token: "token".to_string(),
+            expires_at: now_secs() + 3600,
+        };
+        assert!(!token.is_expired());
+    }
+
+    /// A token expiring within the 30-second safety skew is treated as expired.
+    #[test]
+    fn token_within_skew_window_is_expired() {
+        let token = BearerToken {
+            token: "token".to_string(),
+            expires_at: now_secs() + 10,
+        };
+        assert!(token.is_expired());
+    }
+
+    /// A token whose expiry is already in the past is expired.
+    #[test]
+    fn token_in_past_is_expired() {
+        let token = BearerToken {
+            token: "token".to_string(),
+            expires_at: now_secs() - 3600,
+        };
+        assert!(token.is_expired());
+    }
+}

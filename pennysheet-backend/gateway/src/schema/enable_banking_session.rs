@@ -58,10 +58,68 @@ impl EnableBankingSession {
     /// # Errors
     /// Returns [`String`] error if no accounts are found in the provided session.
     pub fn get_account_uid(&self) -> Result<&String, String> {
-        if self.accounts.len() == 0 {
+        if self.accounts.is_empty() {
             Err("No accounts found in the provided session!".to_string())
         } else {
             Ok(&self.accounts[0].uid)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A representative session payload carrying two accounts. The second account
+    /// has a `null` name to exercise the `Option<String>` field.
+    const SAMPLE_SESSION: &str = r#"{
+        "session_id": "sess-123",
+        "accounts": [
+            {"name": "Checking", "currency": "EUR", "uid": "acc-uid-1"},
+            {"name": null, "currency": "EUR", "uid": "acc-uid-2"}
+        ],
+        "aspsp": {"name": "Mock Bank", "country": "FI"},
+        "psu_type": "personal",
+        "access": {"valid_until": "2026-12-31T23:59:59Z"}
+    }"#;
+
+    /// A valid payload parses and `get_account_uid` returns the first account's uid.
+    #[test]
+    fn from_json_parses_valid_session_and_returns_first_uid() {
+        let session =
+            EnableBankingSession::from_json(SAMPLE_SESSION).expect("sample session should parse");
+        let uid = session
+            .get_account_uid()
+            .expect("first account uid should be present");
+        assert_eq!(uid, "acc-uid-1");
+    }
+
+    /// `psu_type` is deserialized from its snake_case wire representation.
+    #[test]
+    fn from_json_parses_snake_case_psu_type() {
+        let session =
+            EnableBankingSession::from_json(SAMPLE_SESSION).expect("sample session should parse");
+        assert!(matches!(session.psu_type, PSUType::Personal));
+    }
+
+    /// `get_account_uid` errors when the session carries no accounts.
+    #[test]
+    fn get_account_uid_errors_on_empty_accounts() {
+        let payload = r#"{
+            "session_id": "sess-123",
+            "accounts": [],
+            "aspsp": {"name": "Mock Bank", "country": "FI"},
+            "psu_type": "business",
+            "access": {"valid_until": "2026-12-31T23:59:59Z"}
+        }"#;
+        let session =
+            EnableBankingSession::from_json(payload).expect("empty-accounts payload should parse");
+        assert!(session.get_account_uid().is_err());
+    }
+
+    /// Malformed JSON surfaces a parse error rather than panicking.
+    #[test]
+    fn from_json_rejects_invalid_payload() {
+        assert!(EnableBankingSession::from_json("{ not valid json ").is_err());
     }
 }
