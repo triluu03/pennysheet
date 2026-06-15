@@ -11,11 +11,13 @@ pub mod transactions;
 
 use transactions::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "sea-orm-support", derive(FromJsonQueryResult))]
 pub enum Event {
     // Transactions-related events.
     ImportTransactionsRequested(ImportRequestData),
     ImportTransactionsCompleted(ImportStatusData),
     ImportTransactionsFailed(ImportStatusData),
+    ImportTransactionsContinued(ImportContinueData),
+    TransactionRecorded(TransactionData),
 }

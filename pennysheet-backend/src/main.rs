@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 mod errors;
 mod handlers;
+mod process_managers;
 mod routes;
 
 pub struct AppState {
