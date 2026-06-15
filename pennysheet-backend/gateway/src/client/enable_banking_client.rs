@@ -8,7 +8,13 @@ use std::time::{
 use crate::{
     authorization::jwt::generate_jwt_token,
     schema::{
-        enable_banking_response::balance::BalanceResponse,
+        enable_banking_api::{
+            balance::BalanceResponse,
+            transaction::{
+                TransactionQueryParameters,
+                TransactionResponse,
+            },
+        },
         enable_banking_session::EnableBankingSession,
     },
 };
@@ -86,12 +92,12 @@ impl EnableBankingClient {
     /// - Failed to parse 200 response into [`BalanceResponse`] struct.
     pub async fn get_account_balances(&self) -> Result<BalanceResponse, String> {
         let bearer_token = self.get_token()?;
-        let account_id = self.session.get_account_uid();
+        let account_uid = self.session.get_account_uid();
 
         let response = self
             .http
             .get(format!(
-                "{ENABLE_BANKING_BASE_URL}/accounts/{account_id}/balances"
+                "{ENABLE_BANKING_BASE_URL}/accounts/{account_uid}/balances"
             ))
             .bearer_auth(bearer_token)
             .send()
@@ -101,6 +107,38 @@ impl EnableBankingClient {
         match response.status().as_u16() {
             200 => response.json().await.map_err(|err| err.to_string()),
             code => Err(format!("Failed to get balances. Received code: {code}")),
+        }
+    }
+
+    /// Get account transactions.
+    ///
+    /// # Errors
+    /// Returns [`String`] error in any of the following scenarios:
+    /// - The JWT token has expired.
+    /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions
+    /// - Enable Banking API returns a failed response.
+    /// - Failed to parse 200 response into [`TransactionResponse`] struct.
+    pub async fn get_transactions(
+        &self,
+        query_params: TransactionQueryParameters,
+    ) -> Result<TransactionResponse, String> {
+        let bearer_token = self.get_token()?;
+        let account_uid = self.session.get_account_uid();
+
+        let response = self
+            .http
+            .get(format!(
+                "{ENABLE_BANKING_BASE_URL}/accounts/{account_uid}/transactions"
+            ))
+            .bearer_auth(bearer_token)
+            .query(&query_params)
+            .send()
+            .await
+            .map_err(|err| err.to_string())?;
+
+        match response.status().as_u16() {
+            200 => response.json().await.map_err(|err| err.to_string()),
+            code => Err(format!("Failed to get transactions. Received code: {code}")),
         }
     }
 }

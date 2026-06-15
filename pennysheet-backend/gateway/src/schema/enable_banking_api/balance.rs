@@ -1,9 +1,11 @@
-//! Schema for response from `/accounts/{account_id}/balances`
+//! Schema for working with `/accounts/{account_id}/balances`
 
 use serde::{
     Deserialize,
     Serialize,
 };
+
+use crate::schema::enable_banking_api::AmountType;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BalanceResponse {
@@ -14,10 +16,4 @@ pub struct BalanceResponse {
 struct BalanceResource {
     name: String,
     balance_amount: AmountType,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct AmountType {
-    currency: String,
-    amount: String,
 }
