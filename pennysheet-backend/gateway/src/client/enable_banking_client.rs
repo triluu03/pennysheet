@@ -87,12 +87,13 @@ impl EnableBankingClient {
     /// # Errors
     /// Returns [`String`] error in any of the following scenarios:
     /// - The JWT token has expired.
+    /// - No accounts are found in the provided session.
     /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`BalanceResponse`] struct.
     pub async fn get_account_balances(&self) -> Result<BalanceResponse, String> {
         let bearer_token = self.get_token()?;
-        let account_uid = self.session.get_account_uid();
+        let account_uid = self.session.get_account_uid()?;
 
         let response = self
             .http
@@ -115,6 +116,7 @@ impl EnableBankingClient {
     /// # Errors
     /// Returns [`String`] error in any of the following scenarios:
     /// - The JWT token has expired.
+    /// - No accounts are found in the provided session.
     /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`TransactionResponse`] struct.
@@ -123,7 +125,7 @@ impl EnableBankingClient {
         query_params: TransactionQueryParameters,
     ) -> Result<TransactionResponse, String> {
         let bearer_token = self.get_token()?;
-        let account_uid = self.session.get_account_uid();
+        let account_uid = self.session.get_account_uid()?;
 
         let response = self
             .http

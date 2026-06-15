@@ -54,7 +54,14 @@ impl EnableBankingSession {
     /// Get account UUID.
     ///
     /// TODO: How to generalize this to support a session with multiple accounts?
-    pub fn get_account_uid(&self) -> &String {
-        &self.accounts[0].uid
+    ///
+    /// # Errors
+    /// Returns [`String`] error if no accounts are found in the provided session.
+    pub fn get_account_uid(&self) -> Result<&String, String> {
+        if self.accounts.len() == 0 {
+            Err("No accounts found in the provided session!".to_string())
+        } else {
+            Ok(&self.accounts[0].uid)
+        }
     }
 }

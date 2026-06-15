@@ -58,7 +58,7 @@ impl JWTBody {
 /// - Cannot create the encoding key from the private key in the environment variable.
 /// - Failed to encode the key.
 pub fn generate_jwt_token() -> Result<(String, u64), String> {
-    dotenvy::dotenv().map_err(|err| err.to_string())?;
+    dotenvy::dotenv().ok();
 
     let app_id = env::var("SANDBOX_APP_ID").map_err(|err| err.to_string())?;
     let private_key = env::var("SANDBOX_PRIVATE_KEY").map_err(|err| err.to_string())?;
