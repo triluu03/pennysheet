@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-domain = { version = "0.1.0", path = "../domain", features = ["sea-orm-support"] }
+domain = { version = "0.1.0", path = "../domain", features = [
+	"sea-orm-support",
+] }
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres",
 	"runtime-tokio-rustls",
@@ -13,7 +15,7 @@ sea-orm = { version = "2.0.0-rc", features = [
 	"entity-registry",
 	"with-json",
 	"with-uuid",
-	"with-chrono"
+	"with-chrono",
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"

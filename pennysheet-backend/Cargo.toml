@@ -9,6 +9,7 @@ members = [".", "domain", "gateway", "infra"]
 [dependencies]
 axum = "0.8.9"
 domain = { version = "0.1.0", path = "domain" }
+gateway = { version = "0.1.0", path = "gateway" }
 infra = { version = "0.1.0", path = "infra" }
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
