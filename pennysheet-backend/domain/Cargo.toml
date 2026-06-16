@@ -8,6 +8,7 @@ chrono = "0.4.45"
 sea-orm = { version = "2.0.0-rc", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", optional = true }
+tracing = { workspace = true }
 uuid = { version = "1.23.2", features = ["v4"] }
 
 [features]

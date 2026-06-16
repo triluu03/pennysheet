@@ -12,6 +12,7 @@ use axum::{
     },
 };
 use std::sync::Arc;
+use tower_http::trace::TraceLayer;
 
 fn transactions_router() -> Router<Arc<AppState>> {
     Router::new().route("/import", post(import_transactions_handler))
@@ -22,4 +23,5 @@ pub fn app_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/status", get(|| async { "Working fine!" }))
         .nest("/transactions", transactions_router())
+        .layer(TraceLayer::new_for_http())
 }

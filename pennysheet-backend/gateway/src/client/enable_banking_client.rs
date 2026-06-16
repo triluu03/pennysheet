@@ -4,6 +4,12 @@ use std::time::{
     SystemTime,
     UNIX_EPOCH,
 };
+use tracing::{
+    debug,
+    error,
+    info,
+    instrument,
+};
 
 use crate::{
     authorization::jwt::generate_jwt_token,
@@ -95,11 +101,13 @@ impl EnableBankingClient {
     /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`BalanceResponse`] struct.
+    #[instrument(skip(self))]
     pub async fn get_account_balances(&self) -> Result<BalanceResponse, String> {
         let bearer_token = self.get_token()?;
         let account_uid = self.session.get_account_uid()?;
         let base_url = &self.base_url;
 
+        debug!(%account_uid, "requesting account balances from Enable Banking API");
         let response = self
             .http
             .get(format!("{base_url}/accounts/{account_uid}/balances"))
@@ -109,8 +117,14 @@ impl EnableBankingClient {
             .map_err(|err| err.to_string())?;
 
         match response.status().as_u16() {
-            200 => response.json().await.map_err(|err| err.to_string()),
-            code => Err(format!("Failed to get balances. Received code: {code}")),
+            200 => {
+                info!(%account_uid, "fetched account balances");
+                response.json().await.map_err(|err| err.to_string())
+            },
+            code => {
+                error!(%account_uid, code, "failed to fetch account balances");
+                Err(format!("Failed to get balances. Received code: {code}"))
+            },
         }
     }
 
@@ -123,6 +137,7 @@ impl EnableBankingClient {
     /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`TransactionResponse`] struct.
+    #[instrument(skip(self))]
     pub async fn get_transactions(
         &self,
         query_params: TransactionQueryParameters,
@@ -131,6 +146,13 @@ impl EnableBankingClient {
         let account_uid = self.session.get_account_uid()?;
         let base_url = &self.base_url;
 
+        debug!(
+            %account_uid,
+            date_from = ?query_params.date_from,
+            date_to = ?query_params.date_to,
+            has_continuation = query_params.continuation_key.is_some(),
+            "requesting transactions from Enable Banking",
+        );
         let response = self
             .http
             .get(format!("{base_url}/accounts/{account_uid}/transactions"))
@@ -141,8 +163,14 @@ impl EnableBankingClient {
             .map_err(|err| err.to_string())?;
 
         match response.status().as_u16() {
-            200 => response.json().await.map_err(|err| err.to_string()),
-            code => Err(format!("Failed to get transactions. Received code: {code}")),
+            200 => {
+                info!(%account_uid, "fetched transactions");
+                response.json().await.map_err(|err| err.to_string())
+            },
+            code => {
+                error!(%account_uid, code, "failed to fetch transactions");
+                Err(format!("Failed to get transactions. Received code: {code}"))
+            },
         }
     }
 }
