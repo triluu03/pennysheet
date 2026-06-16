@@ -174,8 +174,18 @@ pub async fn run_transaction_import(
             },
         };
 
-        // TODO: address this unwrap.
-        let new_events = injector.inject_transaction_events(response).unwrap();
+        let new_events = match injector.inject_transaction_events(response) {
+            Ok(new_events) => new_events,
+            Err(error) => {
+                return fail_import(
+                    &db,
+                    request_id,
+                    "inject events from response",
+                    &error.to_string(),
+                )
+                .await;
+            },
+        };
         injector = injector.multi_apply(&new_events);
 
         let continuation_event = new_events
