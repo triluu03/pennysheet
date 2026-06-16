@@ -5,6 +5,7 @@ use axum::{
     response::IntoResponse,
 };
 use domain::errors::DomainError;
+use gateway::errors::GatewayError;
 use tracing::{
     error,
     warn,
@@ -13,6 +14,7 @@ use tracing::{
 pub enum AppError {
     Domain(DomainError),
     Database(String),
+    Gateway(GatewayError),
 }
 
 impl IntoResponse for AppError {
@@ -30,6 +32,10 @@ impl IntoResponse for AppError {
                 )
                     .into_response()
             },
+            Self::Gateway(error) => {
+                error!(%error, "gateway error while handling request");
+                (StatusCode::BAD_GATEWAY, format!("{}", error)).into_response()
+            },
         }
     }
 }
@@ -43,5 +49,11 @@ impl From<DomainError> for AppError {
 impl From<infra::DatabaseError> for AppError {
     fn from(value: infra::DatabaseError) -> Self {
         Self::Database(value.to_string())
+    }
+}
+
+impl From<GatewayError> for AppError {
+    fn from(value: GatewayError) -> Self {
+        Self::Gateway(value)
     }
 }
