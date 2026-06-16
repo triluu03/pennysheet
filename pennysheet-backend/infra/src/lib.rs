@@ -20,6 +20,11 @@ pub use sea_orm::{
     DatabaseConnection,
     DbErr as DatabaseError,
 };
+use tracing::{
+    debug,
+    info,
+    instrument,
+};
 
 mod event_store;
 mod projections;
@@ -46,10 +51,8 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
         ))
         .await
     {
-        Ok(_) => println!("Created the database 'pennysheet_dev'"),
-        Err(error) => {
-            println!("{}", error)
-        },
+        Ok(_) => info!(db_name = DB_NAME, "created database"),
+        Err(error) => debug!(%error, "create database skipped (likely already exists)"),
     }
 
     let url = format!("{}/{}", DATABASE_URL, DB_NAME);
@@ -112,8 +115,9 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
 ///
 /// # Errors
 /// Returns [`DbErr`] if the query operation fails.
+#[instrument(skip(db))]
 pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr> {
-    Ok(event_store::Entity::find()
+    let events: Vec<Event> = event_store::Entity::find()
         .select_only()
         .column(event_store::Column::EventData)
         .order_by_asc(event_store::Column::CreatedAt)
@@ -122,13 +126,17 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
         .await?
         .into_iter()
         .map(|entry| entry.event_data)
-        .collect())
+        .collect();
+
+    debug!(count = events.len(), "loaded all events");
+    Ok(events)
 }
 
 /// Append a new event to the database.
 ///
 /// # Errors
 /// Return [`DbErr`] if the insert operation fails.
+#[instrument(skip(db, event))]
 pub async fn append_event_to_db(
     db: &DatabaseConnection,
     event: Event,
@@ -138,7 +146,33 @@ pub async fn append_event_to_db(
         ..Default::default()
     };
 
-    event_store::Entity::insert(new_event_row).exec(db).await
+    let result = event_store::Entity::insert(new_event_row).exec(db).await?;
+    debug!(inserted_id = %result.last_insert_id, "appended event");
+    Ok(result)
+}
+
+/// Append multiple new events to the database.
+///
+/// # Errors
+/// Returns [`DbErr`] if the insert operation fails.
+#[instrument(skip(db, events))]
+pub async fn append_multi_events_to_db(
+    db: &DatabaseConnection,
+    events: Vec<Event>,
+) -> Result<InsertManyResult<event_store::ActiveModel>, DbErr> {
+    // Capture the count before `events` is consumed by the iterator below.
+    let event_count = events.len();
+
+    let new_event_rows = events.into_iter().map(|event| event_store::ActiveModel {
+        event_data: Set(event),
+        ..Default::default()
+    });
+
+    let result = event_store::Entity::insert_many(new_event_rows)
+        .exec(db)
+        .await?;
+    debug!(event_count, "appended multiple events");
+    Ok(result)
 }
 
 /// Append multiple new events to the database.

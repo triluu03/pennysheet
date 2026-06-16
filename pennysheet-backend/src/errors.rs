@@ -5,6 +5,10 @@ use axum::{
     response::IntoResponse,
 };
 use domain::errors::DomainError;
+use tracing::{
+    error,
+    warn,
+};
 
 pub enum AppError {
     Domain(DomainError),
@@ -14,12 +18,18 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            Self::Domain(error) => (StatusCode::BAD_REQUEST, format!("{}", error)).into_response(),
-            Self::Database(message) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Database error: {}", message),
-            )
-                .into_response(),
+            Self::Domain(error) => {
+                warn!(%error, "command rejected");
+                (StatusCode::BAD_REQUEST, format!("{}", error)).into_response()
+            },
+            Self::Database(message) => {
+                error!(%message, "database error while handling request");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Database error: {}", message),
+                )
+                    .into_response()
+            },
         }
     }
 }
