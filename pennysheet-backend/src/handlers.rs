@@ -19,6 +19,11 @@ use infra::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::{
+    debug,
+    info,
+    instrument,
+};
 
 #[derive(Deserialize)]
 pub struct ImportTransactionsPayload {
@@ -33,6 +38,13 @@ pub struct ImportTransactionsPayload {
 /// - Failed to parse the payload into expected format.
 /// - Command is rejected by the aggregate.
 /// - Failed to insert the new event into the store.
+#[instrument(
+    skip(state, payload),
+    fields(
+        start_date = ?payload.start_date,
+        end_date = ?payload.end_date,
+    )
+)]
 pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionsPayload>,
@@ -41,6 +53,7 @@ pub async fn import_transactions_handler(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
     )?;
+    debug!("import transactions command built");
 
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new()
@@ -51,6 +64,7 @@ pub async fn import_transactions_handler(
         .await
         .map_err(AppError::from)?;
 
+    info!(inserted_id = %res.last_insert_id, "import transactions event appended");
     Ok((
         StatusCode::CREATED,
         format!("Event created with ID: {}", res.last_insert_id),
