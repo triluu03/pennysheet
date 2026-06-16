@@ -28,6 +28,8 @@ use tracing::{
 };
 use uuid::Uuid;
 
+use crate::errors::AppError;
+
 #[derive(Debug, Clone)]
 struct TransactionProcessManager {
     client: EnableBankingClient,
@@ -39,8 +41,8 @@ impl TransactionProcessManager {
     /// Constructor.
     ///
     /// # Errors
-    /// Returns [`String`] error if the [`EnableBankingClient`] cannot be constructed.
-    fn new(session_json: &str) -> Result<Self, String> {
+    /// Returns [`AppError`] error if the [`EnableBankingClient`] cannot be constructed.
+    fn new(session_json: &str) -> Result<Self, AppError> {
         Ok(Self {
             client: EnableBankingClient::new(session_json)?,
             request_id: None,
@@ -50,7 +52,7 @@ impl TransactionProcessManager {
 
     /// Handle an event and call Enable Banking API gateway.
     #[instrument(skip(self, event))]
-    async fn handle(&self, event: &Event) -> Result<Option<TransactionResponse>, String> {
+    async fn handle(&self, event: &Event) -> Result<Option<TransactionResponse>, AppError> {
         match event {
             Event::ImportTransactionsRequested(data) => {
                 debug!("handling ImportTransactionsRequested");
@@ -131,7 +133,13 @@ pub async fn run_transaction_import(
     let manager = match TransactionProcessManager::new(&session_json) {
         Ok(manager) => manager,
         Err(error) => {
-            return fail_import(&db, request_id, "init transaction process manager", &error).await;
+            return fail_import(
+                &db,
+                request_id,
+                "init transaction process manager",
+                &error.to_string(),
+            )
+            .await;
         },
     };
 
@@ -160,7 +168,10 @@ pub async fn run_transaction_import(
         let response = match manager.handle(&current_event).await {
             Ok(Some(response)) => response,
             Ok(None) => return,
-            Err(error) => return fail_import(&db, request_id, "fetch transactions", &error).await,
+            Err(error) => {
+                return fail_import(&db, request_id, "fetch transactions", &error.to_string())
+                    .await;
+            },
         };
 
         // TODO: address this unwrap.

@@ -4,6 +4,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use core::fmt;
 use domain::errors::DomainError;
 use gateway::errors::GatewayError;
 use tracing::{
@@ -15,6 +16,16 @@ pub enum AppError {
     Domain(DomainError),
     Database(String),
     Gateway(GatewayError),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Domain(error) => write!(f, "Domain error: {error}"),
+            Self::Database(error) => write!(f, "Database error: {error}"),
+            Self::Gateway(error) => write!(f, "Gateway error: {error}"),
+        }
+    }
 }
 
 impl IntoResponse for AppError {
