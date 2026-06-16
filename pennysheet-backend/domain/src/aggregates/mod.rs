@@ -18,7 +18,7 @@ pub struct CoreAggregate {
 impl CoreAggregate {
     /// Core aggregate constructor.
     pub fn new() -> Self {
-        CoreAggregate { request_id: None }
+        Default::default()
     }
 
     /// Execute commands.
@@ -52,15 +52,13 @@ impl CoreAggregate {
             Event::ImportTransactionsRequested(data) => {
                 self.request_id = Some(data.request_id);
             },
-            Event::ImportTransactionsCompleted(data) => {
+            Event::ImportTransactionsCompleted(data) | Event::ImportTransactionsFailed(data) => {
                 if self.request_id == Some(data.request_id) {
                     self.request_id = None
                 }
             },
-            Event::ImportTransactionsFailed(data) => {
-                if self.request_id == Some(data.request_id) {
-                    self.request_id = None
-                }
+            Event::ImportTransactionsContinued(_) | Event::TransactionRecorded(_) => {
+                // Ignore these events
             },
         }
         self

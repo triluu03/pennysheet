@@ -12,8 +12,8 @@ use tracing_subscriber::{
 /// Returns [`String`] error when the initialization fails.
 pub fn init_tracing() -> Result<(), String> {
     let filter = EnvFilter::from_default_env()
-        .add_directive(Level::INFO.into())
-        .add_directive(Level::DEBUG.into());
+        //.add_directive(Level::DEBUG.into())
+        .add_directive(Level::INFO.into());
 
     fmt()
         .with_env_filter(filter)

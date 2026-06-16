@@ -29,6 +29,7 @@ use crate::{
 /// Base URL of Enable Banking API.
 const ENABLE_BANKING_BASE_URL: &str = "https://api.enablebanking.com";
 
+#[derive(Debug, Clone)]
 pub struct EnableBankingClient {
     session: EnableBankingSession,
     bearer_token: BearerToken,
@@ -39,6 +40,7 @@ pub struct EnableBankingClient {
     base_url: String,
 }
 
+#[derive(Debug, Clone)]
 struct BearerToken {
     pub token: String,
     pub expires_at: u64,
@@ -176,7 +178,8 @@ impl EnableBankingClient {
                     .map_err(|err| GatewayError::Parsing(err.to_string()))
             },
             code => {
-                error!(%account_uid, code, "failed to fetch transactions");
+                let message = response.text().await.unwrap_or("No message!".to_string());
+                error!(%account_uid, code, message, "failed to fetch transactions");
                 Err(GatewayError::Api(format!(
                     "Failed to get transactions. Received code: {code}"
                 )))

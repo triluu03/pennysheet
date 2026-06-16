@@ -828,6 +828,7 @@ name = "domain"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "gateway",
  "sea-orm",
  "serde",
  "serde_json",
@@ -2049,6 +2050,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

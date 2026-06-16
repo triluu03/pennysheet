@@ -10,13 +10,8 @@ use uuid::Uuid;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRequestData {
     pub request_id: Uuid,
-    start_date: NaiveDate,
-    end_date: NaiveDate,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImportStatusData {
-    pub request_id: Uuid,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
 }
 
 impl ImportRequestData {
@@ -28,4 +23,27 @@ impl ImportRequestData {
             end_date,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportStatusData {
+    pub request_id: Uuid,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportContinueData {
+    pub request_id: Uuid,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub continuation_key: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TransactionData {
+    pub booking_date: Option<NaiveDate>,
+    pub transaction_date: Option<NaiveDate>,
+    pub amount: f64,
+    pub currency: String,
+    pub creditor_name: Option<String>,
+    pub debtor_name: Option<String>,
 }

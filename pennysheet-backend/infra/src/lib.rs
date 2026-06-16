@@ -160,9 +160,6 @@ pub async fn append_multi_events_to_db(
     db: &DatabaseConnection,
     events: Vec<Event>,
 ) -> Result<InsertManyResult<event_store::ActiveModel>, DbErr> {
-    // Capture the count before `events` is consumed by the iterator below.
-    let event_count = events.len();
-
     let new_event_rows = events.into_iter().map(|event| event_store::ActiveModel {
         event_data: Set(event),
         ..Default::default()
@@ -171,6 +168,6 @@ pub async fn append_multi_events_to_db(
     let result = event_store::Entity::insert_many(new_event_rows)
         .exec(db)
         .await?;
-    debug!(event_count, "appended multiple events");
+    debug!("appended multiple events");
     Ok(result)
 }

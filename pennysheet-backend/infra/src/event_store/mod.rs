@@ -7,7 +7,7 @@ use sea_orm::{
 };
 
 #[sea_orm::model]
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "events")]
 pub struct Model {
     #[sea_orm(primary_key)]

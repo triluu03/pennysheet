@@ -11,6 +11,7 @@ use tracing::info;
 
 mod errors;
 mod handlers;
+mod process_managers;
 mod routes;
 mod telemetry;
 

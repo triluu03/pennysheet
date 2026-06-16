@@ -16,20 +16,20 @@ pub struct TransactionQueryParameters {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransactionResponse {
-    transactions: Vec<Transaction>,
-    continuation_key: Option<String>,
+    pub transactions: Vec<Transaction>,
+    pub continuation_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Transaction {
-    transaction_amount: AmountType,
-    creditor: Option<PartyIdentification>,
-    debtor: Option<PartyIdentification>,
-    booking_date: Option<String>,
-    transaction_date: Option<String>,
+pub struct Transaction {
+    pub transaction_amount: AmountType,
+    pub creditor: Option<PartyIdentification>,
+    pub debtor: Option<PartyIdentification>,
+    pub booking_date: Option<String>,
+    pub transaction_date: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PartyIdentification {
-    name: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartyIdentification {
+    pub name: Option<String>,
 }
