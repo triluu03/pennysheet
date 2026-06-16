@@ -8,6 +8,7 @@ use axum::{
 use domain::{
     aggregates::CoreAggregate,
     commands::create_new_import_transactions_command,
+    events::Event,
 };
 use infra::{
     append_event_to_db,
@@ -24,18 +25,23 @@ use tracing::{
 use crate::{
     AppState,
     errors::AppError,
+    process_managers::run_transaction_import,
 };
 
 #[derive(Deserialize)]
 pub struct ImportTransactionsPayload {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub session: String,
 }
 
 /// Handler for POST request to /transactions/import
 ///
+/// If a import transaction request event is successfully created, transaction process manager
+/// will be spawn and run the import in the background.
+///
 /// # Errors
-/// Return AppError in the following scenarios:
+/// Return [`AppError`] in the following scenarios:
 /// - Failed to parse the payload into expected format.
 /// - Command is rejected by the aggregate.
 /// - Failed to insert the new event into the store.
@@ -61,11 +67,22 @@ pub async fn import_transactions_handler(
         .multi_apply(&all_events)
         .execute(command)?;
 
-    let res = append_event_to_db(&state.db, event)
+    let res = append_event_to_db(&state.db, event.clone())
         .await
         .map_err(AppError::from)?;
 
     info!(inserted_id = %res.last_insert_id, "import transactions event appended");
+
+    // Spawn a background job running transaction process manager.
+    if let Event::ImportTransactionsRequested(data) = &event {
+        tokio::spawn(run_transaction_import(
+            state.db.clone(),
+            payload.session,
+            data.request_id,
+            event.clone(),
+        ));
+    }
+
     Ok((
         StatusCode::CREATED,
         format!("Event created with ID: {}", res.last_insert_id),
@@ -96,6 +113,7 @@ mod tests {
             Json(ImportTransactionsPayload {
                 start_date: None,
                 end_date: None,
+                session: String::new(),
             }),
         )
         .await;
@@ -110,19 +128,35 @@ mod tests {
             .expect("response body should contain the inserted event ID");
         assert!(!inserted_id.is_empty());
 
-        let events = get_all_events(&state.db).await.unwrap();
-        assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], Event::ImportTransactionsRequested(_)));
+        let events = wait_for_events(&state.db, 2).await;
+        let requested = events
+            .iter()
+            .filter(|event| matches!(event, Event::ImportTransactionsRequested(_)))
+            .count();
+        let failed = events
+            .iter()
+            .filter(|event| matches!(event, Event::ImportTransactionsFailed(_)))
+            .count();
+        assert_eq!(
+            requested, 1,
+            "handler should append exactly one ImportTransactionsRequested event"
+        );
+        assert_eq!(
+            failed, 1,
+            "spawned background import should record exactly one failure for an invalid session"
+        );
+    }
 
-        // Another request failed.
-        let response2 = import_transactions_handler(
-            State(state.clone()),
-            Json(ImportTransactionsPayload {
-                start_date: None,
-                end_date: None,
-            }),
-        )
-        .await;
-        assert!(matches!(response2, Err(AppError::Domain(_))));
+    /// Helper function to poll the event store table.
+    async fn wait_for_events(db: &infra::DatabaseConnection, expected: usize) -> Vec<Event> {
+        for _ in 0..50 {
+            let events = get_all_events(db).await.unwrap();
+            if events.len() >= expected {
+                return events;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        get_all_events(db).await.unwrap()
     }
 }
