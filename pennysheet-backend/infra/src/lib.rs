@@ -10,6 +10,7 @@ use sea_orm::{
     EntityName,
     EntityTrait,
     FromQueryResult,
+    InsertManyResult,
     InsertResult,
     QueryOrder,
     QuerySelect,
@@ -138,4 +139,22 @@ pub async fn append_event_to_db(
     };
 
     event_store::Entity::insert(new_event_row).exec(db).await
+}
+
+/// Append multiple new events to the database.
+///
+/// # Errors
+/// Returns [`DbErr`] if the insert operation fails.
+pub async fn append_multi_events_to_db(
+    db: &DatabaseConnection,
+    events: Vec<Event>,
+) -> Result<InsertManyResult<event_store::ActiveModel>, DbErr> {
+    let new_event_rows = events.into_iter().map(|event| event_store::ActiveModel {
+        event_data: Set(event),
+        ..Default::default()
+    });
+
+    event_store::Entity::insert_many(new_event_rows)
+        .exec(db)
+        .await
 }
