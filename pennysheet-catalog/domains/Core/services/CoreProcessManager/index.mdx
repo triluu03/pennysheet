@@ -6,6 +6,8 @@ summary: Coordinates the transaction import saga, driving the Enable Banking API
 receives:
   - id: ImportTransactionsRequested
     version: 0.0.1
+  - id: TransactionImportRetryRequested
+    version: 0.0.1
   - id: TransactionImportContinued
     version: 0.0.1
   - id: TransactionImportCompleted
@@ -22,6 +24,7 @@ sends:
 The Core Process Manager runs the transaction import saga, coordinating repeated calls to the [[service|EnableBankingAPIGateway]] until the import finishes.
 
 - [[event|ImportTransactionsRequested]]: starts a new saga instance and sends [[command|FetchTransactions]] to the [[service|EnableBankingAPIGateway]].
+- [[event|TransactionImportRetryRequested]]: restarts the saga for a previously failed import and sends [[command|FetchTransactions]] to the [[service|EnableBankingAPIGateway]].
 - [[event|TransactionImportContinued]]: progresses the saga and sends [[command|FetchTransactions]] again, using the continuation key returned by the Enable Banking API.
 - [[event|TransactionImportCompleted]] / [[event|TransactionImportFailed]]: end the saga instance. No further [[command|FetchTransactions]] is sent.
 

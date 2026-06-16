@@ -20,6 +20,8 @@ receives:
     version: 0.0.1
   - id: ImportTransactions
     version: 0.0.1
+  - id: RetryFailedTransactionsImport
+    version: 0.0.1
 sends:
   - id: TransactionRecorded
     version: 0.0.1
@@ -40,6 +42,8 @@ sends:
   - id: BudgetExceeded
     version: 0.0.1
   - id: ImportTransactionsRequested
+    version: 0.0.1
+  - id: TransactionImportRetryRequested
     version: 0.0.1
 writesTo:
   - id: CoreEventStore
