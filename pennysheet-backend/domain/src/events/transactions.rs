@@ -1,11 +1,14 @@
 //! Transactions-related event data.
 
 use chrono::NaiveDate;
+use gateway::schema::enable_banking_api;
 use serde::{
     Deserialize,
     Serialize,
 };
 use uuid::Uuid;
+
+use crate::errors::DomainError;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRequestData {
@@ -46,4 +49,57 @@ pub struct TransactionData {
     pub currency: String,
     pub creditor_name: Option<String>,
     pub debtor_name: Option<String>,
+    category: Option<TransactionCategory>,
+    classification: Option<TransactionClassification>,
+    note: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+enum TransactionCategory {
+    Groceries,
+    Health,
+    Transport,
+    Services,
+    Leisure,
+    Others,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum TransactionClassification {
+    MustHave,
+    NiceToHave,
+    Wasted,
+}
+
+impl TransactionData {
+    /// Constructor
+    ///
+    /// # Errors
+    /// Return [`DomainError`] if parsing the values from
+    /// [`enable_banking_api::transaction::Transaction`] fails.
+    pub fn new(
+        transaction: enable_banking_api::transaction::Transaction,
+    ) -> Result<Self, DomainError> {
+        let booking_date = transaction
+            .booking_date
+            .map(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d"))
+            .transpose()?;
+        let transaction_date = transaction
+            .transaction_date
+            .map(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d"))
+            .transpose()?;
+
+        Ok(Self {
+            booking_date,
+            transaction_date,
+            amount: transaction.transaction_amount.amount.parse::<f64>()?,
+            currency: transaction.transaction_amount.currency,
+            creditor_name: transaction.creditor.and_then(|info| info.name),
+            debtor_name: transaction.debtor.and_then(|info| info.name),
+            category: None,
+            classification: None,
+            note: None,
+        })
+    }
 }
