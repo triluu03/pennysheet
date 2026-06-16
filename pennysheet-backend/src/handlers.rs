@@ -1,9 +1,5 @@
 //! API handlers.
 
-use crate::{
-    AppState,
-    errors::AppError,
-};
 use axum::{
     Json,
     extract::State,
@@ -19,6 +15,11 @@ use infra::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+
+use crate::{
+    AppState,
+    errors::AppError,
+};
 
 #[derive(Deserialize)]
 pub struct ImportTransactionsPayload {
@@ -60,13 +61,14 @@ pub async fn import_transactions_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AppState;
     use domain::events::Event;
     use infra::{
         get_all_events,
         sync_database_schema,
     };
     use sea_orm::Database;
+
+    use crate::AppState;
 
     #[tokio::test]
     async fn test_import_transactions_handler() {

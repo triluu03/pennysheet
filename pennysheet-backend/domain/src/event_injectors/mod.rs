@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-/// Inject events.
+/// Inject transaction events.
 pub fn inject_transaction_events(
     request_id: uuid::Uuid,
     response: TransactionResponse,
