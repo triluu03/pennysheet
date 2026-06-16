@@ -165,6 +165,7 @@ mod tests {
             transactions::{
                 ImportRequestData,
                 ImportStatusData,
+                TransactionData,
             },
         },
     };
@@ -243,6 +244,80 @@ mod tests {
     #[test]
     fn new_succeeds_with_pending_request() {
         assert!(EventInjector::new(&[requested_event(Uuid::new_v4())]).is_ok());
+    }
+
+    /// Build a `TransactionRecorded` event for the given transaction, mirroring how a
+    /// previously injected transaction would appear in the event history.
+    fn recorded_event(transaction: Transaction) -> Event {
+        Event::TransactionRecorded(
+            TransactionData::new(transaction).expect("fixture transaction has valid fields"),
+        )
+    }
+
+    /// Count the `TransactionRecorded` events emitted in an injection result.
+    fn recorded_count(events: &[Event]) -> usize {
+        events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionRecorded(_)))
+            .count()
+    }
+
+    #[test]
+    fn inject_skips_transaction_already_recorded_in_history() {
+        let request_id = Uuid::new_v4();
+        // The event history already contains this exact transaction as a recorded event.
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            recorded_event(transaction_with_amount("12.34")),
+        ])
+        .expect("a pending request should initialize the injector");
+
+        // The incoming batch re-delivers the same transaction (same content => same id).
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("12.34")],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        // The duplicate is filtered out; only the terminal completion event remains.
+        assert_eq!(recorded_count(&events), 0);
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
+        ));
+    }
+
+    #[test]
+    fn inject_emits_only_transactions_not_already_recorded() {
+        let request_id = Uuid::new_v4();
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            recorded_event(transaction_with_amount("12.34")),
+        ])
+        .expect("a pending request should initialize the injector");
+
+        // One transaction duplicates history, the other is brand new.
+        let response = TransactionResponse {
+            transactions: vec![
+                transaction_with_amount("12.34"),
+                transaction_with_amount("56.78"),
+            ],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        // Only the new transaction survives the dedup filter.
+        let recorded: Vec<&Event> = events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionRecorded(_)))
+            .collect();
+        assert_eq!(recorded.len(), 1);
+        match recorded[0] {
+            Event::TransactionRecorded(data) => assert_eq!(format!("{:.2}", data.amount), "56.78"),
+            other => panic!("expected TransactionRecorded, got {other:?}"),
+        }
     }
 
     #[test]

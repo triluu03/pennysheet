@@ -131,3 +131,130 @@ impl TransactionData {
         &self.transaction_id
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use gateway::schema::enable_banking_api::{
+        AmountType,
+        transaction::{
+            PartyIdentification,
+            Transaction,
+        },
+    };
+    use uuid::Uuid;
+
+    use super::{
+        NAMESPACE_TRANSACTION_DATA,
+        TransactionData,
+    };
+
+    /// Build a fully-populated, valid gateway `Transaction`.
+    ///
+    /// `Transaction` is not `Clone`, and [`TransactionData::new`] consumes it, so
+    /// tests that need two equivalent transactions call this once per value.
+    fn sample_transaction() -> Transaction {
+        Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "42.50".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Acme Corp".to_string()),
+            }),
+            debtor: Some(PartyIdentification {
+                name: Some("Jane Doe".to_string()),
+            }),
+            booking_date: Some("2026-06-15".to_string()),
+            transaction_date: Some("2026-06-14".to_string()),
+        }
+    }
+
+    /// Construct a [`TransactionData`] and return its derived transaction id.
+    fn id_of(transaction: Transaction) -> Uuid {
+        *TransactionData::new(transaction)
+            .expect("sample transaction has valid fields")
+            .get_transaction_id()
+    }
+
+    #[test]
+    fn transaction_id_is_identical_for_identical_input() {
+        // The id is content-derived, so two independently built but equal
+        // transactions must collapse onto the same id (the dedup invariant).
+        assert_eq!(id_of(sample_transaction()), id_of(sample_transaction()));
+    }
+
+    #[test]
+    fn transaction_id_matches_expected_uuid_v5() {
+        // Pin the exact namespace and payload format. Any change to how the id is
+        // derived would shift previously assigned ids and break event-sourced dedup,
+        // so this acts as a regression guard. Note "42.50" parses to the f64 42.5,
+        // which formats back as "42.5".
+        let expected = Uuid::new_v5(
+            &NAMESPACE_TRANSACTION_DATA,
+            "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane Doe".as_bytes(),
+        );
+        assert_eq!(id_of(sample_transaction()), expected);
+    }
+
+    #[test]
+    fn transaction_id_differs_when_amount_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.transaction_amount.amount = "99.99".to_string();
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_differs_when_currency_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.transaction_amount.currency = "USD".to_string();
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_differs_when_booking_date_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.booking_date = Some("2026-06-16".to_string());
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_differs_when_transaction_date_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.transaction_date = Some("2026-06-13".to_string());
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_differs_when_creditor_name_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.creditor = Some(PartyIdentification {
+            name: Some("Other Corp".to_string()),
+        });
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_differs_when_debtor_name_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.debtor = Some(PartyIdentification {
+            name: Some("John Smith".to_string()),
+        });
+        assert_ne!(base, id_of(changed));
+    }
+
+    #[test]
+    fn transaction_id_distinguishes_absent_from_present_optional_fields() {
+        // A missing creditor is encoded as the literal "None", which must not collide
+        // with a transaction whose creditor name is genuinely absent vs. populated.
+        let base = id_of(sample_transaction());
+        let mut without_creditor = sample_transaction();
+        without_creditor.creditor = None;
+        assert_ne!(base, id_of(without_creditor));
+    }
+}
