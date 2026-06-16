@@ -1,10 +1,8 @@
 //! Event injectors.
 
 use chrono::NaiveDate;
-use gateway::schema::enable_banking_api::transaction::{
-    Transaction,
-    TransactionResponse,
-};
+use gateway::schema::enable_banking_api::transaction::TransactionResponse;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::{
@@ -19,11 +17,17 @@ use crate::{
     },
 };
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone)]
 pub struct EventInjector {
+    /// ID of the current pending request.
     request_id: Option<Uuid>,
+    /// Start date of the current pending request.
     start_date: Option<NaiveDate>,
+    /// End date of the current pending request.
     end_date: Option<NaiveDate>,
+    /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
+    /// new transaction events into the event table.
+    recorded_transaction_id_set: HashSet<Uuid>,
 }
 
 impl EventInjector {
@@ -54,11 +58,25 @@ impl EventInjector {
         &self,
         response: TransactionResponse,
     ) -> Result<Vec<Event>, DomainError> {
-        let mut new_events: Vec<Event> = response
+        let new_data_records: Vec<TransactionData> = response
             .transactions
             .into_iter()
-            .map(EventInjector::record_transaction)
-            .collect::<Result<Vec<Event>, DomainError>>()?;
+            .map(TransactionData::new)
+            .collect::<Result<Vec<TransactionData>, DomainError>>()?;
+
+        let mut new_events: Vec<Event> = new_data_records
+            .into_iter()
+            .filter_map(|data| {
+                if self
+                    .recorded_transaction_id_set
+                    .contains(data.get_transaction_id())
+                {
+                    None
+                } else {
+                    Some(Event::TransactionRecorded(data))
+                }
+            })
+            .collect();
 
         if let Some(continuation_key) = response.continuation_key {
             new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
@@ -92,23 +110,6 @@ impl EventInjector {
         Ok(new_events)
     }
 
-    fn record_transaction(transaction: Transaction) -> Result<Event, DomainError> {
-        Ok(Event::TransactionRecorded(TransactionData {
-            booking_date: transaction
-                .booking_date
-                .map(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d"))
-                .transpose()?,
-            transaction_date: transaction
-                .transaction_date
-                .map(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d"))
-                .transpose()?,
-            amount: transaction.transaction_amount.amount.parse::<f64>()?,
-            currency: transaction.transaction_amount.currency,
-            creditor_name: transaction.creditor.and_then(|info| info.name),
-            debtor_name: transaction.debtor.and_then(|info| info.name),
-        }))
-    }
-
     /// Construct the state from one event.
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
@@ -117,6 +118,10 @@ impl EventInjector {
                 self.start_date = Some(data.start_date);
                 self.end_date = Some(data.end_date);
             },
+            Event::TransactionRecorded(data) => {
+                self.recorded_transaction_id_set
+                    .insert(*data.get_transaction_id());
+            },
             Event::ImportTransactionsCompleted(data) | Event::ImportTransactionsFailed(data) => {
                 if self.request_id == Some(data.request_id) {
                     self.request_id = None;
@@ -124,7 +129,7 @@ impl EventInjector {
                     self.end_date = None;
                 }
             },
-            Event::ImportTransactionsContinued(_) | Event::TransactionRecorded(_) => {
+            Event::ImportTransactionsContinued(_) => {
                 // Ignore these events
             },
         }
@@ -160,6 +165,7 @@ mod tests {
             transactions::{
                 ImportRequestData,
                 ImportStatusData,
+                TransactionData,
             },
         },
     };
@@ -238,6 +244,80 @@ mod tests {
     #[test]
     fn new_succeeds_with_pending_request() {
         assert!(EventInjector::new(&[requested_event(Uuid::new_v4())]).is_ok());
+    }
+
+    /// Build a `TransactionRecorded` event for the given transaction, mirroring how a
+    /// previously injected transaction would appear in the event history.
+    fn recorded_event(transaction: Transaction) -> Event {
+        Event::TransactionRecorded(
+            TransactionData::new(transaction).expect("fixture transaction has valid fields"),
+        )
+    }
+
+    /// Count the `TransactionRecorded` events emitted in an injection result.
+    fn recorded_count(events: &[Event]) -> usize {
+        events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionRecorded(_)))
+            .count()
+    }
+
+    #[test]
+    fn inject_skips_transaction_already_recorded_in_history() {
+        let request_id = Uuid::new_v4();
+        // The event history already contains this exact transaction as a recorded event.
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            recorded_event(transaction_with_amount("12.34")),
+        ])
+        .expect("a pending request should initialize the injector");
+
+        // The incoming batch re-delivers the same transaction (same content => same id).
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("12.34")],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        // The duplicate is filtered out; only the terminal completion event remains.
+        assert_eq!(recorded_count(&events), 0);
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
+        ));
+    }
+
+    #[test]
+    fn inject_emits_only_transactions_not_already_recorded() {
+        let request_id = Uuid::new_v4();
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            recorded_event(transaction_with_amount("12.34")),
+        ])
+        .expect("a pending request should initialize the injector");
+
+        // One transaction duplicates history, the other is brand new.
+        let response = TransactionResponse {
+            transactions: vec![
+                transaction_with_amount("12.34"),
+                transaction_with_amount("56.78"),
+            ],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        // Only the new transaction survives the dedup filter.
+        let recorded: Vec<&Event> = events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionRecorded(_)))
+            .collect();
+        assert_eq!(recorded.len(), 1);
+        match recorded[0] {
+            Event::TransactionRecorded(data) => assert_eq!(format!("{:.2}", data.amount), "56.78"),
+            other => panic!("expected TransactionRecorded, got {other:?}"),
+        }
     }
 
     #[test]
