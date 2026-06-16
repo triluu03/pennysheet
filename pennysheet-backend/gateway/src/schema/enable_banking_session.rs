@@ -2,6 +2,7 @@
 //!
 //! This is used as the base authentication for every API call to Enable Banking API.
 
+use crate::errors::GatewayError;
 use serde::{
     Deserialize,
     Serialize,
@@ -46,9 +47,9 @@ impl EnableBankingSession {
     /// Construct [`EnableBankingSession`] from JSON payload.
     ///
     /// # Errors
-    /// Returns [`serde_json::Error`] if parsing the JSON payload fails.
-    pub fn from_json(session_json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(session_json)
+    /// Returns [`GatewayError`] if parsing the JSON payload fails.
+    pub fn from_json(session_json: &str) -> Result<Self, GatewayError> {
+        Ok(serde_json::from_str(session_json)?)
     }
 
     /// Get account UUID.
@@ -56,10 +57,12 @@ impl EnableBankingSession {
     /// TODO: How to generalize this to support a session with multiple accounts?
     ///
     /// # Errors
-    /// Returns [`String`] error if no accounts are found in the provided session.
-    pub fn get_account_uid(&self) -> Result<&String, String> {
+    /// Returns [`GatewayError`] if no accounts are found in the provided session.
+    pub fn get_account_uid(&self) -> Result<&String, GatewayError> {
         if self.accounts.is_empty() {
-            Err("No accounts found in the provided session!".to_string())
+            Err(GatewayError::Session(
+                "No accounts found in the provided session!".to_string(),
+            ))
         } else {
             Ok(&self.accounts[0].uid)
         }
