@@ -2,6 +2,7 @@
 
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionResponse;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::{
@@ -16,11 +17,17 @@ use crate::{
     },
 };
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone)]
 pub struct EventInjector {
+    /// ID of the current pending request.
     request_id: Option<Uuid>,
+    /// Start date of the current pending request.
     start_date: Option<NaiveDate>,
+    /// End date of the current pending request.
     end_date: Option<NaiveDate>,
+    /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
+    /// new transaction events into the event table.
+    recorded_transaction_id_set: HashSet<Uuid>,
 }
 
 impl EventInjector {
@@ -51,11 +58,25 @@ impl EventInjector {
         &self,
         response: TransactionResponse,
     ) -> Result<Vec<Event>, DomainError> {
-        let mut new_events: Vec<Event> = response
+        let new_data_records: Vec<TransactionData> = response
             .transactions
             .into_iter()
-            .map(|transaction| TransactionData::new(transaction).map(Event::TransactionRecorded))
-            .collect::<Result<Vec<Event>, DomainError>>()?;
+            .map(TransactionData::new)
+            .collect::<Result<Vec<TransactionData>, DomainError>>()?;
+
+        let mut new_events: Vec<Event> = new_data_records
+            .into_iter()
+            .filter_map(|data| {
+                if self
+                    .recorded_transaction_id_set
+                    .contains(data.get_transaction_id())
+                {
+                    None
+                } else {
+                    Some(Event::TransactionRecorded(data))
+                }
+            })
+            .collect();
 
         if let Some(continuation_key) = response.continuation_key {
             new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
@@ -97,6 +118,10 @@ impl EventInjector {
                 self.start_date = Some(data.start_date);
                 self.end_date = Some(data.end_date);
             },
+            Event::TransactionRecorded(data) => {
+                self.recorded_transaction_id_set
+                    .insert(*data.get_transaction_id());
+            },
             Event::ImportTransactionsCompleted(data) | Event::ImportTransactionsFailed(data) => {
                 if self.request_id == Some(data.request_id) {
                     self.request_id = None;
@@ -104,7 +129,7 @@ impl EventInjector {
                     self.end_date = None;
                 }
             },
-            Event::ImportTransactionsContinued(_) | Event::TransactionRecorded(_) => {
+            Event::ImportTransactionsContinued(_) => {
                 // Ignore these events
             },
         }

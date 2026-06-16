@@ -43,6 +43,7 @@ pub struct ImportContinueData {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransactionData {
+    transaction_id: Uuid,
     pub booking_date: Option<NaiveDate>,
     pub transaction_date: Option<NaiveDate>,
     pub amount: f64,
@@ -72,6 +73,11 @@ enum TransactionClassification {
     Wasted,
 }
 
+/// UUID namespace for Transactions Data.
+pub const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
+    0x6b, 0xa6, 0xb7, 0x14, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
+]);
+
 impl TransactionData {
     /// Constructor
     ///
@@ -89,17 +95,39 @@ impl TransactionData {
             .transaction_date
             .map(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d"))
             .transpose()?;
+        let amount = transaction.transaction_amount.amount.parse::<f64>()?;
+        let currency = transaction.transaction_amount.currency;
+        let creditor_name = transaction.creditor.and_then(|info| info.name);
+        let debtor_name = transaction.debtor.and_then(|info| info.name);
+
+        let transaction_id = Uuid::new_v5(
+            &NAMESPACE_TRANSACTION_DATA,
+            format!(
+                "transaction_data:{}:{}:{amount}:{currency}:{}:{}",
+                booking_date.map_or("None".to_string(), |v| v.to_string()),
+                transaction_date.map_or("None".to_string(), |v| v.to_string()),
+                creditor_name.clone().unwrap_or("None".to_string()),
+                debtor_name.clone().unwrap_or("None".to_string()),
+            )
+            .as_bytes(),
+        );
 
         Ok(Self {
+            transaction_id,
             booking_date,
             transaction_date,
-            amount: transaction.transaction_amount.amount.parse::<f64>()?,
-            currency: transaction.transaction_amount.currency,
-            creditor_name: transaction.creditor.and_then(|info| info.name),
-            debtor_name: transaction.debtor.and_then(|info| info.name),
+            amount,
+            currency,
+            creditor_name,
+            debtor_name,
             category: None,
             classification: None,
             note: None,
         })
+    }
+
+    /// Get transaction ID.
+    pub fn get_transaction_id(&self) -> &Uuid {
+        &self.transaction_id
     }
 }
