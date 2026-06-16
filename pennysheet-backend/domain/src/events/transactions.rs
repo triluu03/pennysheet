@@ -33,6 +33,8 @@ pub struct ImportStatusData {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportContinueData {
     pub request_id: Uuid,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
     pub continuation_key: String,
 }
 

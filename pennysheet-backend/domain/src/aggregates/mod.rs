@@ -18,7 +18,7 @@ pub struct CoreAggregate {
 impl CoreAggregate {
     /// Core aggregate constructor.
     pub fn new() -> Self {
-        CoreAggregate { request_id: None }
+        Default::default()
     }
 
     /// Execute commands.

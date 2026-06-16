@@ -170,8 +170,11 @@ impl EnableBankingClient {
                 response.json().await.map_err(|err| err.to_string())
             },
             code => {
-                error!(%account_uid, code, "failed to fetch transactions");
-                Err(format!("Failed to get transactions. Received code: {code}"))
+                let message = response.text().await.unwrap_or("No message!".to_string());
+                error!(%account_uid, code, message, "failed to fetch transactions");
+                Err(format!(
+                    "Failed to get transactions.\nReceived code: {code}",
+                ))
             },
         }
     }

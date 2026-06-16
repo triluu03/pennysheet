@@ -9,6 +9,7 @@ pub enum DomainError {
     CommandCreation(String),
     CommandRejected(String),
     EventCreation(String),
+    ComponentInit(String),
 }
 
 impl fmt::Display for DomainError {
@@ -17,6 +18,9 @@ impl fmt::Display for DomainError {
             Self::CommandRejected(message) => write!(f, "Command rejected: {message}"),
             Self::CommandCreation(message) => write!(f, "Failed to create command: {message}"),
             Self::EventCreation(message) => write!(f, "Failed to create event: {message}"),
+            Self::ComponentInit(message) => {
+                write!(f, "Failed to initialize domain component: {message}")
+            },
         }
     }
 }
