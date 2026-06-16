@@ -29,7 +29,7 @@ pub struct Transaction {
     pub transaction_date: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PartyIdentification {
     pub name: Option<String>,
 }
