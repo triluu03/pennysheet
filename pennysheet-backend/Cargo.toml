@@ -8,13 +8,16 @@ members = [".", "domain", "gateway", "infra"]
 
 [workspace.dependencies]
 tracing = "0.1.41"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+uuid = { version = "1.23.2", features = ["v4"] }
 
 [dependencies]
 axum = "0.8.9"
 domain = { version = "0.1.0", path = "domain" }
 gateway = { version = "0.1.0", path = "gateway" }
 infra = { version = "0.1.0", path = "infra" }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { workspace = true }
 tokio = { version = "1.52.3", features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
