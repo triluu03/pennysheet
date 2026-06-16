@@ -1,5 +1,6 @@
 //! Tracing setup.
 
+use tracing::Level;
 use tracing_subscriber::{
     EnvFilter,
     fmt,
@@ -10,11 +11,9 @@ use tracing_subscriber::{
 /// # Errors
 /// Returns [`String`] error when the initialization fails.
 pub fn init_tracing() -> Result<(), String> {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new(
-            "info,pennysheet_backend=debug,domain=debug,gateway=debug,infra=debug,tower_http=debug",
-        )
-    });
+    let filter = EnvFilter::from_default_env()
+        .add_directive(Level::INFO.into())
+        .add_directive(Level::DEBUG.into());
 
     fmt()
         .with_env_filter(filter)
