@@ -13,6 +13,7 @@ use tracing::{
 
 use crate::{
     authorization::jwt::generate_jwt_token,
+    errors::GatewayError,
     schema::{
         enable_banking_api::{
             balance::BalanceResponse,
@@ -61,13 +62,12 @@ impl EnableBankingClient {
     /// Constructor.
     ///
     /// # Errors
-    /// Returns [`String`] error in any of the following scenarios:
+    /// Returns [`GatewayError`] in any of the following scenarios:
     /// - Cannot generate the JWT token.
     /// - Fail to parse the session JSON.
-    pub fn new(session_json: &str) -> Result<Self, String> {
+    pub fn new(session_json: &str) -> Result<Self, GatewayError> {
         let (jwt_token, expires_at) = generate_jwt_token()?;
-        let session =
-            EnableBankingSession::from_json(session_json).map_err(|err| err.to_string())?;
+        let session = EnableBankingSession::from_json(session_json)?;
 
         Ok(Self {
             session,
@@ -83,10 +83,12 @@ impl EnableBankingClient {
     /// Get the encoded JWT token.
     ///
     /// # Errors
-    /// Returns [`String`] error if the token has expired.
-    fn get_token(&self) -> Result<&String, String> {
+    /// Returns [`GatewayError::Authorization`] if the token has expired.
+    fn get_token(&self) -> Result<&String, GatewayError> {
         if self.bearer_token.is_expired() {
-            Err("The token has expired!".to_string())
+            Err(GatewayError::Authorization(
+                "The token has expired!".to_string(),
+            ))
         } else {
             Ok(&self.bearer_token.token)
         }
@@ -95,14 +97,14 @@ impl EnableBankingClient {
     /// Get account balances.
     ///
     /// # Errors
-    /// Returns [`String`] error in any of the following scenarios:
+    /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.
-    /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances
+    /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances.
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`BalanceResponse`] struct.
     #[instrument(skip(self))]
-    pub async fn get_account_balances(&self) -> Result<BalanceResponse, String> {
+    pub async fn get_account_balances(&self) -> Result<BalanceResponse, GatewayError> {
         let bearer_token = self.get_token()?;
         let account_uid = self.session.get_account_uid()?;
         let base_url = &self.base_url;
@@ -113,17 +115,21 @@ impl EnableBankingClient {
             .get(format!("{base_url}/accounts/{account_uid}/balances"))
             .bearer_auth(bearer_token)
             .send()
-            .await
-            .map_err(|err| err.to_string())?;
+            .await?;
 
         match response.status().as_u16() {
             200 => {
                 info!(%account_uid, "fetched account balances");
-                response.json().await.map_err(|err| err.to_string())
+                response
+                    .json()
+                    .await
+                    .map_err(|err| GatewayError::Parsing(err.to_string()))
             },
             code => {
                 error!(%account_uid, code, "failed to fetch account balances");
-                Err(format!("Failed to get balances. Received code: {code}"))
+                Err(GatewayError::Api(format!(
+                    "Failed to get balances. Received code: {code}"
+                )))
             },
         }
     }
@@ -131,17 +137,17 @@ impl EnableBankingClient {
     /// Get account transactions.
     ///
     /// # Errors
-    /// Returns [`String`] error in any of the following scenarios:
+    /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.
-    /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions
+    /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions.
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`TransactionResponse`] struct.
     #[instrument(skip(self))]
     pub async fn get_transactions(
         &self,
         query_params: TransactionQueryParameters,
-    ) -> Result<TransactionResponse, String> {
+    ) -> Result<TransactionResponse, GatewayError> {
         let bearer_token = self.get_token()?;
         let account_uid = self.session.get_account_uid()?;
         let base_url = &self.base_url;
@@ -159,17 +165,21 @@ impl EnableBankingClient {
             .bearer_auth(bearer_token)
             .query(&query_params)
             .send()
-            .await
-            .map_err(|err| err.to_string())?;
+            .await?;
 
         match response.status().as_u16() {
             200 => {
                 info!(%account_uid, "fetched transactions");
-                response.json().await.map_err(|err| err.to_string())
+                response
+                    .json()
+                    .await
+                    .map_err(|err| GatewayError::Parsing(err.to_string()))
             },
             code => {
                 error!(%account_uid, code, "failed to fetch transactions");
-                Err(format!("Failed to get transactions. Received code: {code}"))
+                Err(GatewayError::Api(format!(
+                    "Failed to get transactions. Received code: {code}"
+                )))
             },
         }
     }
@@ -291,7 +301,9 @@ mod tests {
         let result = client.get_account_balances().await;
 
         mock.assert_async().await;
-        let err = result.expect_err("non-200 should produce an error");
+        let err = result
+            .expect_err("non-200 should produce an error")
+            .to_string();
         assert!(
             err.contains("500"),
             "error should mention the status code: {err}"
@@ -356,7 +368,9 @@ mod tests {
             .await;
 
         mock.assert_async().await;
-        let err = result.expect_err("non-200 should produce an error");
+        let err = result
+            .expect_err("non-200 should produce an error")
+            .to_string();
         assert!(
             err.contains("400"),
             "error should mention the status code: {err}"
@@ -379,7 +393,7 @@ mod tests {
         let result = client.get_account_balances().await;
 
         assert_eq!(mock.calls_async().await, 0, "no request should be sent");
-        let err = result.expect_err("expired token should error");
+        let err = result.expect_err("expired token should error").to_string();
         assert!(
             err.contains("expired"),
             "error should mention expiry: {err}"

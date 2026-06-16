@@ -2,4 +2,5 @@
 
 mod authorization;
 pub mod client;
+pub mod errors;
 pub mod schema;
