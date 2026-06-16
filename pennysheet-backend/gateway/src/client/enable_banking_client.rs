@@ -100,7 +100,7 @@ impl EnableBankingClient {
     /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.
-    /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances.
+    /// - Failed to invoke the API endpoint: /accounts/{account_id}/balances
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`BalanceResponse`] struct.
     #[instrument(skip(self))]
@@ -140,7 +140,7 @@ impl EnableBankingClient {
     /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.
-    /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions.
+    /// - Failed to invoke the API endpoint: /accounts/{account_id}/transactions
     /// - Enable Banking API returns a failed response.
     /// - Failed to parse 200 response into [`TransactionResponse`] struct.
     #[instrument(skip(self))]
