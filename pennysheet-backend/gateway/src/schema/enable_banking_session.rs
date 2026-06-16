@@ -8,7 +8,7 @@ use serde::{
     Serialize,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct EnableBankingSession {
     session_id: String,
     accounts: Vec<AccountResource>,
@@ -17,28 +17,28 @@ pub struct EnableBankingSession {
     access: Access,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct AccountResource {
     name: Option<String>,
     currency: String,
     uid: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(clippy::upper_case_acronyms)]
 struct ASPSP {
     name: String,
     country: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum PSUType {
     Business,
     Personal,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Access {
     valid_until: String,
 }

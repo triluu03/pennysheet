@@ -149,9 +149,6 @@ mod tests {
     };
 
     /// Build a fully-populated, valid gateway `Transaction`.
-    ///
-    /// `Transaction` is not `Clone`, and [`TransactionData::new`] consumes it, so
-    /// tests that need two equivalent transactions call this once per value.
     fn sample_transaction() -> Transaction {
         Transaction {
             transaction_amount: AmountType {
@@ -178,17 +175,11 @@ mod tests {
 
     #[test]
     fn transaction_id_is_identical_for_identical_input() {
-        // The id is content-derived, so two independently built but equal
-        // transactions must collapse onto the same id (the dedup invariant).
         assert_eq!(id_of(sample_transaction()), id_of(sample_transaction()));
     }
 
     #[test]
     fn transaction_id_matches_expected_uuid_v5() {
-        // Pin the exact namespace and payload format. Any change to how the id is
-        // derived would shift previously assigned ids and break event-sourced dedup,
-        // so this acts as a regression guard. Note "42.50" parses to the f64 42.5,
-        // which formats back as "42.5".
         let expected = Uuid::new_v5(
             &NAMESPACE_TRANSACTION_DATA,
             "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane Doe".as_bytes(),
@@ -250,8 +241,6 @@ mod tests {
 
     #[test]
     fn transaction_id_distinguishes_absent_from_present_optional_fields() {
-        // A missing creditor is encoded as the literal "None", which must not collide
-        // with a transaction whose creditor name is genuinely absent vs. populated.
         let base = id_of(sample_transaction());
         let mut without_creditor = sample_transaction();
         without_creditor.creditor = None;

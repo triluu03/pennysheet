@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use crate::errors::AppError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct TransactionProcessManager {
     client: EnableBankingClient,
     request_id: Option<String>,
