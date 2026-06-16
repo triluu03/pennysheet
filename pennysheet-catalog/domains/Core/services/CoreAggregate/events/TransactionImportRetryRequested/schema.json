@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the event"
+    },
+    "import_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identifier of the failed transaction import being retried"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the event"
+    }
+  },
+  "required": ["event_id", "import_id", "timestamp"]
+}
