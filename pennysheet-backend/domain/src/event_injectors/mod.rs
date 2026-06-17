@@ -118,6 +118,7 @@ impl EventInjector {
                 self.start_date = Some(data.start_date);
                 self.end_date = Some(data.end_date);
             },
+            Event::TransactionImportRetryRequested(data) => self.request_id = Some(data.request_id),
             Event::TransactionRecorded(data) => {
                 self.recorded_transaction_id_set
                     .insert(*data.get_transaction_id());
@@ -244,6 +245,41 @@ mod tests {
     #[test]
     fn new_succeeds_with_pending_request() {
         assert!(EventInjector::new(&[requested_event(Uuid::new_v4())]).is_ok());
+    }
+
+    #[test]
+    fn new_succeeds_with_retry_requested_event() {
+        // A retry request re-establishes a pending request id, so the injector
+        // should initialize from it just like an original import request.
+        let request_id = Uuid::new_v4();
+        let events = [Event::TransactionImportRetryRequested(ImportStatusData {
+            request_id,
+        })];
+        assert!(EventInjector::new(&events).is_ok());
+    }
+
+    #[test]
+    fn retry_after_failure_restores_pending_request() {
+        // Replaying a request that failed and was then retried must leave the
+        // injector pending on the original request id again.
+        let request_id = Uuid::new_v4();
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
+        ])
+        .expect("a retried request should re-initialize the injector");
+
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("10.00")],
+            continuation_key: None,
+        };
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
+        ));
     }
 
     /// Build a `TransactionRecorded` event for the given transaction, mirroring how a
