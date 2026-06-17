@@ -37,11 +37,6 @@ impl ActiveModelBehavior for ActiveModel {
     }
 }
 
-#[derive(FromQueryResult)]
-struct EventRow {
-    event_data: Event,
-}
-
 /// Query the whole event table.
 ///
 /// # Errors
@@ -52,12 +47,9 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
         .select_only()
         .column(Column::EventData)
         .order_by_asc(Column::CreatedAt)
-        .into_model::<EventRow>()
+        .into_tuple()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|entry| entry.event_data)
-        .collect();
+        .await?;
 
     debug!(count = events.len(), "loaded all events");
     Ok(events)
@@ -79,12 +71,9 @@ pub async fn get_events_with_offset(
         .column(Column::EventData)
         .order_by_asc(Column::CreatedAt)
         .offset(n_offset)
-        .into_model::<EventRow>()
+        .into_tuple()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|entry| entry.event_data)
-        .collect();
+        .await?;
 
     debug!(
         count = events.len(),
