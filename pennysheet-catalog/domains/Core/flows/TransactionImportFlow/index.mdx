@@ -9,9 +9,11 @@ steps:
     title: User
     actor:
       name: User
-    next_step:
-      id: import_cmd
-      label: via client-side application
+    next_steps:
+      - id: import_cmd
+        label: via client-side application
+      - id: retry_cmd
+        label: via client-side application
 
   - id: import_cmd
     title: Import Transactions
@@ -22,19 +24,39 @@ steps:
       id: aggregate
       label: handled by aggregate
 
+  - id: retry_cmd
+    title: Retry Failed Transaction Import
+    message:
+      id: RetryFailedTransactionsImport
+      version: 0.0.1
+    next_step:
+      id: aggregate
+      label: handled by aggregate
+
   - id: aggregate
     title: Aggregate
     service:
       id: Aggregate
       version: 0.0.1
-    next_step:
-      id: import_requested
-      label: emits events
+    next_steps:
+      - id: import_requested
+        label: emits events
+      - id: retry_requested
+        label: emits events
 
   - id: import_requested
     title: Import Transactions Requested
     message:
       id: ImportTransactionsRequested
+      version: 0.0.1
+    next_step:
+      id: transaction_process_manager
+      label: starts process manager
+
+  - id: retry_requested
+    title: Transaction Import Retry Requested
+    message:
+      id: TransactionImportRetryRequested
       version: 0.0.1
     next_step:
       id: transaction_process_manager
