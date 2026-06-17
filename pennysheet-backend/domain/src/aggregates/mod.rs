@@ -81,6 +81,7 @@ impl CoreAggregate {
                 self.pending_request_id = Some(data.request_id)
             },
             Event::ImportTransactionsCompleted(data) => {
+                self.failed_request_id_set.remove(&data.request_id);
                 if self.pending_request_id == Some(data.request_id) {
                     self.pending_request_id = None
                 }
