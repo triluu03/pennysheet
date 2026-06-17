@@ -1563,6 +1563,7 @@ dependencies = [
 name = "infra"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "domain",
  "dotenvy",
  "sea-orm",

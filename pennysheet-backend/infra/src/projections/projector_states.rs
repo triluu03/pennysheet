@@ -20,11 +20,20 @@ pub(crate) struct Model {
     updated_at: DateTime,
 }
 
+#[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             ..ActiveModelTrait::default()
         }
+    }
+
+    async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        self.updated_at = Set(chrono::Local::now().naive_local());
+        Ok(self)
     }
 }
 
