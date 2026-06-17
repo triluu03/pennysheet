@@ -7,7 +7,10 @@ use axum::{
 };
 use domain::{
     aggregates::CoreAggregate,
-    commands::create_new_import_transactions_command,
+    commands::{
+        create_new_import_transactions_command,
+        create_retry_failed_import_request_command,
+    },
     events::Event,
 };
 use infra::{
@@ -37,7 +40,7 @@ pub struct ImportTransactionsPayload {
 
 /// Handler for POST request to /transactions/import
 ///
-/// If a import transaction request event is successfully created, transaction process manager
+/// If an import transaction request event is successfully created, transaction process manager
 /// will be spawn and run the import in the background.
 ///
 /// # Errors
@@ -81,8 +84,60 @@ pub async fn import_transactions_handler(
     }
 
     Ok((
-        StatusCode::CREATED,
+        StatusCode::ACCEPTED,
         "Transactions import requested!".to_string(),
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct TransactionImportRetryPayload {
+    pub request_id: String,
+    pub session: String,
+}
+
+/// Handler for POST request to /transactions/import/retry
+///
+/// If a retry request event is successfully created, transaction process manager
+/// will be spawn and run the import in the background.
+///
+/// # Errors
+/// Return [`AppError`] in the following scenarios:
+/// - Failed to parse the payload into expected format.
+/// - Command is rejected by the aggregate.
+/// - Failed to insert the new event into the store.
+#[instrument(
+    skip(state, payload),
+    fields(
+        request_id = payload.request_id
+    )
+)]
+pub async fn transaction_import_retry_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<TransactionImportRetryPayload>,
+) -> axum::response::Result<(StatusCode, String), AppError> {
+    let command = create_retry_failed_import_request_command(&payload.request_id)?;
+
+    let all_events = get_all_events(&state.db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+
+    let res = append_event_to_db(&state.db, event.clone())
+        .await
+        .map_err(AppError::from)?;
+
+    info!(inserted_id = %res.last_insert_id, "transaction import retry event appended");
+
+    // Spawn a background job running transaction process manager.
+    if let Event::TransactionImportRetryRequested(data) = &event {
+        tokio::spawn(run_transaction_import(
+            state.db.clone(),
+            payload.session,
+            data.request_id,
+        ));
+    }
+
+    Ok((
+        StatusCode::ACCEPTED,
+        "Transaction import retry requested!".to_string(),
     ))
 }
 
@@ -118,12 +173,8 @@ mod tests {
         let Ok((status, body)) = response else {
             panic!("expected import_transactions_handler to succeed");
         };
-        assert_eq!(status, StatusCode::CREATED);
-
-        let inserted_id = body
-            .strip_prefix("Event created with ID: ")
-            .expect("response body should contain the inserted event ID");
-        assert!(!inserted_id.is_empty());
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body, "Transactions import requested!".to_string());
 
         let events = wait_for_events(&state.db, 2).await;
         let requested = events

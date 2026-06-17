@@ -2,7 +2,10 @@
 
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionResponse;
-use std::collections::HashSet;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -20,14 +23,21 @@ use crate::{
 #[derive(Default, Debug)]
 pub struct EventInjector {
     /// ID of the current pending request.
-    request_id: Option<Uuid>,
-    /// Start date of the current pending request.
-    start_date: Option<NaiveDate>,
-    /// End date of the current pending request.
-    end_date: Option<NaiveDate>,
+    pending_request_id: Option<Uuid>,
+    /// Data of the current pending request.
+    pending_request_data: Option<RequestData>,
+    /// Map of all failed import requests with request ID as keys
+    /// and [`RequestData`] as values.
+    failed_request_map: HashMap<Uuid, RequestData>,
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
+}
+
+#[derive(Default, Debug, Clone)]
+struct RequestData {
+    start_date: NaiveDate,
+    end_date: NaiveDate,
 }
 
 impl EventInjector {
@@ -42,7 +52,7 @@ impl EventInjector {
         }
         .multi_apply(all_events);
 
-        match new_self.request_id {
+        match new_self.pending_request_id {
             None => Err(DomainError::ComponentInit(
                 "no pending request ID to initialize event injector with".to_string(),
             )),
@@ -79,27 +89,26 @@ impl EventInjector {
             .collect();
 
         if let Some(continuation_key) = response.continuation_key {
+            let request_id = self.pending_request_id.ok_or_else(|| {
+                DomainError::EventCreation(
+                    "corrupted state of event injector: request_id".to_string(),
+                )
+            })?;
+            let request_data = self.pending_request_data.as_ref().ok_or_else(|| {
+                DomainError::EventCreation(
+                    "corrupted state of event injector: pending_request_data".to_string(),
+                )
+            })?;
+
             new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
-                request_id: self.request_id.ok_or_else(|| {
-                    DomainError::EventCreation(
-                        "corrupted state of event injector: request_id".to_string(),
-                    )
-                })?,
-                start_date: self.start_date.ok_or_else(|| {
-                    DomainError::EventCreation(
-                        "corrupted state of event injector: start_date".to_string(),
-                    )
-                })?,
-                end_date: self.end_date.ok_or_else(|| {
-                    DomainError::EventCreation(
-                        "corrupted state of event injector: end_date".to_string(),
-                    )
-                })?,
+                request_id,
+                start_date: request_data.start_date,
+                end_date: request_data.end_date,
                 continuation_key,
             }));
         } else {
             new_events.push(Event::ImportTransactionsCompleted(ImportStatusData {
-                request_id: self.request_id.ok_or_else(|| {
+                request_id: self.pending_request_id.ok_or_else(|| {
                     DomainError::EventCreation(
                         "corrupted state of event injector: request_id".to_string(),
                     )
@@ -114,24 +123,51 @@ impl EventInjector {
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
             Event::ImportTransactionsRequested(data) => {
-                self.request_id = Some(data.request_id);
-                self.start_date = Some(data.start_date);
-                self.end_date = Some(data.end_date);
+                self.pending_request_id = Some(data.request_id);
+                self.pending_request_data = Some(RequestData {
+                    start_date: data.start_date,
+                    end_date: data.end_date,
+                })
             },
-            Event::TransactionImportRetryRequested(data) => self.request_id = Some(data.request_id),
+            Event::TransactionImportRetryRequested(data) => {
+                if let Some(request_data) = self.failed_request_map.get(&data.request_id) {
+                    self.pending_request_id = Some(data.request_id);
+                    self.pending_request_data = Some(request_data.to_owned());
+                };
+            },
             Event::TransactionRecorded(data) => {
                 self.recorded_transaction_id_set
                     .insert(*data.get_transaction_id());
             },
-            Event::ImportTransactionsCompleted(data) | Event::ImportTransactionsFailed(data) => {
-                if self.request_id == Some(data.request_id) {
-                    self.request_id = None;
-                    self.start_date = None;
-                    self.end_date = None;
+            Event::ImportTransactionsCompleted(data) => {
+                if self.pending_request_id == Some(data.request_id) {
+                    if let Some(request_id) = self.pending_request_id {
+                        self.failed_request_map.remove(&request_id);
+                    };
+
+                    self.pending_request_id = None;
+                    self.pending_request_data = None;
                 }
             },
-            Event::ImportTransactionsContinued(_) => {
-                // Ignore these events
+            Event::ImportTransactionsFailed(data) => {
+                if self.pending_request_id == Some(data.request_id) {
+                    if let (Some(request_id), Some(request_data)) =
+                        (self.pending_request_id, self.pending_request_data)
+                    {
+                        self.failed_request_map.insert(request_id, request_data);
+                    };
+
+                    self.pending_request_id = None;
+                    self.pending_request_data = None;
+                }
+            },
+            Event::ImportTransactionsContinued(data) => {
+                if self.pending_request_id == Some(data.request_id) {
+                    self.pending_request_data = Some(RequestData {
+                        start_date: data.start_date,
+                        end_date: data.end_date,
+                    })
+                }
             },
         }
         self

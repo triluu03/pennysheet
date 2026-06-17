@@ -1,5 +1,7 @@
 //! Process managers.
 
+use std::collections::HashMap;
+
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionQueryParameters;
 use uuid::Uuid;
@@ -12,11 +14,16 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct TransactionProcessManager {
+    /// ID of the current pending import request.
     pending_request_id: Option<Uuid>,
+    /// Data of the current pending import request.
     pending_request_data: Option<RequestData>,
+    /// Map of all failed import requests with request ID as keys
+    /// and [`RequestData`] as values.
+    failed_request_map: HashMap<Uuid, RequestData>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct RequestData {
     start_date: NaiveDate,
     end_date: NaiveDate,
@@ -82,14 +89,35 @@ impl TransactionProcessManager {
                     })
                 }
             },
-            Event::ImportTransactionsCompleted(data) | Event::ImportTransactionsFailed(data) => {
+            Event::ImportTransactionsCompleted(data) => {
                 if self.pending_request_id == Some(data.request_id) {
+                    if let Some(request_id) = self.pending_request_id {
+                        self.failed_request_map.remove(&request_id);
+                    };
+
                     self.pending_request_id = None;
                     self.pending_request_data = None;
                 }
             },
+            Event::ImportTransactionsFailed(data) => {
+                if self.pending_request_id == Some(data.request_id) {
+                    if let (Some(request_id), Some(request_data)) =
+                        (self.pending_request_id, self.pending_request_data)
+                    {
+                        self.failed_request_map.insert(request_id, request_data);
+                    };
+
+                    self.pending_request_id = None;
+                    self.pending_request_data = None;
+                }
+            },
+            Event::TransactionImportRetryRequested(data) => {
+                if let Some(request_data) = self.failed_request_map.get(&data.request_id) {
+                    self.pending_request_id = Some(data.request_id);
+                    self.pending_request_data = Some(request_data.to_owned());
+                };
+            },
             Event::TransactionRecorded(_) => {},
-            Event::TransactionImportRetryRequested(_) => todo!(),
         }
         self
     }

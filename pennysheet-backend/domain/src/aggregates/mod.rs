@@ -30,7 +30,7 @@ impl CoreAggregate {
         .multi_apply(all_events)
     }
 
-    /// Execute commands.
+    /// Execute a command and emit events.
     ///
     /// # Errors
     /// Return [`DomainError::CommandRejected`] if the command is rejected.
