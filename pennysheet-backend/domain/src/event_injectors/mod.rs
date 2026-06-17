@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct EventInjector {
     /// ID of the current pending request.
     request_id: Option<Uuid>,

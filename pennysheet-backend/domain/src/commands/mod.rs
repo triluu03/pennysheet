@@ -1,20 +1,29 @@
 //! Commands.
 
 mod transactions;
-use std::str::FromStr;
 
-use crate::errors::DomainError;
 use chrono::{
     Local,
     NaiveDate,
 };
+use gateway::schema::enable_banking_api::transaction::TransactionQueryParameters;
+use std::str::FromStr;
 use transactions::*;
 use uuid::Uuid;
 
+use crate::errors::DomainError;
+
+/// Commands to be passed into the [`crate::aggregates::CoreAggregate`].
 #[derive(Debug)]
 pub enum Command {
     ImportTransactions(ImportTransactionsData),
     RetryFailedImportRequest(ImportRequestData),
+}
+
+/// Commands to be issued into [`gateway`].
+#[derive(Debug)]
+pub enum GatewayCommand {
+    ImportTransactions(TransactionQueryParameters),
 }
 
 /// Create a new [`Command::ImportTransactions`] command.

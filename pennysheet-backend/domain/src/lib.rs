@@ -5,3 +5,4 @@ pub mod commands;
 pub mod errors;
 pub mod event_injectors;
 pub mod events;
+pub mod process_managers;

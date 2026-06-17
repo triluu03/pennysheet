@@ -24,8 +24,8 @@ use tracing::{
 
 use crate::{
     AppState,
+    background_jobs::run_transaction_import,
     errors::AppError,
-    process_managers::run_transaction_import,
 };
 
 #[derive(Deserialize)]
@@ -77,13 +77,12 @@ pub async fn import_transactions_handler(
             state.db.clone(),
             payload.session,
             data.request_id,
-            event.clone(),
         ));
     }
 
     Ok((
         StatusCode::CREATED,
-        format!("Event created with ID: {}", res.last_insert_id),
+        "Transactions import requested!".to_string(),
     ))
 }
 
