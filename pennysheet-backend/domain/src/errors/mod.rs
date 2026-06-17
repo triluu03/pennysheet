@@ -1,6 +1,5 @@
 //! Domain errors.
 
-use chrono::ParseError;
 use core::fmt;
 use std::num::ParseFloatError;
 
@@ -25,8 +24,8 @@ impl fmt::Display for DomainError {
     }
 }
 
-impl From<ParseError> for DomainError {
-    fn from(value: ParseError) -> Self {
+impl From<chrono::ParseError> for DomainError {
+    fn from(value: chrono::ParseError) -> Self {
         Self::CommandCreation(value.to_string())
     }
 }
@@ -34,5 +33,11 @@ impl From<ParseError> for DomainError {
 impl From<ParseFloatError> for DomainError {
     fn from(value: ParseFloatError) -> Self {
         Self::EventCreation(value.to_string())
+    }
+}
+
+impl From<uuid::Error> for DomainError {
+    fn from(value: uuid::Error) -> Self {
+        Self::CommandCreation(value.to_string())
     }
 }

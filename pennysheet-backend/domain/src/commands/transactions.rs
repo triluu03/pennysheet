@@ -1,20 +1,29 @@
 //! Transactions-related commands.
 
 use chrono::NaiveDate;
+use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct ImportTransactionsData {
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
 }
 
 impl ImportTransactionsData {
-    /// Constructor
+    /// Constructor.
+    ///
+    /// end_date is set to the same value as start_date if not provided.
     pub fn new(start_date: NaiveDate, end_date: Option<NaiveDate>) -> Self {
         ImportTransactionsData {
             start_date,
             end_date: end_date.unwrap_or(start_date),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct ImportRequestData {
+    pub request_id: Uuid,
 }
 
 #[cfg(test)]

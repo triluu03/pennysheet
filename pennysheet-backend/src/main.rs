@@ -9,9 +9,9 @@ use infra::{
 use std::sync::Arc;
 use tracing::info;
 
+mod background_jobs;
 mod errors;
 mod handlers;
-mod process_managers;
 mod routes;
 mod telemetry;
 

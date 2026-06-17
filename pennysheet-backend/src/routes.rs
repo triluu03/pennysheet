@@ -2,7 +2,10 @@
 
 use crate::{
     AppState,
-    handlers::import_transactions_handler,
+    handlers::{
+        import_transactions_handler,
+        transaction_import_retry_handler,
+    },
 };
 use axum::{
     Router,
@@ -15,7 +18,9 @@ use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 
 fn transactions_router() -> Router<Arc<AppState>> {
-    Router::new().route("/import", post(import_transactions_handler))
+    Router::new()
+        .route("/import", post(import_transactions_handler))
+        .route("/import/retry", post(transaction_import_retry_handler))
 }
 
 /// Define App router.
