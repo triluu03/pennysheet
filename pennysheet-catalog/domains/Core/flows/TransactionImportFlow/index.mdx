@@ -19,10 +19,10 @@ steps:
       id: ImportTransactions
       version: 0.0.1
     next_step:
-      id: core_aggregate
+      id: aggregate
       label: handled by aggregate
 
-  - id: core_aggregate
+  - id: aggregate
     title: Aggregate
     service:
       id: Aggregate
@@ -37,13 +37,13 @@ steps:
       id: ImportTransactionsRequested
       version: 0.0.1
     next_step:
-      id: process_manager
+      id: transaction_process_manager
       label: starts process manager
 
-  - id: process_manager
-    title: Core Process Manager
+  - id: transaction_process_manager
+    title: Transaction Process Manager
     service:
-      id: CoreProcessManager
+      id: TransactionProcessManager
       version: 0.0.1
     next_step:
       id: fetch_transactions_cmd
@@ -83,10 +83,10 @@ steps:
       id: EnableBankingAPIGateway
       version: 0.0.1
     next_step:
-      id: core_event_injector
+      id: event_injector
       label: call event injector
 
-  - id: core_event_injector
+  - id: event_injector
     title: Event Injector
     service:
       id: EventInjector
@@ -105,7 +105,7 @@ steps:
       id: TransactionImportContinued
       version: 0.0.1
     next_step:
-      id: process_manager
+      id: transaction_process_manager
       label: continues process manager
 
   - id: import_completed
