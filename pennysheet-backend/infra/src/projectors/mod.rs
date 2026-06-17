@@ -34,7 +34,6 @@ impl<'a> CoreProjector<'a> {
     /// Returns [`DbErr`] if fails to get the projector state from the database.
     pub async fn new(db: &'a DatabaseConnection) -> Result<Self, DbErr> {
         let last_seen_event_number = get_projector_state(db, "CoreProjector").await?.unwrap_or(0);
-
         Ok(Self {
             db,
             name: "CoreProjector".to_string(),
@@ -51,7 +50,7 @@ impl<'a> CoreProjector<'a> {
         let n_unseen_events: u64 = unseen_events
             .len()
             .try_into()
-            .map_err(|err| DbErr::Custom(format!("Parsing error: {}", err)))?;
+            .map_err(|err| DbErr::Custom(format!("Failed to parse usize into u64: {}", err)))?;
 
         let txn = self.db.begin().await?;
         CoreProjector::multi_project(&txn, &unseen_events).await?;
