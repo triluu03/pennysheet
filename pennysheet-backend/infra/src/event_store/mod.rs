@@ -63,6 +63,36 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
     Ok(events)
 }
 
+/// Query the event table with OFFSET.
+///
+/// Get all events from the table except some of the first events.
+///
+/// # Errors
+/// Returns [`DbErr`] if the query operation fails.
+#[instrument(skip(db))]
+pub async fn get_events_with_offset(
+    db: &DatabaseConnection,
+    n_offset: u64,
+) -> Result<Vec<Event>, DbErr> {
+    let events: Vec<Event> = Entity::find()
+        .select_only()
+        .column(Column::EventData)
+        .order_by_asc(Column::CreatedAt)
+        .offset(n_offset)
+        .into_model::<EventRow>()
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|entry| entry.event_data)
+        .collect();
+
+    debug!(
+        count = events.len(),
+        n_offset, "loaded the events with offset"
+    );
+    Ok(events)
+}
+
 /// Append a new event to the database.
 ///
 /// # Errors
