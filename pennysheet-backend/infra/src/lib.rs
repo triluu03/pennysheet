@@ -29,8 +29,10 @@ use tracing::{
 mod event_store;
 mod projections;
 
-const DATABASE_URL: &str = "postgres://postgres:postgres@localhost";
-const DB_NAME: &str = "pennysheet_dev";
+/// Environment variable holding the base PostgreSQL connection URL (without the database name).
+const DATABASE_URL_ENV: &str = "DATABASE_URL";
+/// Environment variable holding the name of the application database.
+const DB_NAME_ENV: &str = "DB_NAME";
 
 #[derive(FromQueryResult)]
 struct EventRow {
@@ -39,23 +41,40 @@ struct EventRow {
 
 /// Connect to the database.
 ///
+/// The connection URL and database name are read from the [`DATABASE_URL_ENV`] and [`DB_NAME_ENV`]
+/// environment variables. The database will be created if it did not exist.
+///
 /// # Errors
-/// Return [`DbErr`] if the connecting fails.
+/// Return [`DbErr`] if the required environment variables are missing or the
+/// connecting fails.
 pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
-    let db: DatabaseConnection = Database::connect(DATABASE_URL).await?;
+    dotenvy::dotenv().ok();
+    let database_url = std::env::var(DATABASE_URL_ENV).map_err(|error| {
+        DbErr::Custom(format!(
+            "failed to read the `{DATABASE_URL_ENV}` environment variable ({error}); set \
+             `{DATABASE_URL_ENV}` in the .env file or the process environment"
+        ))
+    })?;
+    let db_name = std::env::var(DB_NAME_ENV).map_err(|error| {
+        DbErr::Custom(format!(
+            "failed to read the `{DB_NAME_ENV}` environment variable ({error}); set \
+             `{DB_NAME_ENV}` in the .env file or the process environment"
+        ))
+    })?;
 
+    let db: DatabaseConnection = Database::connect(&database_url).await?;
     match db
         .execute_raw(Statement::from_string(
             DbBackend::Postgres,
-            format!("CREATE DATABASE \"{}\";", DB_NAME),
+            format!("CREATE DATABASE \"{db_name}\";"),
         ))
         .await
     {
-        Ok(_) => info!(db_name = DB_NAME, "created database"),
+        Ok(_) => info!(%db_name, "created database"),
         Err(error) => debug!(%error, "create database skipped (likely already exists)"),
     }
 
-    let url = format!("{}/{}", DATABASE_URL, DB_NAME);
+    let url = format!("{database_url}/{db_name}");
     Database::connect(&url).await
 }
 

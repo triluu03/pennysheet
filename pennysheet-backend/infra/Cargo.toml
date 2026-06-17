@@ -7,6 +7,7 @@ edition = "2024"
 domain = { version = "0.1.0", path = "../domain", features = [
 	"sea-orm-support",
 ] }
+dotenvy = { workspace = true }
 sea-orm = { version = "2.0.0-rc", features = [
 	"sqlx-postgres",
 	"runtime-tokio-rustls",
