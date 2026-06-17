@@ -31,7 +31,7 @@ pub struct EventInjector {
 }
 
 impl EventInjector {
-    /// Constructor.
+    /// Construct a [`EventInjector`] from the current event table.
     ///
     /// # Errors
     /// Returns [`DomainError`] if there's no pending transaction import request

@@ -63,9 +63,7 @@ pub async fn import_transactions_handler(
     debug!("import transactions command built");
 
     let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new()
-        .multi_apply(&all_events)
-        .execute(command)?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone())
         .await
