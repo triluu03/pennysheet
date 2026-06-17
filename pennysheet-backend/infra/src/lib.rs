@@ -1,21 +1,6 @@
 //! Infrastructure management.
 
-use domain::events::Event;
-use sea_orm::{
-    ActiveValue::Set,
-    ConnectionTrait,
-    Database,
-    DbBackend,
-    DbErr,
-    EntityName,
-    EntityTrait,
-    FromQueryResult,
-    InsertManyResult,
-    InsertResult,
-    QueryOrder,
-    QuerySelect,
-    Statement,
-};
+use sea_orm::*;
 pub use sea_orm::{
     DatabaseConnection,
     DbErr as DatabaseError,
@@ -23,21 +8,22 @@ pub use sea_orm::{
 use tracing::{
     debug,
     info,
-    instrument,
+};
+
+pub use crate::event_store::{
+    append_event_to_db,
+    append_multi_events_to_db,
+    get_all_events,
 };
 
 mod event_store;
 mod projections;
+pub mod projectors;
 
 /// Environment variable holding the base PostgreSQL connection URL (without the database name).
 const DATABASE_URL_ENV: &str = "DATABASE_URL";
 /// Environment variable holding the name of the application database.
 const DB_NAME_ENV: &str = "DB_NAME";
-
-#[derive(FromQueryResult)]
-struct EventRow {
-    event_data: Event,
-}
 
 /// Connect to the database.
 ///
@@ -84,7 +70,12 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
 /// Returns [`DbErr`] if the syncing fails.
 pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     db.get_schema_builder()
+        // Event table
         .register(event_store::Entity)
+        // Projections
+        .register(projections::transactions::Entity)
+        .register(projections::expenses::Entity)
+        .register(projections::income::Entity)
         .sync(db)
         .await
 }
@@ -128,65 +119,4 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
     .await?;
 
     Ok(())
-}
-
-/// Query the whole event table.
-///
-/// # Errors
-/// Returns [`DbErr`] if the query operation fails.
-#[instrument(skip(db))]
-pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr> {
-    let events: Vec<Event> = event_store::Entity::find()
-        .select_only()
-        .column(event_store::Column::EventData)
-        .order_by_asc(event_store::Column::CreatedAt)
-        .into_model::<EventRow>()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|entry| entry.event_data)
-        .collect();
-
-    debug!(count = events.len(), "loaded all events");
-    Ok(events)
-}
-
-/// Append a new event to the database.
-///
-/// # Errors
-/// Return [`DbErr`] if the insert operation fails.
-#[instrument(skip(db, event))]
-pub async fn append_event_to_db(
-    db: &DatabaseConnection,
-    event: Event,
-) -> Result<InsertResult<event_store::ActiveModel>, DbErr> {
-    let new_event_row = event_store::ActiveModel {
-        event_data: Set(event),
-        ..Default::default()
-    };
-
-    let result = event_store::Entity::insert(new_event_row).exec(db).await?;
-    debug!(inserted_id = %result.last_insert_id, "appended event");
-    Ok(result)
-}
-
-/// Append multiple new events to the database.
-///
-/// # Errors
-/// Returns [`DbErr`] if the insert operation fails.
-#[instrument(skip(db, events))]
-pub async fn append_multi_events_to_db(
-    db: &DatabaseConnection,
-    events: Vec<Event>,
-) -> Result<InsertManyResult<event_store::ActiveModel>, DbErr> {
-    let new_event_rows = events.into_iter().map(|event| event_store::ActiveModel {
-        event_data: Set(event),
-        ..Default::default()
-    });
-
-    let result = event_store::Entity::insert_many(new_event_rows)
-        .exec(db)
-        .await?;
-    debug!("appended multiple events");
-    Ok(result)
 }
