@@ -133,9 +133,9 @@ mod tests {
     /// Build an aggregate that has already seen the given request fail, so the
     /// request id is recorded in the failed-request set and is eligible for retry.
     fn aggregate_with_failed_request(request_id: Uuid) -> CoreAggregate {
-        CoreAggregate::new(&[]).apply(&Event::ImportTransactionsFailed(ImportStatusData {
+        CoreAggregate::new(&[Event::ImportTransactionsFailed(ImportStatusData {
             request_id,
-        }))
+        })])
     }
 
     #[test]
@@ -256,9 +256,10 @@ mod tests {
     fn apply_retry_requested_blocks_new_requests() {
         let request_id = Uuid::new_v4();
         // A retry-requested event marks a request as pending again.
-        let aggregate = CoreAggregate::new(&[]).apply(&Event::TransactionImportRetryRequested(
-            ImportStatusData { request_id },
-        ));
+        let aggregate =
+            CoreAggregate::new(&[Event::TransactionImportRetryRequested(ImportStatusData {
+                request_id,
+            })]);
 
         let command = create_new_import_transactions_command(None, None).unwrap();
         assert!(aggregate.execute(command).is_err());
