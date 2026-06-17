@@ -3,7 +3,6 @@
 use domain::events::Event;
 use sea_orm::{
     ActiveValue::Set,
-    FromQueryResult,
     InsertManyResult,
     InsertResult,
     QueryOrder,
