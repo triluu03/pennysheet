@@ -284,14 +284,15 @@ mod tests {
     }
 
     #[test]
-    fn new_succeeds_with_retry_requested_event() {
-        // A retry request re-establishes a pending request id, so the injector
-        // should initialize from it just like an original import request.
+    fn new_fails_with_retry_for_unknown_request() {
         let request_id = Uuid::new_v4();
         let events = [Event::TransactionImportRetryRequested(ImportStatusData {
             request_id,
         })];
-        assert!(EventInjector::new(&events).is_ok());
+        assert!(matches!(
+            EventInjector::new(&events),
+            Err(DomainError::ComponentInit(_))
+        ));
     }
 
     #[test]

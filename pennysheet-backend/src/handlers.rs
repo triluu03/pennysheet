@@ -144,14 +144,26 @@ pub async fn transaction_import_retry_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::events::Event;
+    use domain::events::{
+        Event,
+        transactions::ImportStatusData,
+    };
     use infra::{
+        append_event_to_db,
         get_all_events,
         sync_database_schema,
     };
     use sea_orm::Database;
+    use uuid::Uuid;
 
     use crate::AppState;
+
+    /// Build an in-memory event store with the schema applied, ready for handler tests.
+    async fn in_memory_state() -> Arc<AppState> {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        sync_database_schema(&db).await.unwrap();
+        Arc::new(AppState { db })
+    }
 
     #[tokio::test]
     async fn test_import_transactions_handler() {
@@ -192,6 +204,95 @@ mod tests {
         assert_eq!(
             failed, 1,
             "spawned background import should record exactly one failure for an invalid session"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_import_retry_handler_accepts_known_failed_request() {
+        let state = in_memory_state().await;
+
+        // Seed a request that has already failed, making it eligible for retry.
+        // The aggregate marks a request retryable from the failure event alone.
+        let request_id = Uuid::new_v4();
+        append_event_to_db(
+            &state.db,
+            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+        )
+        .await
+        .unwrap();
+
+        let response = transaction_import_retry_handler(
+            State(state.clone()),
+            Json(TransactionImportRetryPayload {
+                request_id: request_id.to_string(),
+                session: String::new(),
+            }),
+        )
+        .await;
+
+        let Ok((status, body)) = response else {
+            panic!("expected transaction_import_retry_handler to succeed");
+        };
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(body, "Transaction import retry requested!".to_string());
+
+        // Seeded failure, plus the appended retry-requested event, plus a second
+        // failure from the spawned background import (the session is invalid).
+        let events = wait_for_events(&state.db, 3).await;
+        let retry_requested = events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionImportRetryRequested(_)))
+            .count();
+        assert_eq!(
+            retry_requested, 1,
+            "handler should append exactly one TransactionImportRetryRequested event"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_import_retry_handler_rejects_unknown_request() {
+        let state = in_memory_state().await;
+
+        // No prior failure exists, so the aggregate rejects the retry command.
+        let response = transaction_import_retry_handler(
+            State(state.clone()),
+            Json(TransactionImportRetryPayload {
+                request_id: Uuid::new_v4().to_string(),
+                session: String::new(),
+            }),
+        )
+        .await;
+
+        assert!(
+            response.is_err(),
+            "retrying an unknown request must be rejected"
+        );
+        let events = get_all_events(&state.db).await.unwrap();
+        assert!(
+            events.is_empty(),
+            "a rejected retry must not append any events"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_import_retry_handler_rejects_invalid_request_id() {
+        let state = in_memory_state().await;
+
+        // A malformed request id fails command creation before touching the store.
+        let response = transaction_import_retry_handler(
+            State(state.clone()),
+            Json(TransactionImportRetryPayload {
+                request_id: "not-a-uuid".to_string(),
+                session: String::new(),
+            }),
+        )
+        .await;
+
+        assert!(response.is_err(), "a malformed request id must be rejected");
+        let events = get_all_events(&state.db).await.unwrap();
+        assert!(
+            events.is_empty(),
+            "a rejected retry must not append any events"
         );
     }
 
