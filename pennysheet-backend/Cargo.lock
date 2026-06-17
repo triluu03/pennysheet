@@ -1564,6 +1564,7 @@ name = "infra"
 version = "0.1.0"
 dependencies = [
  "domain",
+ "dotenvy",
  "sea-orm",
  "serde",
  "serde_json",
