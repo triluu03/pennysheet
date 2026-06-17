@@ -91,7 +91,7 @@ impl EventInjector {
         if let Some(continuation_key) = response.continuation_key {
             let request_id = self.pending_request_id.ok_or_else(|| {
                 DomainError::EventCreation(
-                    "corrupted state of event injector: request_id".to_string(),
+                    "corrupted state of event injector: pending_request_id".to_string(),
                 )
             })?;
             let request_data = self.pending_request_data.as_ref().ok_or_else(|| {
