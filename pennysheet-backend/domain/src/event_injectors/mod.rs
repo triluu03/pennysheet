@@ -319,6 +319,36 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn retry_after_failure_restores_request_date_window() {
+        // Replaying request -> failure -> retry must restore the original date
+        // range, not merely the request id. A paginated response should resume
+        // from the same window the original request was issued for.
+        let request_id = Uuid::new_v4();
+        let injector = EventInjector::new(&[
+            requested_event(request_id),
+            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
+        ])
+        .expect("a retried request should re-initialize the injector");
+
+        // A continuation key forces a continuation event, which is the only place
+        // the rebuilt date window is observable in the injector's output.
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("10.00")],
+            continuation_key: Some("next-page".to_string()),
+        };
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        let Some(Event::ImportTransactionsContinued(data)) = events.last() else {
+            panic!("expected a continuation event when a continuation key is present");
+        };
+        assert_eq!(data.request_id, request_id);
+        assert_eq!(data.start_date, start_date());
+        assert_eq!(data.end_date, end_date());
+        assert_eq!(data.continuation_key, "next-page".to_string());
+    }
+
     /// Build a `TransactionRecorded` event for the given transaction, mirroring how a
     /// previously injected transaction would appear in the event history.
     fn recorded_event(transaction: Transaction) -> Event {

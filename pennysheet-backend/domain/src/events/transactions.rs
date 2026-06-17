@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::errors::DomainError;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRequestData {
     pub request_id: Uuid,
     pub start_date: NaiveDate,

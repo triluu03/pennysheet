@@ -81,14 +81,14 @@ impl CoreAggregate {
                 self.pending_request_id = Some(data.request_id)
             },
             Event::ImportTransactionsCompleted(data) => {
-                self.failed_request_id_set.remove(&data.request_id);
                 if self.pending_request_id == Some(data.request_id) {
+                    self.failed_request_id_set.remove(&data.request_id);
                     self.pending_request_id = None
                 }
             },
             Event::ImportTransactionsFailed(data) => {
-                self.failed_request_id_set.insert(data.request_id);
                 if self.pending_request_id == Some(data.request_id) {
+                    self.failed_request_id_set.insert(data.request_id);
                     self.pending_request_id = None
                 }
             },
@@ -119,7 +119,10 @@ mod tests {
         },
         events::{
             Event,
-            transactions::ImportStatusData,
+            transactions::{
+                ImportRequestData,
+                ImportStatusData,
+            },
         },
     };
 
@@ -134,9 +137,13 @@ mod tests {
     /// Build an aggregate that has already seen the given request fail, so the
     /// request id is recorded in the failed-request set and is eligible for retry.
     fn aggregate_with_failed_request(request_id: Uuid) -> CoreAggregate {
-        CoreAggregate::new(&[Event::ImportTransactionsFailed(ImportStatusData {
-            request_id,
-        })])
+        CoreAggregate::new(&[
+            Event::ImportTransactionsRequested(ImportRequestData {
+                request_id,
+                ..Default::default()
+            }),
+            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+        ])
     }
 
     #[test]

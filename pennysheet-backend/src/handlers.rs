@@ -146,10 +146,14 @@ mod tests {
     use super::*;
     use domain::events::{
         Event,
-        transactions::ImportStatusData,
+        transactions::{
+            ImportRequestData,
+            ImportStatusData,
+        },
     };
     use infra::{
         append_event_to_db,
+        append_multi_events_to_db,
         get_all_events,
         sync_database_schema,
     };
@@ -214,9 +218,15 @@ mod tests {
         // Seed a request that has already failed, making it eligible for retry.
         // The aggregate marks a request retryable from the failure event alone.
         let request_id = Uuid::new_v4();
-        append_event_to_db(
+        append_multi_events_to_db(
             &state.db,
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+            vec![
+                Event::ImportTransactionsRequested(ImportRequestData {
+                    request_id,
+                    ..Default::default()
+                }),
+                Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+            ],
         )
         .await
         .unwrap();
@@ -293,6 +303,68 @@ mod tests {
         assert!(
             events.is_empty(),
             "a rejected retry must not append any events"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_import_retry_handler_rejects_when_request_pending() {
+        let state = in_memory_state().await;
+
+        // A previously failed request is, on its own, eligible for retry.
+        let failed_id = Uuid::new_v4();
+        append_multi_events_to_db(
+            &state.db,
+            vec![
+                Event::ImportTransactionsRequested(ImportRequestData {
+                    request_id: failed_id,
+                    ..Default::default()
+                }),
+                Event::ImportTransactionsFailed(ImportStatusData {
+                    request_id: failed_id,
+                }),
+            ],
+        )
+        .await
+        .unwrap();
+
+        // Seed a fresh, still-pending import. Building it through the domain API
+        // (rather than the handler) keeps the pending state deterministic, since
+        // no background job is spawned to race in a terminal event.
+        let pending = CoreAggregate::new(&[])
+            .execute(create_new_import_transactions_command(None, None).unwrap())
+            .unwrap();
+        append_event_to_db(&state.db, pending).await.unwrap();
+
+        // Retrying the failed request must be rejected because another request is
+        // pending, even though that request id is itself retryable.
+        let response = transaction_import_retry_handler(
+            State(state.clone()),
+            Json(TransactionImportRetryPayload {
+                request_id: failed_id.to_string(),
+                session: String::new(),
+            }),
+        )
+        .await;
+
+        assert!(
+            response.is_err(),
+            "a retry must be rejected while another request is pending"
+        );
+
+        // Only the two seeded events remain; the rejected retry appended nothing.
+        let events = get_all_events(&state.db).await.unwrap();
+        assert_eq!(
+            events.len(),
+            3,
+            "a rejected retry must not append any events"
+        );
+        let retry_requested = events
+            .iter()
+            .filter(|event| matches!(event, Event::TransactionImportRetryRequested(_)))
+            .count();
+        assert_eq!(
+            retry_requested, 0,
+            "a rejected retry must not append a retry-requested event"
         );
     }
 
