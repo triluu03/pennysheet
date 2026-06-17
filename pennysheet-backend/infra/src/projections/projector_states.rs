@@ -59,6 +59,7 @@ pub(crate) async fn get_projector_state(
 /// Update the state of a projector.
 ///
 /// # Errors
+/// Returns [`DbErr`] if the update operation fails.
 #[instrument(skip(db))]
 pub(crate) async fn update_projector_state<C>(
     db: &C,
