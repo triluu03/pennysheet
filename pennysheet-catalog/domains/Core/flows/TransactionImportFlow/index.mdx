@@ -23,9 +23,9 @@ steps:
       label: handled by aggregate
 
   - id: core_aggregate
-    title: Core Aggregate
+    title: Aggregate
     service:
-      id: CoreAggregate
+      id: Aggregate
       version: 0.0.1
     next_step:
       id: import_requested
@@ -87,9 +87,9 @@ steps:
       label: call event injector
 
   - id: core_event_injector
-    title: Core Event Injector
+    title: Event Injector
     service:
-      id: CoreEventInjector
+      id: EventInjector
       version: 0.0.1
     next_steps:
       - id: import_continued

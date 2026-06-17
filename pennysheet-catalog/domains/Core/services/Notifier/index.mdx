@@ -1,0 +1,24 @@
+---
+id: Notifier
+name: Notifier
+version: 0.0.1
+summary: Sends notifications to the clients/users
+receives:
+  - id: BudgetReached
+    version: 0.0.1
+  - id: BudgetExceeded
+    version: 0.0.1
+---
+
+## Overview
+
+The Notifier is a reactive service that subscribes to budget lifecycle events from the [[container|EventStore]]. When a budget threshold is reached or exceeded, it dispatches user-facing notifications (e.g. push notifications or in-app alerts).
+
+It does not emit any domain events back into the event store — notifications are fire-and-forget side effects.
+
+```
+BudgetReached   → [Notifier] → BudgetThresholdReached notification (out-of-band)
+BudgetExceeded  → [Notifier] → BudgetExceeded notification (out-of-band)
+```
+
+<NodeGraph />

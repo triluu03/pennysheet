@@ -1,6 +1,6 @@
 ---
-id: CoreAggregate
-name: Core Aggregate
+id: Aggregate
+name: Aggregate
 version: 0.0.1
 summary: Write-side aggregate handling finance commands and emitting events.
 receives:
@@ -46,15 +46,15 @@ sends:
   - id: TransactionImportRetryRequested
     version: 0.0.1
 writesTo:
-  - id: CoreEventStore
+  - id: EventStore
     version: 0.0.1
 ---
 
 ## Overview
 
-The Core Aggregate is the write-model of the Core domain. It receives commands from the client side and emit and append events into the [[container|CoreEventStore]].
+The Aggregate is the write-model of the Core domain. It receives commands from the client side and emit and append events into the [[container|EventStore]].
 
 
-> **Note:** [[event|TransactionImportCompleted]] and [[event|TransactionImportFailed]] are **not** emitted by this aggregate. They are written directly to the event store by the [[service|CoreEventInjector]] after the [[service|EnableBankingAPIGateway]] delivers the Enable Banking API response.
+> **Note:** [[event|TransactionImportCompleted]] and [[event|TransactionImportFailed]] are **not** emitted by this aggregate. They are written directly to the event store by the [[service|EventInjector]] after the [[service|EnableBankingAPIGateway]] delivers the Enable Banking API response.
 
 <NodeGraph />
