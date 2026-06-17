@@ -1,10 +1,10 @@
 ---
-id: CoreProjector
-name: Core Projector
+id: Projector
+name: Projector
 version: 0.0.1
 summary: Builds read models from the event store.
 readsFrom:
-  - id: CoreEventStore
+  - id: EventStore
     version: 0.0.1
 writesTo:
   - id: TransactionView
@@ -17,7 +17,7 @@ writesTo:
 
 ## Overview
 
-The Core Projector is the read-side component of the Core domain. It consumes all events from the [[container|CoreEventStore]] — written by both the [[service|CoreAggregate]] and the [[service|CoreEventInjector]] — and maintains three read models:
+The Projector is the read-side component of the Core domain. It consumes all events from the [[container|EventStore]] — written by both the [[service|Aggregate]] and the [[service|EventInjector]] — and maintains three read models:
 
 - **[[container|TransactionView]]** — per-transaction projection optimised for list and search queries.
 - **[[container|BudgetView]]** — per-budget projection tracking spending progress and threshold status.

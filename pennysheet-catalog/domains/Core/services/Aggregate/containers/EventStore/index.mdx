@@ -1,0 +1,16 @@
+---
+id: EventStore
+name: Event Store
+version: 0.0.1
+summary: Append-only event table for all Core domain events.
+container_type: database
+technology: postgres
+classification: internal
+access_mode: appendOnly
+---
+
+## Overview
+
+Event Store is the append-only event table for the Core domain. The events are emitted either [[service|Aggregate]] or [[service|EventInjector]].
+
+The [[service|Projector]] and [[service|Notifier]] consume events from this store to build read models and dispatch notifications.
