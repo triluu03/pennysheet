@@ -20,6 +20,7 @@ pub use crate::event_store::{
 mod event_store;
 mod projections;
 pub mod projectors;
+mod sessions;
 
 /// Environment variable holding the base PostgreSQL connection URL (without the database name).
 const DATABASE_URL_ENV: &str = "DATABASE_URL";

@@ -7,6 +7,7 @@ edition = "2024"
 dotenvy = { workspace = true }
 jsonwebtoken = { version = "10.4.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.13.4", features = ["json", "query"] }
+sea-orm = { version = "2.0.0-rc", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
@@ -14,6 +15,7 @@ tracing = { workspace = true }
 [features]
 default = []
 with-client = []
+sea-orm-support = ["dep:sea-orm"]
 
 [lints]
 workspace = true
