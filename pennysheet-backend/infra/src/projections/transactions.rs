@@ -14,7 +14,8 @@ use sea_orm::{
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "transactions")]
 pub struct Model {
-    #[sea_orm(primary_key)]
+    #[sea_orm(primary_key, auto_increment = true)]
+    pub id: i64,
     pub transaction_id: Uuid,
     pub booking_date: Option<Date>,
     pub transaction_date: Option<Date>,
