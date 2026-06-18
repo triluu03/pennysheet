@@ -7,10 +7,7 @@ use axum::{
 };
 use domain::{
     aggregates::CoreAggregate,
-    commands::{
-        create_new_import_transactions_command,
-        create_retry_failed_import_request_command,
-    },
+    commands::Command,
     events::Event,
 };
 use infra::{
@@ -60,7 +57,7 @@ pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionsPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = create_new_import_transactions_command(
+    let command = Command::create_import_transactions(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
     )?;
@@ -114,7 +111,7 @@ pub async fn transaction_import_retry_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TransactionImportRetryPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = create_retry_failed_import_request_command(&payload.request_id)?;
+    let command = Command::create_retry_failed_import_request(&payload.request_id)?;
 
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
@@ -327,7 +324,7 @@ mod tests {
         // (rather than the handler) keeps the pending state deterministic, since
         // no background job is spawned to race in a terminal event.
         let pending = CoreAggregate::new(&[])
-            .execute(create_new_import_transactions_command(None, None).unwrap())
+            .execute(Command::create_import_transactions(None, None).unwrap())
             .unwrap();
         append_event_to_db(&state.db, pending).await.unwrap();
 

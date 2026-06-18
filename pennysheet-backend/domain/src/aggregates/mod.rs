@@ -121,7 +121,7 @@ mod tests {
     use super::CoreAggregate;
     use crate::{
         commands::{
-            create_new_import_transactions_command,
+            Command,
             create_retry_failed_import_request_command,
         },
         events::{
@@ -156,18 +156,18 @@ mod tests {
     #[test]
     fn execute_succeeds_with_no_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
 
     #[test]
     fn execute_rejects_when_pending_request_exists() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let event = aggregate.execute(command).unwrap();
         let aggregate = aggregate.apply(&event);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
@@ -175,18 +175,18 @@ mod tests {
     fn execute_rejects_command_with_invalid_dates() {
         let aggregate = CoreAggregate::new(&[]);
         let invalid_command =
-            create_new_import_transactions_command(Some("2026-06-05"), Some("2026-06-01")).unwrap();
+            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-01")).unwrap();
         assert!(aggregate.execute(invalid_command).is_err());
 
         let valid_command =
-            create_new_import_transactions_command(Some("2026-06-05"), Some("2026-06-05")).unwrap();
+            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-05")).unwrap();
         assert!(aggregate.execute(valid_command).is_ok());
     }
 
     #[test]
     fn apply_completed_event_clears_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(command).unwrap();
         let request_id = request_id_from_event(&requested);
         let aggregate = aggregate.apply(&requested);
@@ -194,14 +194,14 @@ mod tests {
         let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
         let aggregate = aggregate.apply(&completed);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
 
     #[test]
     fn apply_failed_event_clears_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(command).unwrap();
         let request_id = request_id_from_event(&requested);
         let aggregate = aggregate.apply(&requested);
@@ -209,14 +209,14 @@ mod tests {
         let failed = Event::ImportTransactionsFailed(ImportStatusData { request_id });
         let aggregate = aggregate.apply(&failed);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
 
     #[test]
     fn apply_mismatched_completed_event_keeps_request_pending() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(command).unwrap();
         let aggregate = aggregate.apply(&requested);
 
@@ -226,7 +226,7 @@ mod tests {
         });
         let aggregate = aggregate.apply(&completed);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
@@ -259,7 +259,7 @@ mod tests {
         let request_id = Uuid::new_v4();
         // Record the failure, then start a fresh import so a request is pending again.
         let aggregate = aggregate_with_failed_request(request_id);
-        let pending = create_new_import_transactions_command(None, None).unwrap();
+        let pending = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(pending).unwrap();
         let aggregate = aggregate.apply(&requested);
 
@@ -276,14 +276,14 @@ mod tests {
                 request_id,
             })]);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
     #[test]
     fn failed_event_makes_request_eligible_for_retry() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(command).unwrap();
         let request_id = request_id_from_event(&requested);
         let aggregate = aggregate.apply(&requested);
@@ -299,14 +299,14 @@ mod tests {
     #[test]
     fn multi_apply_handles_full_request_lifecycle() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         let requested = aggregate.execute(command).unwrap();
         let request_id = request_id_from_event(&requested);
         let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
 
         let aggregate = CoreAggregate::new(&[]).multi_apply(&[requested, completed]);
 
-        let command = create_new_import_transactions_command(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None).unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
 }
