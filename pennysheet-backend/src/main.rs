@@ -4,6 +4,7 @@ use infra::{
     DatabaseConnection,
     connect_to_database,
     ensure_append_only_eventstore,
+    setup_new_event_notification,
     sync_database_schema,
 };
 use std::sync::Arc;
@@ -35,6 +36,9 @@ async fn main() {
 
     sync_database_schema(&db).await.unwrap();
     info!("database schema synced");
+
+    setup_new_event_notification(&db).await.unwrap();
+    info!("event notifications online");
 
     ensure_append_only_eventstore(&db).await.unwrap();
     info!("append-only event store ensured");

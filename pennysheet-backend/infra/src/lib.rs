@@ -122,3 +122,47 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
 
     Ok(())
 }
+
+/// Setup the pg_notify triggers for event table.
+///
+/// # Errors
+/// Returns [`DbErr`] if executing the queries fails.
+pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(), DbErr> {
+    // Setup function for raising exceptions.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE OR REPLACE FUNCTION public.notify_events()
+            RETURNS trigger
+            LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            channel text;
+            payload text;
+        BEGIN
+            channel := 'EventStore';
+            payload := 'new-events-appended';
+
+            -- Notify events to listeners
+            PERFORM pg_notify(channel, payload);
+
+            RETURN NULL;
+        END;
+        $function$",
+    ))
+    .await?;
+
+    // Set the triggers in the event store table.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        format!(
+            "CREATE OR REPLACE TRIGGER event_notifications
+            AFTER INSERT OR UPDATE ON {}
+            FOR EACH ROW EXECUTE FUNCTION
+            notify_events()",
+            event_store::Entity.table_name()
+        ),
+    ))
+    .await?;
+
+    Ok(())
+}
