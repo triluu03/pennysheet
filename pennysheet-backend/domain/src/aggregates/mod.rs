@@ -17,8 +17,13 @@ use crate::{
 
 #[derive(Default, Debug, Clone)]
 pub struct CoreAggregate {
+    /// ID of the current pending request.
     pending_request_id: Option<Uuid>,
+    /// A set of all failed requests' IDs.
     failed_request_id_set: HashSet<Uuid>,
+    /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
+    /// new transaction events into the event table.
+    recorded_transaction_id_set: HashSet<Uuid>,
 }
 
 impl CoreAggregate {
@@ -68,9 +73,42 @@ impl CoreAggregate {
                     }))
                 }
             },
-            Command::CategorizeTransaction(data) => Ok(Event::TransactionCategorized(data)),
-            Command::ClassifyTransaction(data) => Ok(Event::TransactionClassified(data)),
-            Command::UpdateTransactionNote(data) => Ok(Event::TransactionNoteUpdated(data)),
+            Command::CategorizeTransaction(data) => {
+                if self
+                    .recorded_transaction_id_set
+                    .contains(&data.transaction_id)
+                {
+                    Ok(Event::TransactionCategorized(data))
+                } else {
+                    Err(DomainError::CommandRejected(
+                        "The requested transaction ID is not found!".to_string(),
+                    ))
+                }
+            },
+            Command::ClassifyTransaction(data) => {
+                if self
+                    .recorded_transaction_id_set
+                    .contains(&data.transaction_id)
+                {
+                    Ok(Event::TransactionClassified(data))
+                } else {
+                    Err(DomainError::CommandRejected(
+                        "The requested transaction ID is not found!".to_string(),
+                    ))
+                }
+            },
+            Command::UpdateTransactionNote(data) => {
+                if self
+                    .recorded_transaction_id_set
+                    .contains(&data.transaction_id)
+                {
+                    Ok(Event::TransactionNoteUpdated(data))
+                } else {
+                    Err(DomainError::CommandRejected(
+                        "The requested transaction ID is not found!".to_string(),
+                    ))
+                }
+            },
         }
     }
 
@@ -95,8 +133,10 @@ impl CoreAggregate {
                     self.pending_request_id = None
                 }
             },
+            Event::TransactionRecorded(data) => {
+                self.recorded_transaction_id_set.insert(data.transaction_id);
+            },
             Event::ImportTransactionsContinued(_)
-            | Event::TransactionRecorded(_)
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_) => {

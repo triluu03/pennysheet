@@ -42,7 +42,7 @@ pub(crate) trait TransactionProjectionTrait: EntityTrait {
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] of the update operation fails.
+    /// Returns [`DbErr`] if the update operation fails.
     async fn update_column_value<C>(
         db: &C,
         transaction_id: Uuid,

@@ -79,7 +79,7 @@ impl Command {
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError::Parsing`] in any of the following scenarios:
+    /// Returns [`DomainError`] in any of the following scenarios:
     /// - The provided transaction ID is not a valid UUID.
     /// - The provided category does not follow the [`TransactionCategory`] enum.
     pub fn create_categorize_transaction(
@@ -100,7 +100,7 @@ impl Command {
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError::Parsing`] in any of the following scenarios:
+    /// Returns [`DomainError`] in any of the following scenarios:
     /// - The provided transaction ID is not a valid UUID.
     /// - The provided classification does not follow the [`TransactionClassification`] enum.
     pub fn create_classify_transaction(
@@ -113,6 +113,25 @@ impl Command {
         let command = Command::ClassifyTransaction(TransactionClassificationData {
             transaction_id: parsed_transaction_id,
             classification: parsed_classification,
+        });
+        Ok(command)
+    }
+
+    /// Create a new [`Command::UpdateTransactionNote`] command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::CommandCreation`] in any of the following scenarios:
+    /// - The provided transaction ID is not a valid UUID.
+    pub fn create_update_transaction_note(
+        transaction_id: &str,
+        note: &str,
+    ) -> Result<Self, DomainError> {
+        let parsed_transaction_id = Uuid::from_str(transaction_id)?;
+
+        let command = Command::UpdateTransactionNote(TransactionNoteData {
+            transaction_id: parsed_transaction_id,
+            note: note.to_string(),
         });
         Ok(command)
     }
