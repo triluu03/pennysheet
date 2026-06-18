@@ -69,10 +69,7 @@ pub async fn import_transactions_handler(
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
-    let res = append_event_to_db(&state.db, event.clone())
-        .await
-        .map_err(AppError::from)?;
-
+    let res = append_event_to_db(&state.db, event.clone()).await?;
     info!(inserted_id = %res.last_insert_id, "import transactions event appended");
 
     // Spawn a background job running transaction process manager.
@@ -122,10 +119,7 @@ pub async fn transaction_import_retry_handler(
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
-    let res = append_event_to_db(&state.db, event.clone())
-        .await
-        .map_err(AppError::from)?;
-
+    let res = append_event_to_db(&state.db, event.clone()).await?;
     info!(inserted_id = %res.last_insert_id, "transaction import retry event appended");
 
     // Spawn a background job running transaction process manager.
