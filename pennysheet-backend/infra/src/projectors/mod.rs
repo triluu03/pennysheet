@@ -141,7 +141,6 @@ impl<'db> CoreProjector<'db> {
                 {
                     expense.insert(txn).await?;
                 };
-
                 if let Some(income) = income::ActiveModel::from_recorded_transaction(data.clone()) {
                     income.insert(txn).await?;
                 };
