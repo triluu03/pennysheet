@@ -29,6 +29,7 @@ use crate::{
     },
 };
 
+/// Project to all projections that implements [`TransactionProjectionTrait`].
 macro_rules! project_to_all {
     ($method:ident, $txn:expr, $id:expr, $value:expr) => {{
         transactions::Entity::$method($txn, $id, $value).await?;
