@@ -47,9 +47,6 @@ impl ActiveModel {
             amount: Set(data.amount),
             currency: Set(data.currency),
             creditor_name: Set(creditor_name),
-            category: Set(data.category),
-            classification: Set(data.classification),
-            note: Set(data.note),
             ..ActiveModelTrait::default()
         })
     }

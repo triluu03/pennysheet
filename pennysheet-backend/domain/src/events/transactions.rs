@@ -56,12 +56,10 @@ pub struct TransactionData {
     pub currency: String,
     pub creditor_name: Option<String>,
     pub debtor_name: Option<String>,
-    pub category: Option<TransactionCategory>,
-    pub classification: Option<TransactionClassification>,
-    pub note: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 #[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
 #[cfg_attr(
     feature = "sea-orm-support",
@@ -146,9 +144,6 @@ impl TransactionData {
             currency,
             creditor_name,
             debtor_name,
-            category: None,
-            classification: None,
-            note: None,
         })
     }
 
