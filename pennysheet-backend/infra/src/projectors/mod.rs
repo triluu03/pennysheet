@@ -72,6 +72,11 @@ impl<'a> CoreProjector<'a> {
             DbErr::Custom(format!("Failed to listen to the event table: {}", err))
         })?;
 
+        // Refresh any unseen events appended while the project was not online.
+        info!("trigger a projection run to clear the backlog");
+        self.run_projections().await?;
+
+        // Subscribe to notifications from the event table.
         loop {
             match listener.recv().await {
                 Ok(notification) => {
@@ -93,13 +98,7 @@ impl<'a> CoreProjector<'a> {
     /// Returns [`DbErr`] if the projections fails.
     #[instrument(skip(self))]
     pub async fn run_projections(&mut self) -> Result<(), DbErr> {
-        let unseen_events = get_events_with_offset(
-            self.db,
-            self.last_seen_event_number.try_into().map_err(|_| {
-                DbErr::Custom("last_seen_event_number is a negative value".to_string())
-            })?,
-        )
-        .await?;
+        let unseen_events = get_events_with_offset(self.db, self.last_seen_event_number).await?;
         let n_unseen_events: i64 = unseen_events
             .len()
             .try_into()

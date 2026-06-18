@@ -19,8 +19,8 @@ use tracing::{
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "events")]
 pub struct Model {
-    #[sea_orm(primary_key)]
-    pub event_id: Uuid,
+    #[sea_orm(primary_key, auto_increment = true)]
+    pub event_id: i64,
     pub event_data: Event,
     #[sea_orm(nullable)]
     pub metadata: Json,
@@ -28,14 +28,7 @@ pub struct Model {
     pub created_at: DateTime,
 }
 
-impl ActiveModelBehavior for ActiveModel {
-    fn new() -> Self {
-        Self {
-            event_id: Set(uuid::Uuid::new_v4()),
-            ..ActiveModelTrait::default()
-        }
-    }
-}
+impl ActiveModelBehavior for ActiveModel {}
 
 /// Query the whole event table.
 ///
@@ -47,7 +40,7 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
     let events: Vec<Event> = Entity::find()
         .select_only()
         .column(Column::EventData)
-        .order_by_asc(Column::CreatedAt)
+        .order_by_asc(Column::EventId)
         .into_tuple()
         .all(db)
         .await?;
@@ -66,13 +59,13 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
 #[instrument(skip(db))]
 pub async fn get_events_with_offset(
     db: &DatabaseConnection,
-    n_offset: u64,
+    n_offset: i64,
 ) -> Result<Vec<Event>, DbErr> {
     let events: Vec<Event> = Entity::find()
         .select_only()
         .column(Column::EventData)
-        .order_by_asc(Column::CreatedAt)
-        .offset(n_offset)
+        .filter(Column::EventId.gt(n_offset))
+        .order_by_asc(Column::EventId)
         .into_tuple()
         .all(db)
         .await?;
