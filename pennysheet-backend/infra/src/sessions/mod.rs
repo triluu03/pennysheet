@@ -4,6 +4,7 @@ use gateway::schema::enable_banking_session::EnableBankingSession;
 use sea_orm::{
     ActiveValue::Set,
     DeriveEntityModel,
+    InsertResult,
     QuerySelect,
     entity::prelude::*,
 };
@@ -49,13 +50,11 @@ pub async fn get_current_session(
 pub async fn insert_new_session(
     db: &DatabaseConnection,
     session: EnableBankingSession,
-) -> Result<EnableBankingSession, DbErr> {
-    let new_session: Model = ActiveModel {
+) -> Result<InsertResult<ActiveModel>, DbErr> {
+    let new_session = ActiveModel {
         enable_banking_session: Set(session),
         ..Default::default()
-    }
-    .insert(db)
-    .await?;
+    };
 
-    Ok(new_session.enable_banking_session)
+    Entity::insert(new_session).exec(db).await
 }

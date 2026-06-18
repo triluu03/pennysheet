@@ -10,11 +10,17 @@ use tracing::{
     info,
 };
 
-pub use crate::event_store::{
-    append_event_to_db,
-    append_multi_events_to_db,
-    get_all_events,
-    get_events_with_offset,
+pub use crate::{
+    event_store::{
+        append_event_to_db,
+        append_multi_events_to_db,
+        get_all_events,
+        get_events_with_offset,
+    },
+    sessions::{
+        get_current_session,
+        insert_new_session,
+    },
 };
 
 mod event_store;
