@@ -1,4 +1,4 @@
-//! API handlers.
+//! Transactions handlers.
 
 use axum::{
     Json,
@@ -67,7 +67,7 @@ pub async fn import_transactions_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(inserted_id = %res.last_insert_id, "import transactions event appended");
+    info!(event_id = %res.last_insert_id, "import transactions event appended");
 
     // Spawn a background job running transaction process manager.
     if let Event::ImportTransactionsRequested(data) = &event {
@@ -117,7 +117,7 @@ pub async fn transaction_import_retry_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(inserted_id = %res.last_insert_id, "transaction import retry event appended");
+    info!(event_id = %res.last_insert_id, "transaction import retry event appended");
 
     // Spawn a background job running transaction process manager.
     if let Event::TransactionImportRetryRequested(data) = &event {
@@ -166,7 +166,7 @@ pub async fn categorize_transaction_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(inserted_id = %res.last_insert_id, "categorize transaction event appended");
+    info!(event_id = %res.last_insert_id, "categorize transaction event appended");
 
     Ok((StatusCode::CREATED, "Transaction categorized!".to_string()))
 }
@@ -203,7 +203,7 @@ pub async fn classify_transaction_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(inserted_id = %res.last_insert_id, "classify transaction event appended");
+    info!(event_id = %res.last_insert_id, "classify transaction event appended");
 
     Ok((StatusCode::CREATED, "Transaction classified!".to_string()))
 }
@@ -239,7 +239,7 @@ pub async fn update_transaction_note_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(inserted_id = %res.last_insert_id, "update transaction note event appended");
+    info!(event_id = %res.last_insert_id, "update transaction note event appended");
 
     Ok((StatusCode::CREATED, "Transaction note updated!".to_string()))
 }
