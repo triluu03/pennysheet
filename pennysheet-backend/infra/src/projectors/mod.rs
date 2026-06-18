@@ -15,7 +15,6 @@ use tracing::{
 };
 
 use crate::{
-    event_store,
     get_database_url,
     get_events_with_offset,
     projections::{
@@ -29,6 +28,14 @@ use crate::{
         transactions,
     },
 };
+
+macro_rules! project_to_all {
+    ($method:ident, $txn:expr, $id:expr, $value:expr) => {{
+        transactions::Entity::$method($txn, $id, $value).await?;
+        expenses::Entity::$method($txn, $id, $value).await?;
+        income::Entity::$method($txn, $id, $value).await?;
+    }};
+}
 
 const PROJECTOR_NAME: &str = "CoreProjector";
 
@@ -150,41 +157,20 @@ impl<'db> CoreProjector<'db> {
                 Ok(())
             },
             Event::TransactionCategorized(data) => {
-                transactions::Entity::update_category(txn, data.transaction_id, data.category)
-                    .await?;
-                expenses::Entity::update_category(txn, data.transaction_id, data.category).await?;
-                income::Entity::update_category(txn, data.transaction_id, data.category).await?;
-
+                project_to_all!(update_category, txn, data.transaction_id, data.category);
                 Ok(())
             },
             Event::TransactionClassified(data) => {
-                transactions::Entity::update_classification(
+                project_to_all!(
+                    update_classification,
                     txn,
                     data.transaction_id,
-                    data.classification,
-                )
-                .await?;
-                expenses::Entity::update_classification(
-                    txn,
-                    data.transaction_id,
-                    data.classification,
-                )
-                .await?;
-                income::Entity::update_classification(
-                    txn,
-                    data.transaction_id,
-                    data.classification,
-                )
-                .await?;
-
+                    data.classification
+                );
                 Ok(())
             },
             Event::TransactionNoteUpdated(data) => {
-                transactions::Entity::update_note(txn, data.transaction_id, data.note.clone())
-                    .await?;
-                expenses::Entity::update_note(txn, data.transaction_id, data.note.clone()).await?;
-                income::Entity::update_note(txn, data.transaction_id, data.note.clone()).await?;
-
+                project_to_all!(update_note, txn, data.transaction_id, data.note.clone());
                 Ok(())
             },
             Event::ImportTransactionsContinued(_)
