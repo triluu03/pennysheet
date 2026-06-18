@@ -47,6 +47,7 @@ impl EnableBankingSession {
     /// Construct [`EnableBankingSession`] from JSON payload.
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError`] if parsing the JSON payload fails.
     pub fn from_json(session_json: &str) -> Result<Self, GatewayError> {
         Ok(serde_json::from_str(session_json)?)
@@ -57,6 +58,7 @@ impl EnableBankingSession {
     /// TODO: How to generalize this to support a session with multiple accounts?
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError`] if no accounts are found in the provided session.
     pub fn get_account_uid(&self) -> Result<&String, GatewayError> {
         if self.accounts.is_empty() {

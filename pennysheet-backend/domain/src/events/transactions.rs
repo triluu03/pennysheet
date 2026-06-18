@@ -106,6 +106,7 @@ impl TransactionData {
     /// Constructor
     ///
     /// # Errors
+    ///
     /// Return [`DomainError`] if parsing the values from
     /// [`enable_banking_api::transaction::Transaction`] fails.
     pub fn new(

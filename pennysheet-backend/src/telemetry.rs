@@ -9,6 +9,7 @@ use tracing_subscriber::{
 /// Init tracing subscriber.
 ///
 /// # Errors
+///
 /// Returns [`String`] error when the initialization fails.
 pub fn init_tracing() -> Result<(), String> {
     let filter = EnvFilter::from_default_env()

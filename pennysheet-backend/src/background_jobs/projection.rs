@@ -12,6 +12,7 @@ use tracing::{
 /// Run the projection.
 ///
 /// # Panics
+///
 /// Panic in any of the following scenarios:
 /// - Cannot initialize the projector.
 /// - Running the projections fails.

@@ -34,6 +34,7 @@ impl TransactionProcessManager {
     /// Construct a [`TransactionProcessManager`] from the current event table.
     ///
     /// # Errors
+    ///
     /// Returns [`DomainError`] if there's no pending transaction import request.
     pub fn new(all_events: &[Event]) -> Result<Self, DomainError> {
         let new_self = Self {
@@ -52,6 +53,7 @@ impl TransactionProcessManager {
     /// Create a [`GatewayCommand`] command.
     ///
     /// # Errors
+    ///
     /// Returns [`DomainError::CommandCreation`] if no pending request or its data is found in the
     /// current state of [`TransactionProcessManager`].
     pub fn create_gateway_command(&self) -> Result<GatewayCommand, DomainError> {

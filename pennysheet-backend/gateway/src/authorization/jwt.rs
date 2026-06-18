@@ -30,6 +30,7 @@ impl JWTBody {
     /// Constructor.
     ///
     /// # Panics
+    ///
     /// Panics when failed to access the [`SystemTime`].
     fn new() -> Self {
         let iat = SystemTime::now()
@@ -49,10 +50,12 @@ impl JWTBody {
 /// Generate JWT token.
 ///
 /// # Returns
+///
 /// - Encoded JWT token
 /// - Expiration times.
 ///
 /// # Errors
+///
 /// Returns [`GatewayError`] in any of the following scenarios:
 /// - Cannot get the environment variables.
 /// - Cannot generate the JWT body/claims.

@@ -23,6 +23,7 @@ pub struct AppState {
 /// Main function of Axum application
 ///
 /// # Panics
+///
 /// Panic in the following scenarios:
 /// - Cannot install the global tracing subscriber.
 /// - Cannot connect to database or sync database setup.

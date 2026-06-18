@@ -28,6 +28,7 @@ use uuid::Uuid;
 /// This task is meant to be run in the background to avoid blocking the clients.
 ///
 /// # Panics
+///
 /// Panic if cannot query the current event table from the database.
 #[instrument(skip(db, session_json), fields(%request_id))]
 pub async fn run_transaction_import(

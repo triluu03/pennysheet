@@ -50,6 +50,7 @@ impl BearerToken {
     /// Check whether the token has expired.
     ///
     /// # Panics
+    ///
     /// Panics when failed to access the [`SystemTime`].
     fn is_expired(&self) -> bool {
         let now = SystemTime::now()
@@ -64,6 +65,7 @@ impl EnableBankingClient {
     /// Constructor.
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError`] in any of the following scenarios:
     /// - Cannot generate the JWT token.
     /// - Fail to parse the session JSON.
@@ -85,6 +87,7 @@ impl EnableBankingClient {
     /// Get the encoded JWT token.
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError::Authorization`] if the token has expired.
     fn get_token(&self) -> Result<&String, GatewayError> {
         if self.bearer_token.is_expired() {
@@ -99,6 +102,7 @@ impl EnableBankingClient {
     /// Get account balances.
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.
@@ -139,6 +143,7 @@ impl EnableBankingClient {
     /// Get account transactions.
     ///
     /// # Errors
+    ///
     /// Returns [`GatewayError`] in any of the following scenarios:
     /// - The JWT token has expired.
     /// - No accounts are found in the provided session.

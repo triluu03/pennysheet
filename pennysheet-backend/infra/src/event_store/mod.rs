@@ -39,6 +39,7 @@ impl ActiveModelBehavior for ActiveModel {
 /// Query the whole event table.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the query operation fails.
 #[instrument(skip(db))]
 pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr> {
@@ -59,6 +60,7 @@ pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr
 /// Get all events from the table except some of the first events.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the query operation fails.
 #[instrument(skip(db))]
 pub async fn get_events_with_offset(
@@ -84,6 +86,7 @@ pub async fn get_events_with_offset(
 /// Append a new event to the database.
 ///
 /// # Errors
+///
 /// Return [`DbErr`] if the insert operation fails.
 #[instrument(skip(db, event))]
 pub async fn append_event_to_db(
@@ -103,6 +106,7 @@ pub async fn append_event_to_db(
 /// Append multiple new events to the database.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the insert operation fails.
 #[instrument(skip(db, events))]
 pub async fn append_multi_events_to_db(

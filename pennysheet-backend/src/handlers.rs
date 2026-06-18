@@ -44,6 +44,7 @@ pub struct ImportTransactionsPayload {
 /// will be spawn and run the import in the background.
 ///
 /// # Errors
+///
 /// Return [`AppError`] in the following scenarios:
 /// - Failed to parse the payload into expected format.
 /// - Command is rejected by the aggregate.
@@ -101,6 +102,7 @@ pub struct TransactionImportRetryPayload {
 /// will be spawn and run the import in the background.
 ///
 /// # Errors
+///
 /// Return [`AppError`] in the following scenarios:
 /// - Failed to parse the payload into expected format.
 /// - Command is rejected by the aggregate.

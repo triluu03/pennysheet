@@ -42,6 +42,7 @@ impl ActiveModelBehavior for ActiveModel {
 /// Return the last seen event number.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the query operation fails.
 #[instrument(skip(db))]
 pub(crate) async fn get_projector_state(
@@ -59,6 +60,7 @@ pub(crate) async fn get_projector_state(
 /// Update the state of a projector.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the update operation fails.
 #[instrument(skip(db))]
 pub(crate) async fn update_projector_state<C>(

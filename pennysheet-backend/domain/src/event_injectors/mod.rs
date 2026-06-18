@@ -44,6 +44,7 @@ impl EventInjector {
     /// Construct a [`EventInjector`] from the current event table.
     ///
     /// # Errors
+    ///
     /// Returns [`DomainError`] if there's no pending transaction import request
     /// found in the event table.
     pub fn new(all_events: &[Event]) -> Result<Self, DomainError> {
@@ -63,6 +64,7 @@ impl EventInjector {
     /// Inject transaction events.
     ///
     /// # Errors
+    ///
     /// Returns [`DomainError`] if the state of the [`EventInjector`] has been corrupted.
     pub fn inject_transaction_events(
         &self,

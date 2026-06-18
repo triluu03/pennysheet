@@ -29,6 +29,7 @@ pub enum GatewayCommand {
 /// Create a new [`Command::ImportTransactions`] command.
 ///
 /// # Errors
+///
 /// Return [`DomainError::CommandCreation`] if start date and end date arguments
 /// do not follow the format "%Y-%m-%d".
 pub fn create_new_import_transactions_command(
@@ -55,6 +56,7 @@ pub fn create_new_import_transactions_command(
 /// Create a new [`Command::RetryFailedImportRequest`] command.
 ///
 /// # Errors
+///
 /// Return [`DomainError::CommandCreation`] if the provided request ID is not a valid UUID.
 pub fn create_retry_failed_import_request_command(
     request_id: &str,
