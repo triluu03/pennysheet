@@ -18,6 +18,7 @@ use crate::{
     get_database_url,
     get_events_with_offset,
     projections::{
+        TransactionProjectionTrait,
         expenses,
         income,
         projector_states::{
@@ -27,6 +28,15 @@ use crate::{
         transactions,
     },
 };
+
+/// Project to all projections that implements [`TransactionProjectionTrait`].
+macro_rules! project_to_all {
+    ($method:ident, $txn:expr, $id:expr, $value:expr) => {{
+        transactions::Entity::$method($txn, $id, $value).await?;
+        expenses::Entity::$method($txn, $id, $value).await?;
+        income::Entity::$method($txn, $id, $value).await?;
+    }};
+}
 
 const PROJECTOR_NAME: &str = "CoreProjector";
 
@@ -145,6 +155,23 @@ impl<'db> CoreProjector<'db> {
                     income.insert(txn).await?;
                 };
 
+                Ok(())
+            },
+            Event::TransactionCategorized(data) => {
+                project_to_all!(update_category, txn, data.transaction_id, data.category);
+                Ok(())
+            },
+            Event::TransactionClassified(data) => {
+                project_to_all!(
+                    update_classification,
+                    txn,
+                    data.transaction_id,
+                    data.classification
+                );
+                Ok(())
+            },
+            Event::TransactionNoteUpdated(data) => {
+                project_to_all!(update_note, txn, data.transaction_id, data.note.clone());
                 Ok(())
             },
             Event::ImportTransactionsContinued(_)

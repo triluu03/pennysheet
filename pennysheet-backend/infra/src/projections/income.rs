@@ -1,14 +1,16 @@
 //! Income projections.
 
-use domain::events::transactions::{
+use domain::events::{
     TransactionCategory,
     TransactionClassification,
-    TransactionData,
+    transactions::TransactionData,
 };
 use sea_orm::{
     ActiveValue::Set,
     entity::prelude::*,
 };
+
+use crate::projections::TransactionProjectionTrait;
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
@@ -47,10 +49,22 @@ impl ActiveModel {
             amount: Set(data.amount),
             currency: Set(data.currency),
             debtor_name: Set(debtor_name),
-            category: Set(data.category),
-            classification: Set(data.classification),
-            note: Set(data.note),
             ..ActiveModelTrait::default()
         })
+    }
+}
+
+impl TransactionProjectionTrait for Entity {
+    fn id_column() -> Self::Column {
+        self::Column::TransactionId
+    }
+    fn category_column() -> Self::Column {
+        self::Column::Category
+    }
+    fn classification_column() -> Self::Column {
+        self::Column::Classification
+    }
+    fn note_column() -> Self::Column {
+        self::Column::Note
     }
 }

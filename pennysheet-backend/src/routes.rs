@@ -13,8 +13,11 @@ use tower_http::trace::TraceLayer;
 use crate::{
     AppState,
     handlers::{
+        categorize_transaction_handler,
+        classify_transaction_handler,
         import_transactions_handler,
         transaction_import_retry_handler,
+        update_transaction_note_handler,
     },
 };
 
@@ -22,6 +25,9 @@ fn transactions_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/import", post(import_transactions_handler))
         .route("/import/retry", post(transaction_import_retry_handler))
+        .route("/category", post(categorize_transaction_handler))
+        .route("/classification", post(classify_transaction_handler))
+        .route("/note", post(update_transaction_note_handler))
 }
 
 /// Define App router.

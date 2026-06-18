@@ -7,10 +7,7 @@ use axum::{
 };
 use domain::{
     aggregates::CoreAggregate,
-    commands::{
-        create_new_import_transactions_command,
-        create_retry_failed_import_request_command,
-    },
+    commands::Command,
     events::Event,
 };
 use infra::{
@@ -60,7 +57,7 @@ pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionsPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = create_new_import_transactions_command(
+    let command = Command::create_import_transactions(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
     )?;
@@ -114,7 +111,7 @@ pub async fn transaction_import_retry_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TransactionImportRetryPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = create_retry_failed_import_request_command(&payload.request_id)?;
+    let command = Command::create_retry_failed_import_request(&payload.request_id)?;
 
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
@@ -135,6 +132,116 @@ pub async fn transaction_import_retry_handler(
         StatusCode::ACCEPTED,
         "Transaction import retry requested!".to_string(),
     ))
+}
+
+#[derive(Deserialize)]
+pub struct CategorizeTransactionPayload {
+    pub transaction_id: String,
+    pub category: String,
+}
+
+/// Handler for POST request to /transactions/category
+///
+/// # Errors
+///
+/// Returns [`AppError`] in the following scenarios:
+/// - Failed to parse the payload into expected format.
+/// - Command is rejected by the aggregate.
+/// - Failed to insert the new event into the store.
+#[instrument(
+    skip(state, payload),
+    fields(
+        transaction_id = payload.transaction_id,
+        category = payload.category
+    )
+)]
+pub async fn categorize_transaction_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CategorizeTransactionPayload>,
+) -> axum::response::Result<(StatusCode, String), AppError> {
+    let command =
+        Command::create_categorize_transaction(&payload.transaction_id, &payload.category)?;
+
+    let all_events = get_all_events(&state.db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+
+    let res = append_event_to_db(&state.db, event.clone()).await?;
+    info!(inserted_id = %res.last_insert_id, "categorize transaction event appended");
+
+    Ok((StatusCode::CREATED, "Transaction categorized!".to_string()))
+}
+
+#[derive(Deserialize)]
+pub struct ClassifyTransactionPayload {
+    pub transaction_id: String,
+    pub classification: String,
+}
+
+/// Handler for POST request to /transactions/classification
+///
+/// # Errors
+///
+/// Returns [`AppError`] in the following scenarios:
+/// - Failed to parse the payload into expected format.
+/// - Command is rejected by the aggregate.
+/// - Failed to insert the new event into the store.
+#[instrument(
+    skip(state, payload),
+    fields(
+        transaction_id = payload.transaction_id,
+        classification = payload.classification
+    )
+)]
+pub async fn classify_transaction_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ClassifyTransactionPayload>,
+) -> axum::response::Result<(StatusCode, String), AppError> {
+    let command =
+        Command::create_classify_transaction(&payload.transaction_id, &payload.classification)?;
+
+    let all_events = get_all_events(&state.db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+
+    let res = append_event_to_db(&state.db, event.clone()).await?;
+    info!(inserted_id = %res.last_insert_id, "classify transaction event appended");
+
+    Ok((StatusCode::CREATED, "Transaction classified!".to_string()))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTransactionNotePayload {
+    pub transaction_id: String,
+    pub note: String,
+}
+
+/// Handler for POST request to /transactions/note
+///
+/// # Errors
+///
+/// Returns [`AppError`] in the following scenarios:
+/// - Failed to parse the payload into expected format.
+/// - Command is rejected by the aggregate.
+/// - Failed to insert the new event into the store.
+#[instrument(
+    skip(state, payload),
+    fields(
+        transaction_id = payload.transaction_id,
+        note = payload.note,
+    )
+)]
+pub async fn update_transaction_note_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateTransactionNotePayload>,
+) -> axum::response::Result<(StatusCode, String), AppError> {
+    let command = Command::create_update_transaction_note(&payload.transaction_id, &payload.note)?;
+
+    let all_events = get_all_events(&state.db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+
+    let res = append_event_to_db(&state.db, event.clone()).await?;
+    info!(inserted_id = %res.last_insert_id, "update transaction note event appended");
+
+    Ok((StatusCode::CREATED, "Transaction note updated!".to_string()))
 }
 
 #[cfg(test)]
@@ -327,7 +434,7 @@ mod tests {
         // (rather than the handler) keeps the pending state deterministic, since
         // no background job is spawned to race in a terminal event.
         let pending = CoreAggregate::new(&[])
-            .execute(create_new_import_transactions_command(None, None).unwrap())
+            .execute(Command::create_import_transactions(None, None).unwrap())
             .unwrap();
         append_event_to_db(&state.db, pending).await.unwrap();
 
