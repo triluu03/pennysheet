@@ -9,6 +9,7 @@ pub enum DomainError {
     CommandRejected(String),
     EventCreation(String),
     ComponentInit(String),
+    Parsing(String),
 }
 
 impl fmt::Display for DomainError {
@@ -20,6 +21,7 @@ impl fmt::Display for DomainError {
             Self::ComponentInit(message) => {
                 write!(f, "Failed to initialize domain component: {message}")
             },
+            Self::Parsing(message) => write!(f, "Error occur when parsing values: {message}"),
         }
     }
 }

@@ -74,6 +74,48 @@ impl Command {
             request_id: parsed_request_id,
         }))
     }
+
+    /// Create a new [`Command::CategorizeTransaction`] command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Parsing`] in any of the following scenarios:
+    /// - The provided transaction ID is not a valid UUID.
+    /// - The provided category does not follow the [`TransactionCategory`] enum.
+    pub fn create_categorize_transaction(
+        transaction_id: &str,
+        category: &str,
+    ) -> Result<Self, DomainError> {
+        let parsed_transaction_id = Uuid::from_str(transaction_id)?;
+        let parsed_category = TransactionCategory::from_str(category)?;
+
+        let command = Command::CategorizeTransaction(TransactionCategoryData {
+            transaction_id: parsed_transaction_id,
+            category: parsed_category,
+        });
+        Ok(command)
+    }
+
+    /// Create a new [`Command::ClassifyTransaction`] command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Parsing`] in any of the following scenarios:
+    /// - The provided transaction ID is not a valid UUID.
+    /// - The provided classification does not follow the [`TransactionClassification`] enum.
+    pub fn create_classify_transaction(
+        transaction_id: &str,
+        classification: &str,
+    ) -> Result<Self, DomainError> {
+        let parsed_transaction_id = Uuid::from_str(transaction_id)?;
+        let parsed_classification = TransactionClassification::from_str(classification)?;
+
+        let command = Command::ClassifyTransaction(TransactionClassificationData {
+            transaction_id: parsed_transaction_id,
+            classification: parsed_classification,
+        });
+        Ok(command)
+    }
 }
 
 #[cfg(test)]
