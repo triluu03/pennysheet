@@ -14,7 +14,7 @@ use tracing::instrument;
 /// - Cannot initialize the projector.
 /// - Running the projections fails.
 #[instrument(skip(db))]
-pub async fn spawn_core_projector(db: DatabaseConnection) {
+pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
     let mut projector = CoreProjector::new(&db).await.unwrap();
     projector.listen_to_new_events().await.unwrap();
 }

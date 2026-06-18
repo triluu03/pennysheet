@@ -22,12 +22,6 @@ pub(crate) struct Model {
 
 #[async_trait::async_trait]
 impl ActiveModelBehavior for ActiveModel {
-    fn new() -> Self {
-        Self {
-            ..ActiveModelTrait::default()
-        }
-    }
-
     async fn before_save<C>(mut self, _db: &C, _insert: bool) -> Result<Self, DbErr>
     where
         C: ConnectionTrait,

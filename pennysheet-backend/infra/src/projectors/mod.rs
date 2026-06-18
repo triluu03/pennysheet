@@ -78,7 +78,7 @@ impl<'a> CoreProjector<'a> {
                     }
                 },
                 Err(e) => {
-                    return Err(DbErr::Custom(format!("Listener crashes: {}", e)));
+                    return Err(DbErr::Custom(format!("Listener crashed: {}", e)));
                 },
             }
         }
@@ -114,7 +114,7 @@ impl<'a> CoreProjector<'a> {
         .await?;
         txn.commit().await?;
 
-        // Update the state of the current spawn projector.
+        // Update the state of the current spawned projector.
         self.last_seen_event_number += n_unseen_events;
         info!("projection transaction committed");
         Ok(())
