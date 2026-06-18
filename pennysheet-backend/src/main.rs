@@ -43,6 +43,6 @@ async fn main() {
 
     let addr = "0.0.0.0:3000";
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    info!(%addr, "pennysheet backend listening");
+    info!(%addr, "listening");
     axum::serve(listener, app).await.unwrap();
 }

@@ -8,6 +8,11 @@ use sea_orm::{
     DbErr,
     TransactionTrait,
 };
+use tracing::{
+    debug,
+    info,
+    instrument,
+};
 
 use crate::{
     get_events_with_offset,
@@ -32,8 +37,10 @@ impl<'a> CoreProjector<'a> {
     ///
     /// # Errors
     /// Returns [`DbErr`] if fails to get the projector state from the database.
+    #[instrument(skip(db))]
     pub async fn new(db: &'a DatabaseConnection) -> Result<Self, DbErr> {
         let last_seen_event_number = get_projector_state(db, "CoreProjector").await?.unwrap_or(0);
+        info!("projector initialized");
         Ok(Self {
             db,
             name: "CoreProjector".to_string(),
@@ -45,6 +52,7 @@ impl<'a> CoreProjector<'a> {
     ///
     /// # Errors
     /// Returns [`DbErr`] if the projections fails.
+    #[instrument(skip(self))]
     pub async fn run_projections(&self) -> Result<(), DbErr> {
         let unseen_events = get_events_with_offset(self.db, self.last_seen_event_number).await?;
         let n_unseen_events: u64 = unseen_events
@@ -52,6 +60,7 @@ impl<'a> CoreProjector<'a> {
             .try_into()
             .map_err(|err| DbErr::Custom(format!("Failed to parse usize into u64: {}", err)))?;
 
+        info!(n_unseen_events, "projecting unseen events in a transaction");
         let txn = self.db.begin().await?;
         CoreProjector::multi_project(&txn, &unseen_events).await?;
         update_projector_state(
@@ -62,6 +71,7 @@ impl<'a> CoreProjector<'a> {
         .await?;
         txn.commit().await?;
 
+        info!("projection transaction committed");
         Ok(())
     }
 
@@ -69,6 +79,7 @@ impl<'a> CoreProjector<'a> {
     ///
     /// # Errors
     /// Returns [`DbErr`] if the insertion into the projection fails.
+    #[instrument(skip(txn))]
     async fn project(txn: &DatabaseTransaction, event: &Event) -> Result<(), DbErr> {
         match event {
             Event::TransactionRecorded(data) => {
@@ -92,6 +103,7 @@ impl<'a> CoreProjector<'a> {
     ///
     /// # Errors
     /// Returns [`DbErr`] if any insertion into the projection fails.
+    #[instrument(skip(txn))]
     async fn multi_project(txn: &DatabaseTransaction, events: &[Event]) -> Result<(), DbErr> {
         for event in events.iter() {
             CoreProjector::project(txn, event).await?
