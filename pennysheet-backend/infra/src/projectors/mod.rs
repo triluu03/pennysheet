@@ -18,6 +18,8 @@ use crate::{
     get_database_url,
     get_events_with_offset,
     projections::{
+        expenses,
+        income,
         projector_states::{
             get_projector_state,
             update_projector_state,
@@ -29,20 +31,20 @@ use crate::{
 const PROJECTOR_NAME: &str = "CoreProjector";
 
 #[derive(Debug, Clone)]
-pub struct CoreProjector<'a> {
-    db: &'a DatabaseConnection,
+pub struct CoreProjector<'db> {
+    db: &'db DatabaseConnection,
     name: String,
     last_seen_event_number: i64,
 }
 
-impl<'a> CoreProjector<'a> {
+impl<'db> CoreProjector<'db> {
     /// Construct a [`CoreProjector`] from a [`DatabaseConnection`] reference.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if fails to get the projector state from the database.
     #[instrument(skip(db))]
-    pub async fn new(db: &'a DatabaseConnection) -> Result<Self, DbErr> {
+    pub async fn new(db: &'db DatabaseConnection) -> Result<Self, DbErr> {
         let last_seen_event_number = get_projector_state(db, PROJECTOR_NAME).await?.unwrap_or(0);
         info!("projector initialized");
         Ok(Self {
@@ -130,9 +132,19 @@ impl<'a> CoreProjector<'a> {
     async fn project(txn: &DatabaseTransaction, event: &Event) -> Result<(), DbErr> {
         match event {
             Event::TransactionRecorded(data) => {
-                let _ = transactions::ActiveModel::from_recorded_transaction(data.clone())
+                transactions::ActiveModel::from_recorded_transaction(data.clone())
                     .insert(txn)
                     .await?;
+
+                if let Some(expense) =
+                    expenses::ActiveModel::from_recorded_transaction(data.clone())
+                {
+                    expense.insert(txn).await?;
+                };
+                if let Some(income) = income::ActiveModel::from_recorded_transaction(data.clone()) {
+                    income.insert(txn).await?;
+                };
+
                 Ok(())
             },
             Event::ImportTransactionsContinued(_)
