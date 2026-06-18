@@ -12,12 +12,21 @@ use transactions::*;
 use uuid::Uuid;
 
 use crate::errors::DomainError;
+pub use crate::shared_schema::*;
 
 /// Commands to be passed into the [`crate::aggregates::CoreAggregate`].
 #[derive(Debug)]
 pub enum Command {
+    /// Import transactions
     ImportTransactions(ImportTransactionsData),
+    /// Retry a failed import request.
     RetryFailedImportRequest(ImportRequestData),
+    /// Categorize a transaction.
+    CategorizeTransaction(TransactionCategoryData),
+    /// Classify a transaction.
+    ClassifyTransaction(TransactionClassificationData),
+    /// Update the note of a transaction.
+    UpdateTransactionNote(TransactionNoteData),
 }
 
 /// Commands to be issued into [`gateway`].

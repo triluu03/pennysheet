@@ -171,6 +171,11 @@ impl EventInjector {
                     })
                 }
             },
+            Event::TransactionCategorized(_)
+            | Event::TransactionClassified(_)
+            | Event::TransactionNoteUpdated(_) => {
+                // Ignore these events
+            },
         }
         self
     }

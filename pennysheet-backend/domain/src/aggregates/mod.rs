@@ -68,6 +68,9 @@ impl CoreAggregate {
                     }))
                 }
             },
+            Command::CategorizeTransaction(data) => Ok(Event::TransactionCategorized(data)),
+            Command::ClassifyTransaction(data) => Ok(Event::TransactionClassified(data)),
+            Command::UpdateTransactionNote(data) => Ok(Event::TransactionNoteUpdated(data)),
         }
     }
 
@@ -92,7 +95,11 @@ impl CoreAggregate {
                     self.pending_request_id = None
                 }
             },
-            Event::ImportTransactionsContinued(_) | Event::TransactionRecorded(_) => {
+            Event::ImportTransactionsContinued(_)
+            | Event::TransactionRecorded(_)
+            | Event::TransactionCategorized(_)
+            | Event::TransactionClassified(_)
+            | Event::TransactionNoteUpdated(_) => {
                 // Ignore these events
             },
         }

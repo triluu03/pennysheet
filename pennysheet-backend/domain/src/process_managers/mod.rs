@@ -119,7 +119,12 @@ impl TransactionProcessManager {
                     self.pending_request_data = Some(request_data.to_owned());
                 };
             },
-            Event::TransactionRecorded(_) => {},
+            Event::TransactionRecorded(_)
+            | Event::TransactionCategorized(_)
+            | Event::TransactionClassified(_)
+            | Event::TransactionNoteUpdated(_) => {
+                // Ignore these events
+            },
         }
         self
     }

@@ -2,12 +2,6 @@
 
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api;
-#[cfg(feature = "sea-orm-support")]
-use sea_orm::{
-    DeriveActiveEnum,
-    EnumIter,
-    entity::prelude::*,
-};
 use serde::{
     Deserialize,
     Serialize,
@@ -56,43 +50,6 @@ pub struct TransactionData {
     pub currency: String,
     pub creditor_name: Option<String>,
     pub debtor_name: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-#[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
-#[cfg_attr(
-    feature = "sea-orm-support",
-    sea_orm(
-        rs_type = "String",
-        db_type = "String(StringLen::None)",
-        rename_all = "PascalCase"
-    )
-)]
-pub enum TransactionCategory {
-    Groceries,
-    Health,
-    Transport,
-    Services,
-    Leisure,
-    Others,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-#[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
-#[cfg_attr(
-    feature = "sea-orm-support",
-    sea_orm(
-        rs_type = "String",
-        db_type = "String(StringLen::None)",
-        rename_all = "kebab-case"
-    )
-)]
-pub enum TransactionClassification {
-    MustHave,
-    NiceToHave,
-    Wasted,
 }
 
 /// UUID namespace for Transactions Data.

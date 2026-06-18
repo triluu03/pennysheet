@@ -9,6 +9,7 @@ use serde::{
 
 pub mod transactions;
 
+pub use crate::shared_schema::*;
 use transactions::*;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -27,4 +28,10 @@ pub enum Event {
     TransactionImportRetryRequested(ImportStatusData),
     /// A transaction is recorded.
     TransactionRecorded(TransactionData),
+    /// A transaction is categorized.
+    TransactionCategorized(TransactionCategoryData),
+    /// A transaction is classified.
+    TransactionClassified(TransactionClassificationData),
+    /// A transaction's note is updated.
+    TransactionNoteUpdated(TransactionNoteData),
 }

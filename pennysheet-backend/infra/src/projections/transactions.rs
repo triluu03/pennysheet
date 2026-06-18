@@ -1,9 +1,9 @@
 //! Transaction projections.
 
-use domain::events::transactions::{
+use domain::events::{
     TransactionCategory,
     TransactionClassification,
-    TransactionData,
+    transactions::TransactionData,
 };
 use sea_orm::{
     ActiveValue::Set,
