@@ -26,6 +26,8 @@ use crate::{
     },
 };
 
+const PROJECTOR_NAME: &str = "CoreProjector";
+
 #[derive(Debug, Clone)]
 pub struct CoreProjector<'a> {
     db: &'a DatabaseConnection,
@@ -41,11 +43,11 @@ impl<'a> CoreProjector<'a> {
     /// Returns [`DbErr`] if fails to get the projector state from the database.
     #[instrument(skip(db))]
     pub async fn new(db: &'a DatabaseConnection) -> Result<Self, DbErr> {
-        let last_seen_event_number = get_projector_state(db, "CoreProjector").await?.unwrap_or(0);
+        let last_seen_event_number = get_projector_state(db, PROJECTOR_NAME).await?.unwrap_or(0);
         info!("projector initialized");
         Ok(Self {
             db,
-            name: "CoreProjector".to_string(),
+            name: PROJECTOR_NAME.to_string(),
             last_seen_event_number,
         })
     }

@@ -171,7 +171,7 @@ pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(),
         DbBackend::Postgres,
         format!(
             "CREATE OR REPLACE TRIGGER event_notifications
-            AFTER INSERT OR UPDATE ON {}
+            AFTER INSERT ON {}
             FOR EACH ROW EXECUTE FUNCTION
             notify_events()",
             event_store::Entity.table_name()
