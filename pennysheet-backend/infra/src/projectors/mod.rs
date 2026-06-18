@@ -15,9 +15,11 @@ use tracing::{
 };
 
 use crate::{
+    event_store,
     get_database_url,
     get_events_with_offset,
     projections::{
+        TransactionProjectionTrait,
         expenses,
         income,
         projector_states::{
@@ -144,6 +146,44 @@ impl<'db> CoreProjector<'db> {
                 if let Some(income) = income::ActiveModel::from_recorded_transaction(data.clone()) {
                     income.insert(txn).await?;
                 };
+
+                Ok(())
+            },
+            Event::TransactionCategorized(data) => {
+                transactions::Entity::update_category(txn, data.transaction_id, data.category)
+                    .await?;
+                expenses::Entity::update_category(txn, data.transaction_id, data.category).await?;
+                income::Entity::update_category(txn, data.transaction_id, data.category).await?;
+
+                Ok(())
+            },
+            Event::TransactionClassified(data) => {
+                transactions::Entity::update_classification(
+                    txn,
+                    data.transaction_id,
+                    data.classification,
+                )
+                .await?;
+                expenses::Entity::update_classification(
+                    txn,
+                    data.transaction_id,
+                    data.classification,
+                )
+                .await?;
+                income::Entity::update_classification(
+                    txn,
+                    data.transaction_id,
+                    data.classification,
+                )
+                .await?;
+
+                Ok(())
+            },
+            Event::TransactionNoteUpdated(data) => {
+                transactions::Entity::update_note(txn, data.transaction_id, data.note.clone())
+                    .await?;
+                expenses::Entity::update_note(txn, data.transaction_id, data.note.clone()).await?;
+                income::Entity::update_note(txn, data.transaction_id, data.note.clone()).await?;
 
                 Ok(())
             },

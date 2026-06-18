@@ -14,7 +14,7 @@ use serde::{
 };
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 #[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
 #[cfg_attr(
@@ -34,13 +34,13 @@ pub enum TransactionCategory {
     Others,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionCategoryData {
     pub transaction_id: Uuid,
     pub category: TransactionCategory,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
 #[cfg_attr(
@@ -57,7 +57,7 @@ pub enum TransactionClassification {
     Wasted,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionClassificationData {
     pub transaction_id: Uuid,
     pub classification: TransactionClassification,
