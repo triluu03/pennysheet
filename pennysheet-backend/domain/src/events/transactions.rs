@@ -125,6 +125,7 @@ impl TransactionData {
         let creditor_name = transaction.creditor.and_then(|info| info.name);
         let debtor_name = transaction.debtor.and_then(|info| info.name);
 
+        // TODO: incorporate more information into the `transaction_id`
         let transaction_id = Uuid::new_v5(
             &NAMESPACE_TRANSACTION_DATA,
             format!(
