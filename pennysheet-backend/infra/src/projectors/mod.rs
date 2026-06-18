@@ -28,7 +28,7 @@ use crate::{
 pub struct CoreProjector<'a> {
     db: &'a DatabaseConnection,
     name: String,
-    last_seen_event_number: u64,
+    last_seen_event_number: i64,
 }
 
 impl<'a> CoreProjector<'a> {
@@ -53,11 +53,17 @@ impl<'a> CoreProjector<'a> {
     /// Returns [`DbErr`] if the projections fails.
     #[instrument(skip(self))]
     pub async fn run_projections(&self) -> Result<(), DbErr> {
-        let unseen_events = get_events_with_offset(self.db, self.last_seen_event_number).await?;
-        let n_unseen_events: u64 = unseen_events
+        let unseen_events = get_events_with_offset(
+            self.db,
+            self.last_seen_event_number.try_into().map_err(|_| {
+                DbErr::Custom("last_seen_event_number is a negative value".to_string())
+            })?,
+        )
+        .await?;
+        let n_unseen_events: i64 = unseen_events
             .len()
             .try_into()
-            .map_err(|err| DbErr::Custom(format!("Failed to parse usize into u64: {}", err)))?;
+            .map_err(|err| DbErr::Custom(format!("Failed to parse usize into i64: {}", err)))?;
 
         info!(n_unseen_events, "projecting unseen events in a transaction");
         let txn = self.db.begin().await?;

@@ -13,7 +13,7 @@ use tracing::instrument;
 pub(crate) struct Model {
     #[sea_orm(primary_key)]
     projector_name: String,
-    last_seen_event_number: u64,
+    last_seen_event_number: i64,
     #[sea_orm(default_expr = "Expr::current_timestamp()")]
     inserted_at: DateTime,
     #[sea_orm(default_expr = "Expr::current_timestamp()")]
@@ -47,7 +47,7 @@ impl ActiveModelBehavior for ActiveModel {
 pub(crate) async fn get_projector_state(
     db: &DatabaseConnection,
     projector_name: &str,
-) -> Result<Option<u64>, DbErr> {
+) -> Result<Option<i64>, DbErr> {
     Entity::find_by_id(projector_name)
         .select_only()
         .column(Column::LastSeenEventNumber)
@@ -64,7 +64,7 @@ pub(crate) async fn get_projector_state(
 pub(crate) async fn update_projector_state<C>(
     db: &C,
     projector_name: &str,
-    last_seen_event_number: u64,
+    last_seen_event_number: i64,
 ) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
