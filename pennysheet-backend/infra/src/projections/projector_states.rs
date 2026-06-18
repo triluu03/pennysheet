@@ -71,8 +71,11 @@ where
 {
     match Entity::find_by_id(projector_name).one(db).await? {
         None => {
-            let mut new_state = ActiveModel::new();
-            new_state.last_seen_event_number = Set(last_seen_event_number);
+            let new_state = ActiveModel {
+                projector_name: Set(projector_name.to_string()),
+                last_seen_event_number: Set(last_seen_event_number),
+                ..Default::default()
+            };
             Entity::insert(new_state).exec(db).await?;
             Ok(())
         },

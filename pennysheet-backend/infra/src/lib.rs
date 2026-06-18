@@ -74,6 +74,7 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         // Event table
         .register(event_store::Entity)
         // Projections
+        .register(projections::projector_states::Entity)
         .register(projections::transactions::Entity)
         .register(projections::expenses::Entity)
         .register(projections::income::Entity)

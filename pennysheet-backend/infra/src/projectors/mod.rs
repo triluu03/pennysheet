@@ -9,7 +9,6 @@ use sea_orm::{
     TransactionTrait,
 };
 use tracing::{
-    debug,
     info,
     instrument,
 };
