@@ -54,15 +54,12 @@ impl TransactionProjectionTrait for Entity {
     fn id_column() -> Self::Column {
         self::Column::TransactionId
     }
-
     fn category_column() -> Self::Column {
         self::Column::Category
     }
-
     fn classification_column() -> Self::Column {
         self::Column::Classification
     }
-
     fn note_column() -> Self::Column {
         self::Column::Note
     }

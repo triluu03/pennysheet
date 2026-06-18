@@ -120,10 +120,7 @@ mod tests {
 
     use super::CoreAggregate;
     use crate::{
-        commands::{
-            Command,
-            create_retry_failed_import_request_command,
-        },
+        commands::Command,
         events::{
             Event,
             transactions::{
@@ -235,7 +232,7 @@ mod tests {
         let request_id = Uuid::new_v4();
         let aggregate = aggregate_with_failed_request(request_id);
 
-        let command = create_retry_failed_import_request_command(&request_id.to_string()).unwrap();
+        let command = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
         let event = aggregate.execute(command).unwrap();
 
         assert!(matches!(
@@ -250,7 +247,7 @@ mod tests {
 
         // The request id was never seen failing, so there is nothing to retry.
         let command =
-            create_retry_failed_import_request_command(&Uuid::new_v4().to_string()).unwrap();
+            Command::create_retry_failed_import_request(&Uuid::new_v4().to_string()).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
@@ -263,7 +260,7 @@ mod tests {
         let requested = aggregate.execute(pending).unwrap();
         let aggregate = aggregate.apply(&requested);
 
-        let retry = create_retry_failed_import_request_command(&request_id.to_string()).unwrap();
+        let retry = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
         assert!(aggregate.execute(retry).is_err());
     }
 
@@ -292,7 +289,7 @@ mod tests {
         let failed = Event::ImportTransactionsFailed(ImportStatusData { request_id });
         let aggregate = aggregate.apply(&failed);
 
-        let retry = create_retry_failed_import_request_command(&request_id.to_string()).unwrap();
+        let retry = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
         assert!(aggregate.execute(retry).is_ok());
     }
 
