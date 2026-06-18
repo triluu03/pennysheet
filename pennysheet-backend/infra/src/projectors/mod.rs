@@ -8,12 +8,14 @@ use sea_orm::{
     DbErr,
     TransactionTrait,
 };
+use sqlx::postgres::PgListener;
 use tracing::{
     info,
     instrument,
 };
 
 use crate::{
+    get_database_url,
     get_events_with_offset,
     projections::{
         projector_states::{
@@ -35,6 +37,7 @@ impl<'a> CoreProjector<'a> {
     /// Construct a [`CoreProjector`] from a [`DatabaseConnection`] reference.
     ///
     /// # Errors
+    ///
     /// Returns [`DbErr`] if fails to get the projector state from the database.
     #[instrument(skip(db))]
     pub async fn new(db: &'a DatabaseConnection) -> Result<Self, DbErr> {
@@ -47,12 +50,47 @@ impl<'a> CoreProjector<'a> {
         })
     }
 
+    /// Listen to new events appended and run the projections.
+    ///
+    /// This function runs in an inifinite loop and is only meant to be used
+    /// within a separate Tokio's async task.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the listener crashes or the projections fails.
+    #[instrument(skip(self))]
+    pub async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
+        let (database_url, db_name) = get_database_url()?;
+
+        let mut listener = PgListener::connect(&format!("{database_url}/{db_name}"))
+            .await
+            .map_err(|err| DbErr::Custom(format!("Failed to connect PgListener: {}", err)))?;
+
+        listener.listen("EventStore").await.map_err(|err| {
+            DbErr::Custom(format!("Failed to listen to the event table: {}", err))
+        })?;
+
+        loop {
+            match listener.recv().await {
+                Ok(notification) => {
+                    if notification.payload() == "new-events-appended" {
+                        self.run_projections().await?;
+                    }
+                },
+                Err(e) => {
+                    return Err(DbErr::Custom(format!("Listener crashes: {}", e)));
+                },
+            }
+        }
+    }
+
     /// Run projections.
     ///
     /// # Errors
+    ///
     /// Returns [`DbErr`] if the projections fails.
     #[instrument(skip(self))]
-    pub async fn run_projections(&self) -> Result<(), DbErr> {
+    pub async fn run_projections(&mut self) -> Result<(), DbErr> {
         let unseen_events = get_events_with_offset(
             self.db,
             self.last_seen_event_number.try_into().map_err(|_| {
@@ -76,6 +114,8 @@ impl<'a> CoreProjector<'a> {
         .await?;
         txn.commit().await?;
 
+        // Update the state of the current spawn projector.
+        self.last_seen_event_number += n_unseen_events;
         info!("projection transaction committed");
         Ok(())
     }
@@ -83,6 +123,7 @@ impl<'a> CoreProjector<'a> {
     /// Project records based on one event.
     ///
     /// # Errors
+    ///
     /// Returns [`DbErr`] if the insertion into the projection fails.
     #[instrument(skip(txn))]
     async fn project(txn: &DatabaseTransaction, event: &Event) -> Result<(), DbErr> {
@@ -107,6 +148,7 @@ impl<'a> CoreProjector<'a> {
     /// Project records based on multiple events.
     ///
     /// # Errors
+    ///
     /// Returns [`DbErr`] if any insertion into the projection fails.
     #[instrument(skip(txn))]
     async fn multi_project(txn: &DatabaseTransaction, events: &[Event]) -> Result<(), DbErr> {

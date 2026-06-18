@@ -11,6 +11,7 @@ use sea_orm::{
 };
 use tracing::{
     debug,
+    info,
     instrument,
 };
 
@@ -99,7 +100,7 @@ pub async fn append_event_to_db(
     };
 
     let result = Entity::insert(new_event_row).exec(db).await?;
-    debug!(inserted_id = %result.last_insert_id, "appended event");
+    info!(n_new_events = 1, "appended new events");
     Ok(result)
 }
 
@@ -117,8 +118,9 @@ pub async fn append_multi_events_to_db(
         event_data: Set(event),
         ..Default::default()
     });
+    let n_new_events = new_event_rows.len();
 
     let result = Entity::insert_many(new_event_rows).exec(db).await?;
-    debug!("appended multiple events");
+    info!(n_new_events, "appended new events");
     Ok(result)
 }

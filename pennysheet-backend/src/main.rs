@@ -10,6 +10,8 @@ use infra::{
 use std::sync::Arc;
 use tracing::info;
 
+use crate::background_jobs::spawn_core_projector;
+
 mod background_jobs;
 mod errors;
 mod handlers;
@@ -43,6 +45,9 @@ async fn main() {
 
     ensure_append_only_eventstore(&db).await.unwrap();
     info!("append-only event store ensured");
+
+    tokio::spawn(spawn_core_projector(db.clone()));
+    info!("projector spawned in the background");
 
     let app = routes::app_router().with_state(Arc::new(AppState { db }));
 

@@ -26,15 +26,15 @@ const DATABASE_URL_ENV: &str = "DATABASE_URL";
 /// Environment variable holding the name of the application database.
 const DB_NAME_ENV: &str = "DB_NAME";
 
-/// Connect to the database.
+/// Get the database URL from environment variables.
 ///
 /// The connection URL and database name are read from the [`DATABASE_URL_ENV`] and [`DB_NAME_ENV`]
-/// environment variables. The database will be created if it did not exist.
+/// environment variables.
 ///
 /// # Errors
-/// Return [`DbErr`] if the required environment variables are missing or the
-/// connecting fails.
-pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
+///
+/// Returns [`DbErr::Custom`] if the environment variabels cannot be found.
+pub fn get_database_url() -> Result<(String, String), DbErr> {
     dotenvy::dotenv().ok();
     let database_url = std::env::var(DATABASE_URL_ENV).map_err(|error| {
         DbErr::Custom(format!(
@@ -48,6 +48,18 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
              `{DB_NAME_ENV}` in the .env file or the process environment"
         ))
     })?;
+
+    Ok((database_url, db_name))
+}
+
+/// Connect to the database.
+///
+/// # Errors
+///
+/// Return [`DbErr`] if the required environment variables are missing or the
+/// connecting fails.
+pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
+    let (database_url, db_name) = get_database_url()?;
 
     let db: DatabaseConnection = Database::connect(&database_url).await?;
     match db
@@ -68,6 +80,7 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
 /// Sync the entities to the database schema.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the syncing fails.
 pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     db.get_schema_builder()
@@ -88,6 +101,7 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
 /// TRUNCATE commands from being executed.
 ///
 /// # Errors
+///
 /// Return [`DbErr`] if executing the queries fails.
 pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<(), DbErr> {
     // Setup function for raising exceptions.
@@ -126,6 +140,7 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
 /// Setup the pg_notify triggers for event table.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if executing the queries fails.
 pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(), DbErr> {
     // Setup function for raising exceptions.

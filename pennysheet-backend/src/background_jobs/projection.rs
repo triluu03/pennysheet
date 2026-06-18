@@ -4,12 +4,9 @@ use infra::{
     DatabaseConnection,
     projectors::CoreProjector,
 };
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
-/// Run the projection.
+/// Spawn the [`CoreProjector`] to run in the background.
 ///
 /// # Panics
 ///
@@ -17,9 +14,7 @@ use tracing::{
 /// - Cannot initialize the projector.
 /// - Running the projections fails.
 #[instrument(skip(db))]
-pub async fn run_projection(db: DatabaseConnection) {
-    info!("running projections in the background");
-    let projector = CoreProjector::new(&db).await.unwrap();
-    projector.run_projections().await.unwrap();
-    info!("projections completed!");
+pub async fn spawn_core_projector(db: DatabaseConnection) {
+    let mut projector = CoreProjector::new(&db).await.unwrap();
+    projector.listen_to_new_events().await.unwrap();
 }
