@@ -4,10 +4,13 @@ use infra::{
     DatabaseConnection,
     connect_to_database,
     ensure_append_only_eventstore,
+    setup_new_event_notification,
     sync_database_schema,
 };
 use std::sync::Arc;
 use tracing::info;
+
+use crate::background_jobs::spawn_and_subscribe_core_projector;
 
 mod background_jobs;
 mod errors;
@@ -22,6 +25,7 @@ pub struct AppState {
 /// Main function of Axum application
 ///
 /// # Panics
+///
 /// Panic in the following scenarios:
 /// - Cannot install the global tracing subscriber.
 /// - Cannot connect to database or sync database setup.
@@ -36,13 +40,19 @@ async fn main() {
     sync_database_schema(&db).await.unwrap();
     info!("database schema synced");
 
+    setup_new_event_notification(&db).await.unwrap();
+    info!("event notifications online");
+
     ensure_append_only_eventstore(&db).await.unwrap();
     info!("append-only event store ensured");
+
+    tokio::spawn(spawn_and_subscribe_core_projector(db.clone()));
+    info!("projector spawned in the background");
 
     let app = routes::app_router().with_state(Arc::new(AppState { db }));
 
     let addr = "0.0.0.0:3000";
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    info!(%addr, "pennysheet backend listening");
+    info!(%addr, "listening");
     axum::serve(listener, app).await.unwrap();
 }

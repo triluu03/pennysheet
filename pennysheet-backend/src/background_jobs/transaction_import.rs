@@ -1,4 +1,4 @@
-//! Background jobs.
+//! Transaction import
 
 use domain::{
     commands::GatewayCommand,

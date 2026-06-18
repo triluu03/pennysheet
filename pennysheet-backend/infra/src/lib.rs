@@ -1,21 +1,6 @@
 //! Infrastructure management.
 
-use domain::events::Event;
-use sea_orm::{
-    ActiveValue::Set,
-    ConnectionTrait,
-    Database,
-    DbBackend,
-    DbErr,
-    EntityName,
-    EntityTrait,
-    FromQueryResult,
-    InsertManyResult,
-    InsertResult,
-    QueryOrder,
-    QuerySelect,
-    Statement,
-};
+use sea_orm::*;
 pub use sea_orm::{
     DatabaseConnection,
     DbErr as DatabaseError,
@@ -23,31 +8,33 @@ pub use sea_orm::{
 use tracing::{
     debug,
     info,
-    instrument,
+};
+
+pub use crate::event_store::{
+    append_event_to_db,
+    append_multi_events_to_db,
+    get_all_events,
+    get_events_with_offset,
 };
 
 mod event_store;
 mod projections;
+pub mod projectors;
 
 /// Environment variable holding the base PostgreSQL connection URL (without the database name).
 const DATABASE_URL_ENV: &str = "DATABASE_URL";
 /// Environment variable holding the name of the application database.
 const DB_NAME_ENV: &str = "DB_NAME";
 
-#[derive(FromQueryResult)]
-struct EventRow {
-    event_data: Event,
-}
-
-/// Connect to the database.
+/// Get the database URL from environment variables.
 ///
 /// The connection URL and database name are read from the [`DATABASE_URL_ENV`] and [`DB_NAME_ENV`]
-/// environment variables. The database will be created if it did not exist.
+/// environment variables.
 ///
 /// # Errors
-/// Return [`DbErr`] if the required environment variables are missing or the
-/// connecting fails.
-pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
+///
+/// Returns [`DbErr::Custom`] if the environment variabels cannot be found.
+pub fn get_database_url() -> Result<(String, String), DbErr> {
     dotenvy::dotenv().ok();
     let database_url = std::env::var(DATABASE_URL_ENV).map_err(|error| {
         DbErr::Custom(format!(
@@ -61,6 +48,18 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
              `{DB_NAME_ENV}` in the .env file or the process environment"
         ))
     })?;
+
+    Ok((database_url, db_name))
+}
+
+/// Connect to the database.
+///
+/// # Errors
+///
+/// Return [`DbErr`] if the required environment variables are missing or the
+/// connecting fails.
+pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
+    let (database_url, db_name) = get_database_url()?;
 
     let db: DatabaseConnection = Database::connect(&database_url).await?;
     match db
@@ -81,10 +80,17 @@ pub async fn connect_to_database() -> Result<DatabaseConnection, DbErr> {
 /// Sync the entities to the database schema.
 ///
 /// # Errors
+///
 /// Returns [`DbErr`] if the syncing fails.
 pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     db.get_schema_builder()
+        // Event table
         .register(event_store::Entity)
+        // Projections
+        .register(projections::projector_states::Entity)
+        .register(projections::transactions::Entity)
+        .register(projections::expenses::Entity)
+        .register(projections::income::Entity)
         .sync(db)
         .await
 }
@@ -95,6 +101,7 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
 /// TRUNCATE commands from being executed.
 ///
 /// # Errors
+///
 /// Return [`DbErr`] if executing the queries fails.
 pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<(), DbErr> {
     // Setup function for raising exceptions.
@@ -130,63 +137,47 @@ pub async fn ensure_append_only_eventstore(db: &DatabaseConnection) -> Result<()
     Ok(())
 }
 
-/// Query the whole event table.
+/// Setup the pg_notify triggers for event table.
 ///
 /// # Errors
-/// Returns [`DbErr`] if the query operation fails.
-#[instrument(skip(db))]
-pub async fn get_all_events(db: &DatabaseConnection) -> Result<Vec<Event>, DbErr> {
-    let events: Vec<Event> = event_store::Entity::find()
-        .select_only()
-        .column(event_store::Column::EventData)
-        .order_by_asc(event_store::Column::CreatedAt)
-        .into_model::<EventRow>()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|entry| entry.event_data)
-        .collect();
-
-    debug!(count = events.len(), "loaded all events");
-    Ok(events)
-}
-
-/// Append a new event to the database.
 ///
-/// # Errors
-/// Return [`DbErr`] if the insert operation fails.
-#[instrument(skip(db, event))]
-pub async fn append_event_to_db(
-    db: &DatabaseConnection,
-    event: Event,
-) -> Result<InsertResult<event_store::ActiveModel>, DbErr> {
-    let new_event_row = event_store::ActiveModel {
-        event_data: Set(event),
-        ..Default::default()
-    };
+/// Returns [`DbErr`] if executing the queries fails.
+pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(), DbErr> {
+    // Setup function for raising exceptions.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE OR REPLACE FUNCTION public.notify_events()
+            RETURNS trigger
+            LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            channel text;
+            payload text;
+        BEGIN
+            channel := 'EventStore';
+            payload := 'new-events-appended';
 
-    let result = event_store::Entity::insert(new_event_row).exec(db).await?;
-    debug!(inserted_id = %result.last_insert_id, "appended event");
-    Ok(result)
-}
+            -- Notify events to listeners
+            PERFORM pg_notify(channel, payload);
 
-/// Append multiple new events to the database.
-///
-/// # Errors
-/// Returns [`DbErr`] if the insert operation fails.
-#[instrument(skip(db, events))]
-pub async fn append_multi_events_to_db(
-    db: &DatabaseConnection,
-    events: Vec<Event>,
-) -> Result<InsertManyResult<event_store::ActiveModel>, DbErr> {
-    let new_event_rows = events.into_iter().map(|event| event_store::ActiveModel {
-        event_data: Set(event),
-        ..Default::default()
-    });
+            RETURN NULL;
+        END;
+        $function$",
+    ))
+    .await?;
 
-    let result = event_store::Entity::insert_many(new_event_rows)
-        .exec(db)
-        .await?;
-    debug!("appended multiple events");
-    Ok(result)
+    // Set the triggers in the event store table.
+    db.execute_raw(Statement::from_string(
+        DbBackend::Postgres,
+        format!(
+            "CREATE OR REPLACE TRIGGER event_notifications
+            AFTER INSERT ON {}
+            FOR EACH ROW EXECUTE FUNCTION
+            notify_events()",
+            event_store::Entity.table_name()
+        ),
+    ))
+    .await?;
+
+    Ok(())
 }
