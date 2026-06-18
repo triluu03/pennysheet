@@ -1,4 +1,4 @@
-//! Background jobs.
+//! Transaction import
 
 use domain::{
     commands::GatewayCommand,
@@ -26,6 +26,9 @@ use uuid::Uuid;
 /// Run a transaction import.
 ///
 /// This task is meant to be run in the background to avoid blocking the clients.
+///
+/// # Panics
+/// Panic if cannot query the current event table from the database.
 #[instrument(skip(db, session_json), fields(%request_id))]
 pub async fn run_transaction_import(
     db: DatabaseConnection,
@@ -46,18 +49,7 @@ pub async fn run_transaction_import(
         },
     };
 
-    let current_event_table = match get_all_events(&db).await {
-        Ok(events) => events,
-        Err(error) => {
-            return fail_import(
-                &db,
-                request_id,
-                "get the current event table",
-                &error.to_string(),
-            )
-            .await;
-        },
-    };
+    let current_event_table = get_all_events(&db).await.unwrap();
 
     let mut manager = match TransactionProcessManager::new(&current_event_table) {
         Ok(manager) => manager,
