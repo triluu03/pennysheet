@@ -12,6 +12,7 @@ use tracing::{
     warn,
 };
 
+#[derive(Debug)]
 pub enum AppError {
     Domain(DomainError),
     Database(String),

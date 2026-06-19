@@ -261,10 +261,12 @@ mod tests {
             ImportStatusData,
         },
     };
+    use gateway::schema::enable_banking_session::EnableBankingSession;
     use infra::{
         append_event_to_db,
         append_multi_events_to_db,
         get_all_events,
+        insert_new_session,
         sync_database_schema,
     };
     use sea_orm::Database;
@@ -272,19 +274,56 @@ mod tests {
 
     use crate::AppState;
 
-    /// Build an in-memory event store with the schema applied, ready for handler tests.
+    /// A representative valid session.
+    const MOCK_SESSION: &str = r#"{
+        "session_id": "sess-123",
+        "accounts": [
+            {"name": "Checking", "currency": "EUR", "uid": "acc-uid-1"},
+            {"name": null, "currency": "EUR", "uid": "acc-uid-2"}
+        ],
+        "aspsp": {"name": "Mock Bank", "country": "FI"},
+        "psu_type": "personal",
+        "access": {"valid_until": "2026-12-31T23:59:59Z"}
+    }"#;
+
+    /// A representative expired session.
+    const MOCK_EXPIRED_SESSION: &str = r#"{
+        "session_id": "sess-123",
+        "accounts": [
+            {"name": "Checking", "currency": "EUR", "uid": "acc-uid-1"},
+            {"name": null, "currency": "EUR", "uid": "acc-uid-2"}
+        ],
+        "aspsp": {"name": "Mock Bank", "country": "FI"},
+        "psu_type": "personal",
+        "access": {"valid_until": "2020-12-31T23:59:59Z"}
+    }"#;
+
+    /// Build an in-memory event store.
     async fn in_memory_state() -> Arc<AppState> {
         let db = Database::connect("sqlite::memory:").await.unwrap();
         sync_database_schema(&db).await.unwrap();
+        insert_new_session(&db, EnableBankingSession::from_json(MOCK_SESSION).unwrap())
+            .await
+            .unwrap();
+        Arc::new(AppState { db })
+    }
+
+    /// Build an in-memory event store with expired session.
+    async fn in_memory_state_with_expired_session() -> Arc<AppState> {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        sync_database_schema(&db).await.unwrap();
+        insert_new_session(
+            &db,
+            EnableBankingSession::from_json(MOCK_EXPIRED_SESSION).unwrap(),
+        )
+        .await
+        .unwrap();
         Arc::new(AppState { db })
     }
 
     #[tokio::test]
     async fn test_import_transactions_handler() {
-        let db = Database::connect("sqlite::memory:").await.unwrap();
-        sync_database_schema(&db).await.unwrap();
-
-        let state = Arc::new(AppState { db });
+        let state = in_memory_state().await;
 
         let response = import_transactions_handler(
             State(state.clone()),
@@ -296,7 +335,7 @@ mod tests {
         .await;
 
         let Ok((status, body)) = response else {
-            panic!("expected import_transactions_handler to succeed");
+            panic!("Expected import_transactions_handler to succeed. Got {response:#?} instead.");
         };
         assert_eq!(status, StatusCode::ACCEPTED);
         assert_eq!(body, "Transactions import requested!".to_string());
@@ -470,6 +509,39 @@ mod tests {
         assert_eq!(
             retry_requested, 0,
             "a rejected retry must not append a retry-requested event"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_import_hanlder_rejects_when_session_expires() {
+        let state = in_memory_state_with_expired_session().await;
+        let response = import_transactions_handler(
+            State(state.clone()),
+            Json(ImportTransactionsPayload {
+                start_date: None,
+                end_date: None,
+            }),
+        )
+        .await;
+        assert!(
+            response.is_err(),
+            "an import request must be rejected if the session has expired!"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_retry_import_hanlder_rejects_when_session_expires() {
+        let state = in_memory_state_with_expired_session().await;
+        let response = transaction_import_retry_handler(
+            State(state.clone()),
+            Json(TransactionImportRetryPayload {
+                request_id: "this-does-not-matter".to_string(),
+            }),
+        )
+        .await;
+        assert!(
+            response.is_err(),
+            "a retry request must be rejected if the session has expired!"
         );
     }
 
