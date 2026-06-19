@@ -26,10 +26,12 @@ uuid = { version = "1.23.2", features = ["std", "v4", "v5"] }
 
 [dependencies]
 axum = "0.8.9"
+chrono = { workspace = true }
 domain = { version = "0.1.0", path = "domain" }
 gateway = { version = "0.1.0", path = "gateway", features = ["with-client"] }
 infra = { version = "0.1.0", path = "infra" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { version = "1.52.3", features = ["full"] }
 tracing = { workspace = true }
 uuid = { workspace = true }

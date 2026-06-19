@@ -10,6 +10,9 @@ use sea_orm::{
     DbErr,
     EntityTrait,
     QueryFilter,
+    QueryOrder,
+    QueryTrait,
+    entity::prelude::*,
     prelude::{
         Expr,
         async_trait,
@@ -18,16 +21,19 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-pub(crate) mod expenses;
-pub(crate) mod income;
+pub mod expenses;
+pub mod income;
 pub(crate) mod projector_states;
-pub(crate) mod transactions;
+pub mod transactions;
 
 /// An abstract base class for a transaction-related projection.
 #[async_trait::async_trait]
-pub(crate) trait TransactionProjectionTrait: EntityTrait {
+pub trait TransactionProjectionTrait: EntityTrait {
     /// Transaction ID column.
     fn id_column() -> Self::Column;
+
+    /// Booking date column.
+    fn booking_date_column() -> Self::Column;
 
     /// Category column
     fn category_column() -> Self::Column;
@@ -106,5 +112,33 @@ pub(crate) trait TransactionProjectionTrait: EntityTrait {
         Self::update_column_value(db, transaction_id, Self::note_column(), Expr::value(note))
             .await
             .map(|_| ())
+    }
+
+    /// Get transactions.
+    ///
+    /// # Errors
+    /// Returns [`DbErr`] if the query fails.
+    async fn get_transactions<C>(
+        db: &C,
+        start_date: Option<Date>,
+        end_date: Option<Date>,
+        transaction_id: Option<Uuid>,
+    ) -> Result<Vec<Self::Model>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::find()
+            .apply_if(start_date, |query, value| {
+                query.filter(Self::booking_date_column().gt(value))
+            })
+            .apply_if(end_date, |query, value| {
+                query.filter(Self::booking_date_column().lt(value))
+            })
+            .apply_if(transaction_id, |query, value| {
+                query.filter(Self::id_column().eq(value))
+            })
+            .order_by_asc(Self::booking_date_column())
+            .all(db)
+            .await
     }
 }

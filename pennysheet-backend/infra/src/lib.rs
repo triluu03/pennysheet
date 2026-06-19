@@ -24,7 +24,7 @@ pub use crate::{
 };
 
 mod event_store;
-mod projections;
+pub mod projections;
 pub mod projectors;
 mod sessions;
 

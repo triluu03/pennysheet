@@ -17,6 +17,8 @@ use crate::{
         transactions::{
             categorize_transaction_handler,
             classify_transaction_handler,
+            get_one_transaction_handler,
+            get_transactions_handler,
             import_transactions_handler,
             transaction_import_retry_handler,
             update_transaction_note_handler,
@@ -26,6 +28,8 @@ use crate::{
 
 fn transactions_router() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/", get(get_transactions_handler))
+        .route("/{transaction_id}", get(get_one_transaction_handler))
         .route("/import", post(import_transactions_handler))
         .route("/import/retry", post(transaction_import_retry_handler))
         .route("/category", post(categorize_transaction_handler))
