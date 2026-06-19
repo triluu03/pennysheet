@@ -66,6 +66,7 @@ enum TransactionKind {
         end_date = ?params.end_date,
     )
 )]
+// TODO: write tests for this handler!
 pub async fn get_transactions_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
@@ -115,6 +116,7 @@ pub async fn get_transactions_handler(
 ///
 /// Returns [`AppError`] if the querying the transaction fails.
 #[instrument(skip(state))]
+// TODO: write tests for this handler!
 pub async fn get_one_transaction_handler(
     State(state): State<Arc<AppState>>,
     Path(transaction_id): Path<Uuid>,
