@@ -2,9 +2,14 @@
 
 use axum::{
     Json,
-    extract::State,
+    extract::{
+        Path,
+        Query,
+        State,
+    },
     http::StatusCode,
 };
+use chrono::NaiveDate;
 use domain::{
     aggregates::CoreAggregate,
     commands::Command,
@@ -14,6 +19,10 @@ use infra::{
     append_event_to_db,
     get_all_events,
     get_current_session,
+    projections::{
+        self,
+        TransactionProjectionTrait,
+    },
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -22,12 +31,64 @@ use tracing::{
     info,
     instrument,
 };
+use uuid::Uuid;
 
 use crate::{
     AppState,
     background_jobs::run_transaction_import,
     errors::AppError,
 };
+
+#[derive(Deserialize)]
+pub struct GetTransactionsQuery {
+    start_date: Option<NaiveDate>,
+    end_date: Option<NaiveDate>,
+}
+
+/// Handler for GET request to /transactions
+///
+/// # Errors
+///
+/// Returns [`AppError`] if querying the transactions fails.
+#[instrument(
+    skip(state, params),
+    fields(
+        start_date = ?params.start_date,
+        end_date = ?params.end_date,
+    )
+)]
+pub async fn get_transactions_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetTransactionsQuery>,
+) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
+    info!("fetching transactions");
+    projections::transactions::Entity::get_transactions(
+        &state.db,
+        params.start_date,
+        params.end_date,
+        None,
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
+}
+
+/// Handler for GET request to /transactions/{transaction_id}
+///
+/// # Errors
+///
+/// Returns [`AppError`] if the querying the transaction fails.
+#[instrument(skip(state))]
+pub async fn get_one_transaction_handler(
+    State(state): State<Arc<AppState>>,
+    Path(transaction_id): Path<Uuid>,
+) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
+    info!("fetching one transaction");
+    projections::transactions::Entity::get_transactions(&state.db, None, None, Some(transaction_id))
+        .await
+        .map(Json)
+        .map_err(AppError::from)
+}
 
 #[derive(Deserialize)]
 pub struct ImportTransactionsPayload {
