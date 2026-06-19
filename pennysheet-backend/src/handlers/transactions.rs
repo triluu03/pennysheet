@@ -43,13 +43,22 @@ use crate::{
 pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
+    kind: Option<TransactionKind>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum TransactionKind {
+    Income,
+    Expenses,
 }
 
 /// Handler for GET request to /transactions
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] if querying the transactions fails.
+/// Returns [`AppError`] if querying the transactions fails or
+/// cannot serialize the projections into JSON values.
 #[instrument(
     skip(state, params),
     fields(
@@ -60,17 +69,44 @@ pub struct GetTransactionsQuery {
 pub async fn get_transactions_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
-) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
+) -> axum::response::Result<Json<serde_json::Value>, AppError> {
     info!("fetching transactions");
-    projections::transactions::Entity::get_transactions(
-        &state.db,
-        params.start_date,
-        params.end_date,
-        None,
-    )
-    .await
-    .map(Json)
-    .map_err(AppError::from)
+    let result = match params.kind {
+        Some(TransactionKind::Income) => {
+            let data = projections::income::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        Some(TransactionKind::Expenses) => {
+            let data = projections::expenses::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        None => {
+            let data = projections::transactions::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+    };
+
+    result
+        .map(Json)
+        .map_err(|err| AppError::Database(err.to_string()))
 }
 
 /// Handler for GET request to /transactions/{transaction_id}
