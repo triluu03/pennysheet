@@ -9,11 +9,12 @@ use sea_orm::{
     ActiveValue::Set,
     entity::prelude::*,
 };
+use serde::Serialize;
 
 use crate::projections::TransactionProjectionTrait;
 
 #[sea_orm::model]
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, Serialize, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "transactions")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
@@ -53,6 +54,9 @@ impl ActiveModel {
 impl TransactionProjectionTrait for Entity {
     fn id_column() -> Self::Column {
         self::Column::TransactionId
+    }
+    fn booking_date_column() -> Self::Column {
+        self::Column::BookingDate
     }
     fn category_column() -> Self::Column {
         self::Column::Category
