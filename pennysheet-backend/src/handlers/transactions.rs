@@ -13,6 +13,7 @@ use domain::{
 use infra::{
     append_event_to_db,
     get_all_events,
+    get_current_session,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -32,7 +33,6 @@ use crate::{
 pub struct ImportTransactionsPayload {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
-    pub session: String,
 }
 
 /// Handler for POST request to /transactions/import
@@ -57,6 +57,10 @@ pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionsPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
+    let session = get_current_session(&state.db)
+        .await?
+        .ok_or(AppError::ExpiredSession)?;
+
     let command = Command::create_import_transactions(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
@@ -73,7 +77,7 @@ pub async fn import_transactions_handler(
     if let Event::ImportTransactionsRequested(data) = &event {
         tokio::spawn(run_transaction_import(
             state.db.clone(),
-            payload.session,
+            session,
             data.request_id,
         ));
     }
@@ -87,7 +91,6 @@ pub async fn import_transactions_handler(
 #[derive(Deserialize)]
 pub struct TransactionImportRetryPayload {
     pub request_id: String,
-    pub session: String,
 }
 
 /// Handler for POST request to /transactions/import/retry
@@ -111,6 +114,10 @@ pub async fn transaction_import_retry_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TransactionImportRetryPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
+    let session = get_current_session(&state.db)
+        .await?
+        .ok_or(AppError::ExpiredSession)?;
+
     let command = Command::create_retry_failed_import_request(&payload.request_id)?;
 
     let all_events = get_all_events(&state.db).await?;
@@ -123,7 +130,7 @@ pub async fn transaction_import_retry_handler(
     if let Event::TransactionImportRetryRequested(data) = &event {
         tokio::spawn(run_transaction_import(
             state.db.clone(),
-            payload.session,
+            session,
             data.request_id,
         ));
     }
@@ -284,7 +291,6 @@ mod tests {
             Json(ImportTransactionsPayload {
                 start_date: None,
                 end_date: None,
-                session: String::new(),
             }),
         )
         .await;
@@ -338,7 +344,6 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: request_id.to_string(),
-                session: String::new(),
             }),
         )
         .await;
@@ -371,7 +376,6 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: Uuid::new_v4().to_string(),
-                session: String::new(),
             }),
         )
         .await;
@@ -396,7 +400,6 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: "not-a-uuid".to_string(),
-                session: String::new(),
             }),
         )
         .await;
@@ -444,7 +447,6 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: failed_id.to_string(),
-                session: String::new(),
             }),
         )
         .await;

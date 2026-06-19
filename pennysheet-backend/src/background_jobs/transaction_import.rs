@@ -9,7 +9,10 @@ use domain::{
     },
     process_managers::TransactionProcessManager,
 };
-use gateway::client::enable_banking_client::EnableBankingClient;
+use gateway::{
+    client::enable_banking_client::EnableBankingClient,
+    schema::enable_banking_session::EnableBankingSession,
+};
 use infra::{
     DatabaseConnection,
     append_event_to_db,
@@ -26,14 +29,14 @@ use uuid::Uuid;
 /// Run a transaction import.
 ///
 /// This task is meant to be run in the background to avoid blocking the clients.
-#[instrument(skip(db, session_json), fields(%request_id))]
+#[instrument(skip(db, session), fields(%request_id))]
 pub async fn run_transaction_import(
     db: DatabaseConnection,
-    session_json: String,
+    session: EnableBankingSession,
     request_id: Uuid,
 ) {
     info!("starting transaction import");
-    let client = match EnableBankingClient::new(&session_json) {
+    let client = match EnableBankingClient::new(session) {
         Ok(client) => client,
         Err(error) => {
             return fail_import(

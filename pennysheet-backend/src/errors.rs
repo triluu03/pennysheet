@@ -16,6 +16,7 @@ pub enum AppError {
     Domain(DomainError),
     Database(String),
     Gateway(GatewayError),
+    ExpiredSession,
 }
 
 impl fmt::Display for AppError {
@@ -24,6 +25,7 @@ impl fmt::Display for AppError {
             Self::Domain(error) => write!(f, "Domain error: {error}"),
             Self::Database(error) => write!(f, "Database error: {error}"),
             Self::Gateway(error) => write!(f, "Gateway error: {error}"),
+            Self::ExpiredSession => write!(f, "Session has expired."),
         }
     }
 }
@@ -46,6 +48,10 @@ impl IntoResponse for AppError {
             Self::Gateway(error) => {
                 error!(%error, "gateway error while handling request");
                 (StatusCode::BAD_GATEWAY, format!("{}", error)).into_response()
+            },
+            Self::ExpiredSession => {
+                warn!("session has expired");
+                (StatusCode::UNAUTHORIZED, "Session has expired!".to_string()).into_response()
             },
         }
     }

@@ -2,6 +2,11 @@
 //!
 //! This is used as the base authentication for every API call to Enable Banking API.
 
+use chrono::{
+    DateTime,
+    Duration,
+    Utc,
+};
 #[cfg(feature = "sea-orm-support")]
 use sea_orm::FromJsonQueryResult;
 use serde::{
@@ -44,7 +49,7 @@ enum PSUType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Access {
-    valid_until: String,
+    valid_until: DateTime<Utc>,
 }
 
 impl EnableBankingSession {
@@ -55,6 +60,11 @@ impl EnableBankingSession {
     /// Returns [`GatewayError`] if parsing the JSON payload fails.
     pub fn from_json(session_json: &str) -> Result<Self, GatewayError> {
         Ok(serde_json::from_str(session_json)?)
+    }
+
+    /// Check whether the session has expired.
+    pub fn is_expired(&self) -> bool {
+        Utc::now() > self.access.valid_until - Duration::minutes(5)
     }
 
     /// Get account UUID.

@@ -25,6 +25,8 @@ impl ActiveModelBehavior for ActiveModel {}
 
 /// Get the current Enable Banking session.
 ///
+/// Return None if the session has expired!
+///
 /// # Errors
 ///
 /// Returns [`DbErr`] if the query operation fails.
@@ -32,13 +34,21 @@ impl ActiveModelBehavior for ActiveModel {}
 pub async fn get_current_session(
     db: &DatabaseConnection,
 ) -> Result<Option<EnableBankingSession>, DbErr> {
-    Entity::find()
+    let session: Option<EnableBankingSession> = Entity::find()
         .select_only()
         .column(Column::EnableBankingSession)
         .order_by_id_desc()
         .into_tuple()
         .one(db)
-        .await
+        .await?;
+
+    Ok(session.and_then(|session| {
+        if session.is_expired() {
+            None
+        } else {
+            Some(session)
+        }
+    }))
 }
 
 /// Insert new session to the table.

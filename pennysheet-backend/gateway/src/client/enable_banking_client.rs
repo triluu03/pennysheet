@@ -66,12 +66,9 @@ impl EnableBankingClient {
     ///
     /// # Errors
     ///
-    /// Returns [`GatewayError`] in any of the following scenarios:
-    /// - Cannot generate the JWT token.
-    /// - Fail to parse the session JSON.
-    pub fn new(session_json: &str) -> Result<Self, GatewayError> {
+    /// Returns [`GatewayError`] if fails to generate the JWT token.
+    pub fn new(session: EnableBankingSession) -> Result<Self, GatewayError> {
         let (jwt_token, expires_at) = generate_jwt_token()?;
-        let session = EnableBankingSession::from_json(session_json)?;
 
         Ok(Self {
             session,
