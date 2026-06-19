@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = { workspace = true }
 dotenvy = { workspace = true }
 jsonwebtoken = { version = "10.4.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.13.4", features = ["json", "query"] }
+sea-orm = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
@@ -14,6 +16,7 @@ tracing = { workspace = true }
 [features]
 default = []
 with-client = []
+sea-orm-support = ["dep:sea-orm"]
 
 [lints]
 workspace = true

@@ -2,13 +2,22 @@
 //!
 //! This is used as the base authentication for every API call to Enable Banking API.
 
-use crate::errors::GatewayError;
+use chrono::{
+    DateTime,
+    Duration,
+    Utc,
+};
+#[cfg(feature = "sea-orm-support")]
+use sea_orm::FromJsonQueryResult;
 use serde::{
     Deserialize,
     Serialize,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+use crate::errors::GatewayError;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "sea-orm-support", derive(FromJsonQueryResult))]
 pub struct EnableBankingSession {
     session_id: String,
     accounts: Vec<AccountResource>,
@@ -17,30 +26,30 @@ pub struct EnableBankingSession {
     access: Access,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct AccountResource {
     name: Option<String>,
     currency: String,
     uid: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::upper_case_acronyms)]
 struct ASPSP {
     name: String,
     country: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum PSUType {
     Business,
     Personal,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Access {
-    valid_until: String,
+    valid_until: DateTime<Utc>,
 }
 
 impl EnableBankingSession {
@@ -51,6 +60,11 @@ impl EnableBankingSession {
     /// Returns [`GatewayError`] if parsing the JSON payload fails.
     pub fn from_json(session_json: &str) -> Result<Self, GatewayError> {
         Ok(serde_json::from_str(session_json)?)
+    }
+
+    /// Check whether the session has expired.
+    pub fn is_expired(&self) -> bool {
+        Utc::now() > self.access.valid_until - Duration::minutes(5)
     }
 
     /// Get account UUID.

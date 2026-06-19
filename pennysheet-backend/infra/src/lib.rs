@@ -10,16 +10,23 @@ use tracing::{
     info,
 };
 
-pub use crate::event_store::{
-    append_event_to_db,
-    append_multi_events_to_db,
-    get_all_events,
-    get_events_with_offset,
+pub use crate::{
+    event_store::{
+        append_event_to_db,
+        append_multi_events_to_db,
+        get_all_events,
+        get_events_with_offset,
+    },
+    sessions::{
+        get_current_session,
+        insert_new_session,
+    },
 };
 
 mod event_store;
 mod projections;
 pub mod projectors;
+mod sessions;
 
 /// Environment variable holding the base PostgreSQL connection URL (without the database name).
 const DATABASE_URL_ENV: &str = "DATABASE_URL";
@@ -91,6 +98,8 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(projections::transactions::Entity)
         .register(projections::expenses::Entity)
         .register(projections::income::Entity)
+        // Sessions
+        .register(sessions::Entity)
         .sync(db)
         .await
 }

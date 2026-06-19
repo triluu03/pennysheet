@@ -1062,10 +1062,12 @@ dependencies = [
 name = "gateway"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dotenvy",
  "httpmock",
  "jsonwebtoken",
  "reqwest",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",
@@ -1566,6 +1568,7 @@ dependencies = [
  "chrono",
  "domain",
  "dotenvy",
+ "gateway",
  "sea-orm",
  "serde",
  "serde_json",

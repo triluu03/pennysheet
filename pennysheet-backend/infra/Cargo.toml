@@ -9,16 +9,10 @@ domain = { version = "0.1.0", path = "../domain", features = [
 	"sea-orm-support",
 ] }
 dotenvy = { workspace = true }
-sea-orm = { version = "2.0.0-rc", features = [
-	"sqlx-postgres",
-	"runtime-tokio-rustls",
-	"macros",
-	"schema-sync",
-	"entity-registry",
-	"with-json",
-	"with-uuid",
-	"with-chrono",
+gateway = { version = "0.1.0", path = "../gateway", features = [
+	"sea-orm-support",
 ] }
+sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { version = "0.9.0", features = ["postgres"] }
