@@ -55,6 +55,9 @@ impl TransactionProjectionTrait for Entity {
     fn id_column() -> Self::Column {
         self::Column::TransactionId
     }
+    fn amount_column() -> Self::Column {
+        self::Column::Amount
+    }
     fn booking_date_column() -> Self::Column {
         self::Column::BookingDate
     }

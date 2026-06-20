@@ -5,19 +5,20 @@ use domain::events::{
     TransactionClassification,
 };
 use sea_orm::{
-    ColumnTrait,
-    ConnectionTrait,
-    DbErr,
-    EntityTrait,
-    QueryFilter,
-    QueryOrder,
-    QueryTrait,
     entity::prelude::*,
     prelude::{
         Expr,
         async_trait,
     },
-    sea_query::SimpleExpr,
+    sea_query::{
+        Func,
+        SimpleExpr,
+    },
+    *,
+};
+use serde::{
+    Deserialize,
+    Serialize,
 };
 use uuid::Uuid;
 
@@ -25,6 +26,23 @@ pub mod expenses;
 pub mod income;
 pub(crate) mod projector_states;
 pub mod transactions;
+
+/// Time aggregation for aggregating the transactions projections.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TimeAggregation {
+    #[default]
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+/// Aggregated SELECT results.
+#[derive(Debug, Serialize, FromQueryResult)]
+pub struct AggregatedResult {
+    date: Date,
+    amount: f64,
+}
 
 /// An abstract base class for a transaction-related projection.
 #[async_trait::async_trait]
@@ -34,6 +52,9 @@ pub trait TransactionProjectionTrait: EntityTrait {
 
     /// Booking date column.
     fn booking_date_column() -> Self::Column;
+
+    /// Amount column
+    fn amount_column() -> Self::Column;
 
     /// Category column
     fn category_column() -> Self::Column;
@@ -138,6 +159,60 @@ pub trait TransactionProjectionTrait: EntityTrait {
                 query.filter(Self::id_column().eq(value))
             })
             .order_by_asc(Self::booking_date_column())
+            .all(db)
+            .await
+    }
+
+    /// Get transactions time-aggregated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the query fails.
+    async fn get_transactions_time_aggregated<C>(
+        db: &C,
+        start_date: Option<Date>,
+        end_date: Option<Date>,
+        aggregation: TimeAggregation,
+    ) -> Result<Vec<AggregatedResult>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        let date_trunc_expr = match aggregation {
+            TimeAggregation::Daily => Expr::cust_with_expr(
+                "DATE_TRUNC('day', $1)",
+                Expr::col(Self::booking_date_column()),
+            ),
+            TimeAggregation::Weekly => Expr::cust_with_expr(
+                "DATE_TRUNC('week', $1)",
+                Expr::col(Self::booking_date_column()),
+            ),
+            TimeAggregation::Monthly => Expr::cust_with_expr(
+                "DATE_TRUNC('month', $1)",
+                Expr::col(Self::booking_date_column()),
+            ),
+        };
+
+        Self::find()
+            .select_only()
+            .apply_if(start_date, |query, value| {
+                query.filter(Self::booking_date_column().gt(value))
+            })
+            .apply_if(end_date, |query, value| {
+                query.filter(Self::booking_date_column().lt(value))
+            })
+            .column_as(date_trunc_expr.clone().cast_as("date"), "date")
+            // TODO: how to get away from this CASTING madness?
+            .column_as(
+                Expr::expr(Func::round_with_precision(
+                    Self::amount_column().sum().cast_as("numeric"),
+                    2,
+                ))
+                .cast_as("double precision"),
+                "amount",
+            )
+            .group_by(date_trunc_expr.clone())
+            .order_by_asc(date_trunc_expr)
+            .into_model()
             .all(db)
             .await
     }

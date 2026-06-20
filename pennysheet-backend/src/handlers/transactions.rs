@@ -21,6 +21,7 @@ use infra::{
     get_current_session,
     projections::{
         self,
+        TimeAggregation,
         TransactionProjectionTrait,
     },
 };
@@ -44,9 +45,11 @@ pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
     kind: Option<TransactionKind>,
+    #[serde(default)]
+    aggregation: TimeAggregation,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum TransactionKind {
     Income,
@@ -64,6 +67,7 @@ enum TransactionKind {
     fields(
         start_date = ?params.start_date,
         end_date = ?params.end_date,
+        kind = ?params.kind,
     )
 )]
 // TODO: write tests for this handler!
@@ -74,31 +78,31 @@ pub async fn get_transactions_handler(
     info!("fetching transactions");
     let result = match params.kind {
         Some(TransactionKind::Income) => {
-            let data = projections::income::Entity::get_transactions(
+            let data = projections::income::Entity::get_transactions_time_aggregated(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                None,
+                params.aggregation,
             )
             .await?;
             serde_json::to_value(data)
         },
         Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::Entity::get_transactions(
+            let data = projections::expenses::Entity::get_transactions_time_aggregated(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                None,
+                params.aggregation,
             )
             .await?;
             serde_json::to_value(data)
         },
         None => {
-            let data = projections::transactions::Entity::get_transactions(
+            let data = projections::transactions::Entity::get_transactions_time_aggregated(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                None,
+                params.aggregation,
             )
             .await?;
             serde_json::to_value(data)
