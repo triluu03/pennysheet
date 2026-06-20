@@ -2,13 +2,21 @@
 
 use axum::{
     Router,
+    http::HeaderValue,
     routing::{
         get,
         post,
     },
 };
 use std::sync::Arc;
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    cors::{
+        AllowOrigin,
+        Any,
+        CorsLayer,
+    },
+    trace::TraceLayer,
+};
 
 use crate::{
     AppState,
@@ -44,4 +52,16 @@ pub fn app_router() -> Router<Arc<AppState>> {
         .route("/sessions/import", post(import_new_session_handler))
         .nest("/transactions", transactions_router())
         .layer(TraceLayer::new_for_http())
+        .layer(
+            CorsLayer::new()
+                .allow_methods(Any)
+                .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+                    origin
+                        .to_str()
+                        .map(|s| {
+                            s.starts_with("http://localhost") || s.starts_with("http://127.0.0.1")
+                        })
+                        .unwrap_or(false)
+                })),
+        )
 }
