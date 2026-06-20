@@ -45,8 +45,6 @@ pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
     kind: Option<TransactionKind>,
-    #[serde(default)]
-    aggregation: TimeAggregation,
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,11 +76,70 @@ pub async fn get_transactions_handler(
     info!("fetching transactions");
     let result = match params.kind {
         Some(TransactionKind::Income) => {
+            let data = projections::income::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        Some(TransactionKind::Expenses) => {
+            let data = projections::expenses::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        None => {
+            let data = projections::transactions::Entity::get_transactions(
+                &state.db,
+                params.start_date,
+                params.end_date,
+                None,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+    };
+
+    result
+        .map(Json)
+        .map_err(|err| AppError::Database(err.to_string()))
+}
+
+/// Handler for GET request to /transactions/aggregate/{aggregated_level}
+///
+/// # Errors
+///
+/// Returns [`AppError`] if querying the transactions fails or
+/// cannot serialize the projections into JSON values.
+#[instrument(
+    skip(state, params),
+    fields(
+        start_date = ?params.start_date,
+        end_date = ?params.end_date,
+        kind = ?params.kind,
+    )
+)]
+// TODO: write tests for this handler!
+pub async fn get_transactions_time_aggregated_handler(
+    State(state): State<Arc<AppState>>,
+    Path(aggregated_level): Path<TimeAggregation>,
+    Query(params): Query<GetTransactionsQuery>,
+) -> axum::response::Result<Json<serde_json::Value>, AppError> {
+    info!("fetching transactions");
+    let result = match params.kind {
+        Some(TransactionKind::Income) => {
             let data = projections::income::Entity::get_transactions_time_aggregated(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                params.aggregation,
+                aggregated_level,
             )
             .await?;
             serde_json::to_value(data)
@@ -92,7 +149,7 @@ pub async fn get_transactions_handler(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                params.aggregation,
+                aggregated_level,
             )
             .await?;
             serde_json::to_value(data)
@@ -102,7 +159,7 @@ pub async fn get_transactions_handler(
                 &state.db,
                 params.start_date,
                 params.end_date,
-                params.aggregation,
+                aggregated_level,
             )
             .await?;
             serde_json::to_value(data)

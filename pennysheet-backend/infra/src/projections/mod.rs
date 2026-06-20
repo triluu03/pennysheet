@@ -158,7 +158,7 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .apply_if(transaction_id, |query, value| {
                 query.filter(Self::id_column().eq(value))
             })
-            .order_by_asc(Self::booking_date_column())
+            .order_by_desc(Self::booking_date_column())
             .all(db)
             .await
     }
