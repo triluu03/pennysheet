@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "/", label: "Home", icon: HomeIcon },
-  { to: "/dashboard", label: "Dashboard", icon: ChartBarSquareIcon }
+  { to: "/details", label: "Details", icon: ChartBarSquareIcon }
 ];
 
 /**
@@ -38,10 +38,10 @@ export default function SideNav() {
       </nav>
 
       <div className="px-4 py-5">
-        <div className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+        <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors cursor-pointer">
           <UserCircleIcon className="size-6" />
           Tri Luu
-        </div>
+        </button>
       </div>
     </aside>
   );
