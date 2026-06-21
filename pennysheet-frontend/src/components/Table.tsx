@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   categorizeTransaction,
   classifyTransaction,
+  type TransactionCategory,
+  type TransactionClassification,
   type Transactions,
   updateTransactionNote
 } from "../api/endpoints/transactions";
@@ -26,13 +28,13 @@ const TABLE_COLUMNS: {
     key: "category",
     label: "Category",
     editCellOnSave: async (transactionId: string, value: string) =>
-      categorizeTransaction(transactionId, value.toLowerCase())
+      categorizeTransaction(transactionId, value.toLowerCase() as TransactionCategory)
   },
   {
     key: "classification",
     label: "Classification",
     editCellOnSave: async (transactionId: string, value: string) =>
-      classifyTransaction(transactionId, value)
+      classifyTransaction(transactionId, value as TransactionClassification)
   },
   {
     key: "note",

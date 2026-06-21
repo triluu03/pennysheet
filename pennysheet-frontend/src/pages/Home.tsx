@@ -1,40 +1,24 @@
-import { useState } from "react";
-import { type TimeAggregation, type TransactionKind } from "../api/endpoints/transactions";
+import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
-import { useTransactions, useTransactionsAggregated } from "../hooks/useTransactions";
+import PageHeader from "../components/PageHeader";
+import { useTransactionsAggregated } from "../hooks/useTransactions";
 
 /**
  * Homepage.
  */
 export default function Home() {
-  const [startDate, setStartDate] = useState<string>("2026-05-01");
-  const [endDate, setEndDate] = useState<string>("2026-06-20");
-  const [kind, setKind] = useState<TransactionKind | undefined>("expenses");
-  const [timeAggregation, setTimeAggregation] = useState<TimeAggregation>("daily");
+  const { startDate, endDate } = useAppContext();
 
-  const { data, loading, error } = useTransactionsAggregated(
-    startDate,
-    endDate,
-    kind,
-    timeAggregation
+  const { data } = useTransactionsAggregated(
+    startDate.toISOString().split("T")[0],
+    endDate.toISOString().split("T")[0],
+    "expenses",
+    "daily"
   );
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between pb-6">
-        <div className="flex flex-col">
-          <div>Personal Expenses</div>
-          <h1 className="text-2xl font-medium">Transactions Overview</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center rounded-lg border border-gray-300 bg-stone-300">
-            <button className="p-2">Last month</button>
-            <button className="p-2">Last 2 months</button>
-            <button className="p-2">Last 3 months</button>
-          </div>
-          <button className="px-4 py-2 rounded-lg bg-stone-300">Fetch Transactions</button>
-        </div>
-      </div>
+      <PageHeader title="Transactions Overview" />
       <div className="flex flex-col flex-1 rounded-lg gap-5">
         <BarPlot data={data} groupBy="category" />
         <BarPlot data={data} groupBy="classification" />
