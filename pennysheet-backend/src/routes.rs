@@ -60,6 +60,7 @@ pub fn app_router() -> Router<Arc<AppState>> {
         .layer(
             CorsLayer::new()
                 .allow_methods(Any)
+                .allow_headers(Any)
                 .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
                     origin
                         .to_str()
