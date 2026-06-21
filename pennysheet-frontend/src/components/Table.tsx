@@ -133,13 +133,13 @@ export default function Table({ data, onSave }: TableProps) {
                   <div className="flex gap-1">
                     <button
                       onClick={() => saveEdit(row)}
-                      className="p-2 rounded hover:bg-gray-200 text-emerald-600 transition-colors cursor-pointer"
+                      className="p-2 rounded hover:bg-gray-200 text-emerald-600 transition-colors"
                     >
                       <CheckIcon className="size-5" />
                     </button>
                     <button
                       onClick={cancelEdit}
-                      className="p-2 rounded hover:bg-gray-200 text-red-400 transition-colors cursor-pointer"
+                      className="p-2 rounded hover:bg-gray-200 text-red-400 transition-colors"
                     >
                       <XMarkIcon className="size-5" />
                     </button>
@@ -147,7 +147,7 @@ export default function Table({ data, onSave }: TableProps) {
                 ) : (
                   <button
                     onClick={() => startEdit(row)}
-                    className="p-2 rounded hover:bg-gray-200 transition-colors cursor-pointer"
+                    className="p-2 rounded hover:bg-gray-200 transition-colors"
                   >
                     <PencilIcon className="size-5" />
                   </button>
