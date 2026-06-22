@@ -84,8 +84,8 @@ impl FromStr for TransactionClassification {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "must have" => Ok(Self::MustHave),
-            "nice to have" => Ok(Self::NiceToHave),
+            "must-have" => Ok(Self::MustHave),
+            "nice-to-have" => Ok(Self::NiceToHave),
             "wasted" => Ok(Self::Wasted),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
