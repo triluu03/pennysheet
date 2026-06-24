@@ -27,6 +27,7 @@ mod event_store;
 pub mod projections;
 pub mod projectors;
 mod sessions;
+mod user_settings;
 
 /// Environment variable holding the base PostgreSQL connection URL (without the database name).
 const DATABASE_URL_ENV: &str = "DATABASE_URL";
@@ -100,6 +101,8 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(projections::income::Entity)
         // Sessions
         .register(sessions::Entity)
+        // User settings
+        .register(user_settings::Entity)
         .sync(db)
         .await
 }
