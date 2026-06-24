@@ -32,6 +32,12 @@ use crate::{
             transaction_import_retry_handler,
             update_transaction_note_handler,
         },
+        user_settings::{
+            create_user_settings_handler,
+            delete_user_settings_handler,
+            get_user_settings_handler,
+            update_user_settings_handler,
+        },
     },
 };
 
@@ -50,12 +56,23 @@ fn transactions_router() -> Router<Arc<AppState>> {
         .route("/note", post(update_transaction_note_handler))
 }
 
+fn user_settings_router() -> Router<Arc<AppState>> {
+    Router::new().route(
+        "/",
+        get(get_user_settings_handler)
+            .post(create_user_settings_handler)
+            .patch(update_user_settings_handler)
+            .delete(delete_user_settings_handler),
+    )
+}
+
 /// Define App router.
 pub fn app_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/status", get(|| async { "Working fine!" }))
         .route("/sessions/import", post(import_new_session_handler))
         .nest("/transactions", transactions_router())
+        .nest("/settings", user_settings_router())
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()

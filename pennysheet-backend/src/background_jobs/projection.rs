@@ -4,6 +4,8 @@ use std::time::Duration;
 
 use infra::{
     DatabaseConnection,
+    get_user_settings,
+    projections,
     projectors::CoreProjector,
 };
 use tracing::{
@@ -40,4 +42,26 @@ pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
             },
         }
     }
+}
+
+/// Apply the user settings to the whole expenses projection.
+///
+/// # Panics
+///
+/// Panic in any of the following scenarios:
+/// - Cannot query the user settings from the table.
+/// - Applying the user settings fails.
+#[instrument(skip(db))]
+pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
+    info!("getting all user settings");
+    let user_settings = get_user_settings(&db)
+        .await
+        .expect("querying user settings from the database should succeed!");
+
+    info!("applying user settings to the expenses projection");
+    projections::expenses::apply_user_settings_all(&db, &user_settings)
+        .await
+        .expect("apply user settings to the expenses projection should succeed");
+
+    info!("expenses projection updated!");
 }
