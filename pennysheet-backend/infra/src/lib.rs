@@ -21,6 +21,13 @@ pub use crate::{
         get_current_session,
         insert_new_session,
     },
+    user_settings::{
+        UserSettingsResult,
+        create_user_setting,
+        delete_user_setting,
+        get_user_settings,
+        update_user_setting,
+    },
 };
 
 mod event_store;

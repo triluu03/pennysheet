@@ -19,10 +19,7 @@ use tracing::{
 
 use crate::{
     projections::TransactionProjectionTrait,
-    user_settings::{
-        self,
-        UserSettingsResult,
-    },
+    user_settings::UserSettingsResult,
 };
 
 #[sea_orm::model]
