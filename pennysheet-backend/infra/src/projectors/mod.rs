@@ -27,6 +27,10 @@ use crate::{
         },
         transactions,
     },
+    user_settings::{
+        UserSettingsResult,
+        get_user_settings,
+    },
 };
 
 /// Project to all projections that implements [`TransactionProjectionTrait`].
@@ -45,6 +49,7 @@ pub struct CoreProjector<'db> {
     db: &'db DatabaseConnection,
     name: String,
     last_seen_event_number: i64,
+    user_settings: Vec<UserSettingsResult>,
 }
 
 impl<'db> CoreProjector<'db> {
@@ -52,15 +57,19 @@ impl<'db> CoreProjector<'db> {
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if fails to get the projector state from the database.
+    /// Returns [`DbErr`] if fails to get the projector state or the user settings
+    /// from the database.
     #[instrument(skip(db))]
     pub async fn new(db: &'db DatabaseConnection) -> Result<Self, DbErr> {
         let last_seen_event_number = get_projector_state(db, PROJECTOR_NAME).await?.unwrap_or(0);
+        let user_settings = get_user_settings(db).await?;
+
         info!("projector initialized");
         Ok(Self {
             db,
             name: PROJECTOR_NAME.to_string(),
             last_seen_event_number,
+            user_settings,
         })
     }
 
@@ -118,7 +127,7 @@ impl<'db> CoreProjector<'db> {
 
         info!(n_unseen_events, "projecting unseen events in a transaction");
         let txn = self.db.begin().await?;
-        CoreProjector::multi_project(&txn, &unseen_events).await?;
+        CoreProjector::multi_project(&txn, &unseen_events, &self.user_settings).await?;
         update_projector_state(
             &txn,
             &self.name,
@@ -139,7 +148,11 @@ impl<'db> CoreProjector<'db> {
     ///
     /// Returns [`DbErr`] if the insertion into the projection fails.
     #[instrument(skip(txn))]
-    async fn project(txn: &DatabaseTransaction, event: &Event) -> Result<(), DbErr> {
+    async fn project(
+        txn: &DatabaseTransaction,
+        event: &Event,
+        user_settings: &[UserSettingsResult],
+    ) -> Result<(), DbErr> {
         match event {
             Event::TransactionRecorded(data) => {
                 transactions::ActiveModel::from_recorded_transaction(data.clone())
@@ -149,7 +162,10 @@ impl<'db> CoreProjector<'db> {
                 if let Some(expense) =
                     expenses::ActiveModel::from_recorded_transaction(data.clone())
                 {
-                    expense.insert(txn).await?;
+                    expense
+                        .apply_user_settings(user_settings)
+                        .insert(txn)
+                        .await?;
                 };
                 if let Some(income) = income::ActiveModel::from_recorded_transaction(data.clone()) {
                     income.insert(txn).await?;
@@ -191,9 +207,13 @@ impl<'db> CoreProjector<'db> {
     ///
     /// Returns [`DbErr`] if any insertion into the projection fails.
     #[instrument(skip(txn))]
-    async fn multi_project(txn: &DatabaseTransaction, events: &[Event]) -> Result<(), DbErr> {
+    async fn multi_project(
+        txn: &DatabaseTransaction,
+        events: &[Event],
+        user_settings: &[UserSettingsResult],
+    ) -> Result<(), DbErr> {
         for event in events.iter() {
-            CoreProjector::project(txn, event).await?
+            CoreProjector::project(txn, event, user_settings).await?
         }
         Ok(())
     }
