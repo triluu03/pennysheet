@@ -32,6 +32,7 @@ use crate::{
 ///
 /// Returns [`AppError`] if querying the user settings fails.
 #[instrument(skip(state))]
+// TODO: write tests for this handler!
 pub async fn get_user_settings_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<UserSettingsResult>>, AppError> {
@@ -54,6 +55,7 @@ pub struct CreateUserSettingsPayload {
 ///
 /// Returns [`AppError`] if creating fails.
 #[instrument(skip(state))]
+// TODO: write tests for this handler!
 pub async fn create_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateUserSettingsPayload>,
@@ -90,6 +92,7 @@ pub struct UpdateUserSettingsPayload {
 ///
 /// Returns [`AppError`] if creating fails.
 #[instrument(skip(state))]
+// TODO: write tests for this handler!
 pub async fn update_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateUserSettingsPayload>,
@@ -121,6 +124,7 @@ pub struct DeleteUserSettingsPayload {
 ///
 /// Returns [`AppError`] if creating fails.
 #[instrument(skip(state))]
+// TODO: write tests for this handler!
 pub async fn delete_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<DeleteUserSettingsPayload>,
