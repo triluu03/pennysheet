@@ -143,8 +143,8 @@ where
                 Column::AutoClassification,
                 Expr::value(setting.classification),
             )
-            .filter(Column::Category.is_null())
-            .filter(Column::Classification.is_null())
+            .filter(Column::AutoCategory.is_null())
+            .filter(Column::AutoClassification.is_null())
             .filter(Expr::cust_with_exprs(
                 "$1 ~ $2",
                 [
