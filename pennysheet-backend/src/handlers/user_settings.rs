@@ -1,0 +1,141 @@
+//! User settings handlers.
+
+use axum::{
+    Json,
+    extract::{
+        Path,
+        State,
+    },
+    http::StatusCode,
+};
+use domain::events::{
+    TransactionCategory,
+    TransactionClassification,
+};
+use infra::{
+    UserSettingsResult,
+    create_user_setting,
+    delete_user_setting,
+    get_user_settings,
+    update_user_setting,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use tracing::{
+    info,
+    instrument,
+};
+
+use crate::{
+    AppState,
+    background_jobs::apply_user_settings_to_expenses,
+    errors::AppError,
+};
+
+/// Handler for GET request to /settings
+///
+/// # Errors
+///
+/// Returns [`AppError`] if querying the user settings fails.
+#[instrument(skip(state))]
+// TODO: write tests for this handler!
+pub async fn get_user_settings_handler(
+    State(state): State<Arc<AppState>>,
+) -> axum::response::Result<Json<Vec<UserSettingsResult>>, AppError> {
+    info!("getting user settings");
+    get_user_settings(&state.db)
+        .await
+        .map(Json)
+        .map_err(AppError::from)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateUserSettingsPayload {
+    pub regex_rule: String,
+    pub category: TransactionCategory,
+    pub classification: TransactionClassification,
+}
+
+/// Handler for POST request to /settings
+///
+/// # Errors
+///
+/// Returns [`AppError`] if creating fails.
+#[instrument(skip(state))]
+// TODO: write tests for this handler!
+pub async fn create_user_settings_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateUserSettingsPayload>,
+) -> axum::response::Result<Json<UserSettingsResult>, AppError> {
+    info!("creating a new user setting");
+    create_user_setting(
+        &state.db,
+        payload.regex_rule,
+        payload.category,
+        payload.classification,
+    )
+    .await
+    .map(|result| {
+        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        Json(result)
+    })
+    .map_err(AppError::from)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateUserSettingsPayload {
+    pub priority: Option<i64>,
+    pub regex_rule: Option<String>,
+    pub category: Option<TransactionCategory>,
+    pub classification: Option<TransactionClassification>,
+}
+
+/// Handler for PATCH request to /settings/{setting_id}
+///
+/// # Errors
+///
+/// Returns [`AppError`] if creating fails.
+#[instrument(skip(state))]
+// TODO: write tests for this handler!
+pub async fn update_user_settings_handler(
+    State(state): State<Arc<AppState>>,
+    Path(setting_id): Path<i64>,
+    Json(payload): Json<UpdateUserSettingsPayload>,
+) -> axum::response::Result<StatusCode, AppError> {
+    info!("updating a user setting");
+    update_user_setting(
+        &state.db,
+        setting_id,
+        payload.priority,
+        payload.regex_rule,
+        payload.category,
+        payload.classification,
+    )
+    .await
+    .map(|_| {
+        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        StatusCode::NO_CONTENT
+    })
+    .map_err(AppError::from)
+}
+
+/// Handler for DELETE request to /settings/{setting_id}
+///
+/// # Errors
+///
+/// Returns [`AppError`] if creating fails.
+#[instrument(skip(state))]
+// TODO: write tests for this handler!
+pub async fn delete_user_settings_handler(
+    State(state): State<Arc<AppState>>,
+    Path(setting_id): Path<i64>,
+) -> axum::response::Result<StatusCode, AppError> {
+    info!("deleting a user setting");
+    delete_user_setting(&state.db, setting_id)
+        .await
+        .map(|_| {
+            tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+            StatusCode::NO_CONTENT
+        })
+        .map_err(AppError::from)
+}

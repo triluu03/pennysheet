@@ -23,12 +23,12 @@ export type TransactionKind = "income" | "expenses";
 export type TimeAggregation = "daily" | "weekly" | "monthly";
 
 export type TransactionCategory =
-  | "groceries"
-  | "health"
-  | "transport"
-  | "services"
-  | "leisure"
-  | "others";
+  | "Groceries"
+  | "Health"
+  | "Transport"
+  | "Services"
+  | "Leisure"
+  | "Others";
 
 export type TransactionClassification = "must-have" | "nice-to-have" | "wasted";
 
