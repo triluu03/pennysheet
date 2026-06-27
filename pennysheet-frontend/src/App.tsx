@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 import Layout from "./components/Layout";
 import DetailsPage from "./pages/Details";
 import Home from "./pages/Home";
+import UserPage from "./pages/User";
 
 interface AppContextType {
   startDate: Date;
@@ -52,6 +53,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/details" element={<DetailsPage />} />
+            <Route path="/user" element={<UserPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
