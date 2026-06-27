@@ -58,9 +58,13 @@ pub trait TransactionProjectionTrait: EntityTrait {
 
     /// Category column
     fn category_column() -> Self::Column;
+    /// Auto-category column
+    fn auto_category_column() -> Option<Self::Column>;
 
     /// Classification column
     fn classification_column() -> Self::Column;
+    /// Auto-classification column
+    fn auto_classification_column() -> Option<Self::Column>;
 
     /// Note column
     fn note_column() -> Self::Column;
@@ -149,6 +153,8 @@ pub trait TransactionProjectionTrait: EntityTrait {
         C: ConnectionTrait,
     {
         Self::find()
+            .select_only()
+            .columns(Self::Column::iter())
             .apply_if(start_date, |query, value| {
                 query.filter(Self::booking_date_column().gt(value))
             })
@@ -158,6 +164,36 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .apply_if(transaction_id, |query, value| {
                 query.filter(Self::id_column().eq(value))
             })
+            .apply_if(
+                Self::auto_category_column(),
+                |query, auto_category_column| {
+                    query.column_as(
+                        Expr::cust_with_exprs(
+                            "COALESCE($1, $2)",
+                            [
+                                Expr::col(Self::category_column()),
+                                Expr::col(auto_category_column),
+                            ],
+                        ),
+                        Self::category_column(),
+                    )
+                },
+            )
+            .apply_if(
+                Self::auto_classification_column(),
+                |query, auto_classification_column| {
+                    query.column_as(
+                        Expr::cust_with_exprs(
+                            "COALESCE($1, $2)",
+                            [
+                                Expr::col(Self::classification_column()),
+                                Expr::col(auto_classification_column),
+                            ],
+                        ),
+                        Self::classification_column(),
+                    )
+                },
+            )
             .order_by_desc(Self::booking_date_column())
             .all(db)
             .await

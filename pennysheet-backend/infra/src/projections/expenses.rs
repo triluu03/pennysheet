@@ -98,8 +98,14 @@ impl TransactionProjectionTrait for Entity {
     fn category_column() -> Self::Column {
         self::Column::Category
     }
+    fn auto_category_column() -> Option<Self::Column> {
+        Some(self::Column::AutoCategory)
+    }
     fn classification_column() -> Self::Column {
         self::Column::Classification
+    }
+    fn auto_classification_column() -> Option<Self::Column> {
+        Some(self::Column::AutoClassification)
     }
     fn note_column() -> Self::Column {
         self::Column::Note
