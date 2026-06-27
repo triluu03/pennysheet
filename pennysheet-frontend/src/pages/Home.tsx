@@ -13,7 +13,7 @@ export default function Home() {
     startDate.toISOString().split("T")[0],
     endDate.toISOString().split("T")[0],
     "expenses",
-    "daily"
+    "monthly"
   );
 
   return (

@@ -19,7 +19,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
  * App provider containing the global context/states of the app.
  */
 function AppProvider({ children }: { children: React.ReactNode }) {
-  const [nLastMonths, setNLastMonths] = useState<number>(1);
+  const [nLastMonths, setNLastMonths] = useState<number>(3);
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
