@@ -5,6 +5,7 @@ use axum::{
     http::HeaderValue,
     routing::{
         get,
+        patch,
         post,
     },
 };
@@ -57,13 +58,15 @@ fn transactions_router() -> Router<Arc<AppState>> {
 }
 
 fn user_settings_router() -> Router<Arc<AppState>> {
-    Router::new().route(
-        "/",
-        get(get_user_settings_handler)
-            .post(create_user_settings_handler)
-            .patch(update_user_settings_handler)
-            .delete(delete_user_settings_handler),
-    )
+    Router::new()
+        .route(
+            "/",
+            get(get_user_settings_handler).post(create_user_settings_handler),
+        )
+        .route(
+            "/{setting_id}",
+            patch(update_user_settings_handler).delete(delete_user_settings_handler),
+        )
 }
 
 /// Define App router.

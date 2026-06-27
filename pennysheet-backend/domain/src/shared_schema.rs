@@ -43,12 +43,12 @@ impl FromStr for TransactionCategory {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "groceries" => Ok(Self::Groceries),
-            "health" => Ok(Self::Health),
-            "transport" => Ok(Self::Transport),
-            "services" => Ok(Self::Services),
-            "leisure" => Ok(Self::Leisure),
-            "others" => Ok(Self::Others),
+            "groceries" | "Groceries" => Ok(Self::Groceries),
+            "health" | "Health" => Ok(Self::Health),
+            "transport" | "Transport" => Ok(Self::Transport),
+            "services" | "Services" => Ok(Self::Services),
+            "leisure" | "Leisure" => Ok(Self::Leisure),
+            "others" | "Others" => Ok(Self::Others),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
             ))),

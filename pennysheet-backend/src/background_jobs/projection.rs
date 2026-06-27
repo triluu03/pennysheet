@@ -58,6 +58,7 @@ pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
         .await
         .expect("querying user settings from the database should succeed!");
 
+    // TODO: make this go through a transaction.
     info!("applying user settings to the expenses projection");
     projections::expenses::apply_user_settings_all(&db, &user_settings)
         .await

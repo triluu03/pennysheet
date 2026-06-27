@@ -72,7 +72,7 @@ impl ActiveModel {
         };
 
         let Some(setting) = user_settings.iter().find(|setting| {
-            Regex::from_str(&setting.regex_rules)
+            Regex::from_str(&setting.regex_rule)
                 .map(|r| r.is_match(creditor_name))
                 .unwrap_or(false)
         }) else {
@@ -149,7 +149,7 @@ where
                 "$1 ~ $2",
                 [
                     Expr::col(Column::CreditorName),
-                    Expr::value(setting.regex_rules.as_str()),
+                    Expr::value(setting.regex_rule.as_str()),
                 ],
             ))
             .exec(db)

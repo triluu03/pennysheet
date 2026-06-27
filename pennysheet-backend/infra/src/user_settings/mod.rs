@@ -7,7 +7,6 @@ use domain::events::{
 use sea_orm::{
     ActiveValue::Set,
     FromQueryResult,
-    InsertResult,
     QueryOrder,
     QuerySelect,
     entity::prelude::*,
@@ -48,7 +47,7 @@ impl ActiveModelBehavior for ActiveModel {
 pub struct UserSettingsResult {
     pub setting_id: i64,
     pub priority: i64,
-    pub regex_rules: String,
+    pub regex_rule: String,
     pub category: TransactionCategory,
     pub classification: TransactionClassification,
 }
@@ -87,7 +86,7 @@ pub async fn create_user_setting<C>(
     regex_rule: String,
     category: TransactionCategory,
     classification: TransactionClassification,
-) -> Result<InsertResult<ActiveModel>, DbErr>
+) -> Result<UserSettingsResult, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -114,12 +113,16 @@ where
         ..Default::default()
     };
 
-    let result = Entity::insert(new_setting_row).exec(db).await?;
-    info!(
-        setting_id = result.last_insert_id,
-        "created new user setting"
-    );
-    Ok(result)
+    let result: Model = new_setting_row.insert(db).await?;
+
+    info!(setting_id = result.setting_id, "created new user setting");
+    Ok(UserSettingsResult {
+        setting_id: result.setting_id,
+        priority: result.priority,
+        regex_rule: result.regex_rule,
+        category: result.category,
+        classification: result.classification,
+    })
 }
 
 /// Update a user's settings.
