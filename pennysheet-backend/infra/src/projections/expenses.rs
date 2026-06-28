@@ -8,7 +8,20 @@ use domain::events::{
 use regex::Regex;
 use sea_orm::{
     ActiveValue::Set,
+    DbBackend,
+    ExprTrait,
+    FromQueryResult,
+    Iterable,
+    Order,
+    Statement,
     entity::prelude::*,
+    sea_query::{
+        Alias,
+        CommonTableExpression,
+        PostgresQueryBuilder,
+        Query,
+        WithClause,
+    },
 };
 use serde::Serialize;
 use std::str::FromStr;
@@ -163,4 +176,113 @@ where
     }
 
     Ok(())
+}
+
+#[derive(Debug, Serialize, FromQueryResult)]
+#[allow(non_snake_case)]
+pub struct PivotRow {
+    pub date: Date,
+    // Categories
+    pub Groceries: f64,
+    pub Health: f64,
+    pub Transport: f64,
+    pub Services: f64,
+    pub Leisure: f64,
+    pub Others: f64,
+    // Classification
+    #[serde(rename = "must-have")]
+    pub must_have: f64,
+    #[serde(rename = "nice-to-have")]
+    pub nice_to_have: f64,
+    pub wasted: f64,
+}
+
+/// Get transactions pivot table.
+///
+/// # Errors
+///
+/// Returns [`DbErr`] if the query fails.
+#[instrument(skip(db))]
+pub async fn get_expenses_pivot_table<C>(
+    db: &C,
+    start_date: Option<Date>,
+    end_date: Option<Date>,
+) -> Result<Vec<PivotRow>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let coalsce_query = Query::select()
+        .column(Column::BookingDate)
+        .expr_as(
+            Expr::cust_with_exprs(
+                "COALESCE($1, $2)",
+                [Expr::col(Column::Category), Expr::col(Column::AutoCategory)],
+            ),
+            Column::Category,
+        )
+        .expr_as(
+            Expr::cust_with_exprs(
+                "COALESCE($1, $2)",
+                [
+                    Expr::col(Column::Classification),
+                    Expr::col(Column::AutoClassification),
+                ],
+            ),
+            Column::Classification,
+        )
+        .column(Column::Amount)
+        .from(Entity)
+        .to_owned();
+
+    let coalsce_table = CommonTableExpression::new()
+        .query(coalsce_query)
+        .table_name(Alias::new("coalesce_table"))
+        .to_owned();
+
+    let date_trunc_expr =
+        Expr::cust_with_expr("DATE_TRUNC('month', $1)", Expr::col(Column::BookingDate));
+
+    // Build the main query
+    let mut select_query = Query::select();
+    select_query
+        .expr_as(date_trunc_expr.clone().cast_as("date"), "date")
+        .from("coalesce_table")
+        .add_group_by([date_trunc_expr.clone()])
+        .order_by_expr(date_trunc_expr, Order::Asc);
+
+    // Loop through each category and calculate the total for each of them.
+    for category in TransactionCategory::iter() {
+        select_query.expr_as(
+            Expr::cust(format!(
+                "COALESCE(SUM(amount) FILTER (WHERE category = '{}'), 0)",
+                category.into_value()
+            )),
+            category.into_value(),
+        );
+    }
+
+    // Loop through each classification and calculate the total for each of them.
+    for classification in TransactionClassification::iter() {
+        select_query.expr_as(
+            Expr::cust(format!(
+                "COALESCE(SUM(amount) FILTER (WHERE classification = '{}'), 0)",
+                classification.into_value()
+            )),
+            classification.into_value().replace('-', "_"),
+        );
+    }
+
+    let (sql, values) = select_query
+        .with(WithClause::new().cte(coalsce_table).to_owned())
+        .build(PostgresQueryBuilder);
+
+    let rows = PivotRow::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        &sql,
+        values,
+    ))
+    .all(db)
+    .await?;
+
+    Ok(rows)
 }
