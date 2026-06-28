@@ -150,6 +150,7 @@ function EditableCell({ transactionId, field, value, onSave }: EditableCellProps
                 if (editValue !== value && editValue !== "") {
                   onSave?.(transactionId, editValue);
                 }
+                e.currentTarget.blur();
                 setEditing(false);
               }
               if (e.key === "Escape") cancel();

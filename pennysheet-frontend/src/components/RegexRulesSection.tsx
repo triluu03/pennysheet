@@ -123,6 +123,7 @@ export default function RegexRulesSection() {
               onBlur={e => commitUpdateUserSetting(rule.setting_id, { regex_rule: e.target.value })}
               onKeyDown={e => {
                 if (e.key === "Enter") {
+                  e.currentTarget.blur();
                   commitUpdateUserSetting(rule.setting_id, { regex_rule: e.currentTarget.value });
                 }
               }}
@@ -133,11 +134,14 @@ export default function RegexRulesSection() {
             {/* Category */}
             <select
               value={rule.category ?? ""}
-              onChange={e =>
+              onChange={e => {
+                stageUpdateUserSetting(rule.setting_id, {
+                  category: e.target.value as TransactionCategory
+                });
                 commitUpdateUserSetting(rule.setting_id, {
                   category: e.target.value as TransactionCategory
-                })
-              }
+                });
+              }}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
             >
               {CATEGORY_OPTIONS.map(opt => (
@@ -150,11 +154,14 @@ export default function RegexRulesSection() {
             {/* Classification */}
             <select
               value={rule.classification ?? ""}
-              onChange={e =>
+              onChange={e => {
+                stageUpdateUserSetting(rule.setting_id, {
+                  classification: e.target.value as TransactionClassification
+                });
                 commitUpdateUserSetting(rule.setting_id, {
                   classification: e.target.value as TransactionClassification
-                })
-              }
+                });
+              }}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
             >
               {CLASSIFICATION_OPTIONS.map(opt => (
