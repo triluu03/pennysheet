@@ -253,8 +253,10 @@ where
     // Loop through each category and calculate the total for each of them.
     for category in TransactionCategory::iter() {
         select_query.expr_as(
+            // TODO: simplify this nested functions queries.
             Expr::cust(format!(
-                "COALESCE(SUM(amount) FILTER (WHERE category = '{}'), 0)",
+                "ROUND(COALESCE(SUM(amount) FILTER (WHERE category = '{}'), 0)::NUMERIC, \
+                 2)::DOUBLE PRECISION",
                 category.into_value()
             )),
             category.into_value(),
@@ -264,8 +266,10 @@ where
     // Loop through each classification and calculate the total for each of them.
     for classification in TransactionClassification::iter() {
         select_query.expr_as(
+            // TODO: simplify this nested functions queries.
             Expr::cust(format!(
-                "COALESCE(SUM(amount) FILTER (WHERE classification = '{}'), 0)",
+                "ROUND(COALESCE(SUM(amount) FILTER (WHERE classification = '{}'), 0)::NUMERIC, \
+                 2)::DOUBLE PRECISION",
                 classification.into_value()
             )),
             classification.into_value().replace('-', "_"),
