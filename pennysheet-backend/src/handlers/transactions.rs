@@ -171,6 +171,53 @@ pub async fn get_transactions_time_aggregated_handler(
         .map_err(|err| AppError::Database(err.to_string()))
 }
 
+/// Handler for GET request to /transactions/pivot
+///
+/// # Errors
+///
+/// Returns [`AppError`] if querying the transactions fails or
+/// cannot serialize the projections into JSON values.
+#[instrument(
+    skip(state, params),
+    fields(
+        start_date = ?params.start_date,
+        end_date = ?params.end_date,
+        kind = ?params.kind,
+    )
+)]
+// TODO: write tests for this handler!
+pub async fn get_transactions_pivot_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetTransactionsQuery>,
+) -> axum::response::Result<Json<serde_json::Value>, AppError> {
+    info!("fetching transactions pivot table");
+    let result = match params.kind {
+        Some(TransactionKind::Income) => {
+            return Err(AppError::NotImplemented(
+                "Getting pivot table for Income is not supported yet!".to_string(),
+            ));
+        },
+        Some(TransactionKind::Expenses) => {
+            let data = projections::expenses::get_expenses_pivot_table(
+                &state.db,
+                params.start_date,
+                params.end_date,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        None => {
+            return Err(AppError::NotImplemented(
+                "Getting pivot table for general transactions is not supported yet!".to_string(),
+            ));
+        },
+    };
+
+    result
+        .map(Json)
+        .map_err(|err| AppError::Database(err.to_string()))
+}
+
 /// Handler for GET request to /transactions/{transaction_id}
 ///
 /// # Errors

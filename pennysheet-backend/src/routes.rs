@@ -28,6 +28,7 @@ use crate::{
             classify_transaction_handler,
             get_one_transaction_handler,
             get_transactions_handler,
+            get_transactions_pivot_handler,
             get_transactions_time_aggregated_handler,
             import_transactions_handler,
             transaction_import_retry_handler,
@@ -45,6 +46,7 @@ use crate::{
 fn transactions_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(get_transactions_handler))
+        .route("/pivot", get(get_transactions_pivot_handler))
         .route(
             "/aggregate/{aggregated_level}",
             get(get_transactions_time_aggregated_handler),
