@@ -8,10 +8,15 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import type { TransactionsAggregated } from "../api/endpoints/transactions";
+import {
+  TRANSACTION_CATEGORIES,
+  TRANSACTION_CLASSIFICATIONS,
+  TRANSACTION_PIVOT_COLORS,
+  type TransactionsPivot
+} from "../api/endpoints/transactions";
 
 interface BarPlotProps {
-  data: TransactionsAggregated[];
+  data: TransactionsPivot[];
   groupBy?: "category" | "classification";
 }
 
@@ -19,6 +24,8 @@ interface BarPlotProps {
  * Bar plot for transactions.
  */
 export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
+  const barDataKeys = groupBy === "category" ? TRANSACTION_CATEGORIES : TRANSACTION_CLASSIFICATIONS;
+
   return (
     <div className="flex flex-col gap-2 p-2 pr-5 rounded-lg bg-white">
       <h2 className="m-3 text-xl font-medium">Groupby: {groupBy}</h2>
@@ -29,7 +36,14 @@ export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
           <YAxis dataKey="amount" niceTicks="snap125" />
           <Tooltip />
           <Legend />
-          <Bar dataKey="amount" stackId="a" fill="#8884d8" radius={[10, 10, 0, 0]} />
+          {barDataKeys.map(dataKey => (
+            <Bar
+              dataKey={dataKey}
+              stackId="a"
+              fill={TRANSACTION_PIVOT_COLORS[dataKey]}
+              // radius={[10, 10, 0, 0]}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>

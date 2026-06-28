@@ -18,19 +18,51 @@ export interface TransactionsAggregated {
   amount: number;
 }
 
+export interface TransactionsPivot {
+  date: string;
+  // Categories
+  Groceries: number;
+  Health: number;
+  Transport: number;
+  Services: number;
+  Leisure: number;
+  Others: number;
+  // Classification
+  "must-have": number;
+  "nice-to-have": number;
+  wasted: number;
+}
+export const TRANSACTION_PIVOT_COLORS: Record<string, string> = {
+  // Categories
+  Groceries: "#34a853", // green
+  Health: "#f9ab00", // yellow
+  Transport: "#4285f4", // blue
+  Services: "#ea4335", // red
+  Leisure: "#00897b", // teal
+  Others: "#9334e6", // purple
+
+  // Classification
+  "must-have": "#4285f4", // blue
+  "nice-to-have": "#f9ab00", // yellow
+  wasted: "#ea4335" // red
+} as const;
+
 export type TransactionKind = "income" | "expenses";
 
 export type TimeAggregation = "daily" | "weekly" | "monthly";
 
-export type TransactionCategory =
-  | "Groceries"
-  | "Health"
-  | "Transport"
-  | "Services"
-  | "Leisure"
-  | "Others";
+export const TRANSACTION_CATEGORIES = [
+  "Groceries",
+  "Health",
+  "Transport",
+  "Services",
+  "Leisure",
+  "Others"
+] as const;
+export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
 
-export type TransactionClassification = "must-have" | "nice-to-have" | "wasted";
+export const TRANSACTION_CLASSIFICATIONS = ["must-have", "nice-to-have", "wasted"];
+export type TransactionClassification = (typeof TRANSACTION_CLASSIFICATIONS)[number];
 
 /**
  * Get transactions.
@@ -57,7 +89,7 @@ export async function getTransactions(
  * @param endDate {string} - (Optional) End booking date.
  * @param kind {TransactionKind} - (Optional) Transactions kind.
  * @param timeAggregation {TimeAggregation} - (Optional) Time aggregation level.
- * @returns {Promise<Transactions[]>} - Array of transactions.
+ * @returns {Promise<TransactionsAggregated[]>} - Array of transactions.
  */
 export async function getTransactionsTimeAggregated(
   startDate?: string,
@@ -68,6 +100,24 @@ export async function getTransactionsTimeAggregated(
   return await client
     .get(`/transactions/aggregate/${timeAggregation}`, {
       params: { start_date: startDate, end_date: endDate, kind }
+    })
+    .then(response => response.data);
+}
+
+/**
+ * Get transactions pivot table.
+ *
+ * @param startDate {string} - (Optional) Start booking date.
+ * @param endDate {string} - (Optional) End booking date.
+ * @returns {Promise<TransactionsPivot[]>} - Array of transactions.
+ */
+export async function getTransactionsPivotTable(
+  startDate?: string,
+  endDate?: string
+): Promise<TransactionsPivot[]> {
+  return await client
+    .get(`/transactions/pivot`, {
+      params: { start_date: startDate, end_date: endDate, kind: "expenses" }
     })
     .then(response => response.data);
 }

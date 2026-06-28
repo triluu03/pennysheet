@@ -1,7 +1,7 @@
 import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
 import PageHeader from "../components/PageHeader";
-import { useTransactionsAggregated } from "../hooks/useTransactions";
+import { useTransactionsAggregated, useTransactionsPivot } from "../hooks/useTransactions";
 
 /**
  * Homepage.
@@ -9,11 +9,9 @@ import { useTransactionsAggregated } from "../hooks/useTransactions";
 export default function Home() {
   const { startDate, endDate } = useAppContext();
 
-  const { data } = useTransactionsAggregated(
+  const { data } = useTransactionsPivot(
     startDate.toISOString().split("T")[0],
-    endDate.toISOString().split("T")[0],
-    "expenses",
-    "monthly"
+    endDate.toISOString().split("T")[0]
   );
 
   return (

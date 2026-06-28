@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   getTransactions,
+  getTransactionsPivotTable,
   getTransactionsTimeAggregated,
   type TimeAggregation,
   type TransactionKind,
   type Transactions,
-  type TransactionsAggregated
+  type TransactionsAggregated,
+  type TransactionsPivot
 } from "../api/endpoints/transactions";
 
 export function useTransactions(startDate: string, endDate: string, kind?: TransactionKind) {
@@ -35,6 +37,21 @@ export function useTransactionsAggregated(
 
   useEffect(() => {
     getTransactionsTimeAggregated(startDate, endDate, kind, timeAggregation)
+      .then(setData)
+      .catch(setError)
+      .finally(() => setLoading(false));
+  }, [startDate, endDate]);
+
+  return { data, loading, error };
+}
+
+export function useTransactionsPivot(startDate: string, endDate: string) {
+  const [data, setData] = useState<TransactionsPivot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getTransactionsPivotTable(startDate, endDate)
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
