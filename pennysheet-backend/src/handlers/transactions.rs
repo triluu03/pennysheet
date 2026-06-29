@@ -472,8 +472,8 @@ mod tests {
     use infra::{
         append_event_to_db,
         append_multi_events_to_db,
+        create_new_session,
         get_all_events,
-        insert_new_session,
         sync_database_schema,
     };
     use sea_orm::Database;
@@ -509,9 +509,13 @@ mod tests {
     async fn in_memory_state() -> Arc<AppState> {
         let db = Database::connect("sqlite::memory:").await.unwrap();
         sync_database_schema(&db).await.unwrap();
-        insert_new_session(&db, EnableBankingSession::from_json(MOCK_SESSION).unwrap())
-            .await
-            .unwrap();
+        create_new_session(
+            &db,
+            "mock-session".to_string(),
+            EnableBankingSession::from_json(MOCK_SESSION).unwrap(),
+        )
+        .await
+        .unwrap();
         Arc::new(AppState { db })
     }
 
@@ -519,8 +523,9 @@ mod tests {
     async fn in_memory_state_with_expired_session() -> Arc<AppState> {
         let db = Database::connect("sqlite::memory:").await.unwrap();
         sync_database_schema(&db).await.unwrap();
-        insert_new_session(
+        create_new_session(
             &db,
+            "mock-expired-session".to_string(),
             EnableBankingSession::from_json(MOCK_EXPIRED_SESSION).unwrap(),
         )
         .await
