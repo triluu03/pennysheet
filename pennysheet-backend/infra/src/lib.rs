@@ -18,8 +18,11 @@ pub use crate::{
         get_events_with_offset,
     },
     sessions::{
+        SessionResult,
+        create_new_session,
+        delete_session,
+        get_all_sessions,
         get_current_session,
-        insert_new_session,
     },
     user_settings::{
         UserSettingsResult,

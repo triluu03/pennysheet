@@ -31,9 +31,9 @@ pub mod transactions;
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TimeAggregation {
-    #[default]
     Daily,
     Weekly,
+    #[default]
     Monthly,
 }
 

@@ -4,6 +4,7 @@ use axum::{
     Router,
     http::HeaderValue,
     routing::{
+        delete,
         get,
         patch,
         post,
@@ -22,12 +23,17 @@ use tower_http::{
 use crate::{
     AppState,
     handlers::{
-        sessions::import_new_session_handler,
+        sessions::{
+            create_sessions_handler,
+            delete_sessions_handler,
+            get_sessions_handler,
+        },
         transactions::{
             categorize_transaction_handler,
             classify_transaction_handler,
             get_one_transaction_handler,
             get_transactions_handler,
+            get_transactions_pivot_handler,
             get_transactions_time_aggregated_handler,
             import_transactions_handler,
             transaction_import_retry_handler,
@@ -42,9 +48,16 @@ use crate::{
     },
 };
 
+fn sessions_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(get_sessions_handler).post(create_sessions_handler))
+        .route("/{session_id}", delete(delete_sessions_handler))
+}
+
 fn transactions_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(get_transactions_handler))
+        .route("/pivot", get(get_transactions_pivot_handler))
         .route(
             "/aggregate/{aggregated_level}",
             get(get_transactions_time_aggregated_handler),
@@ -73,7 +86,7 @@ fn user_settings_router() -> Router<Arc<AppState>> {
 pub fn app_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/status", get(|| async { "Working fine!" }))
-        .route("/sessions/import", post(import_new_session_handler))
+        .nest("/sessions", sessions_router())
         .nest("/transactions", transactions_router())
         .nest("/settings", user_settings_router())
         .layer(TraceLayer::new_for_http())

@@ -171,6 +171,53 @@ pub async fn get_transactions_time_aggregated_handler(
         .map_err(|err| AppError::Database(err.to_string()))
 }
 
+/// Handler for GET request to /transactions/pivot
+///
+/// # Errors
+///
+/// Returns [`AppError`] if querying the transactions fails or
+/// cannot serialize the projections into JSON values.
+#[instrument(
+    skip(state, params),
+    fields(
+        start_date = ?params.start_date,
+        end_date = ?params.end_date,
+        kind = ?params.kind,
+    )
+)]
+// TODO: write tests for this handler!
+pub async fn get_transactions_pivot_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GetTransactionsQuery>,
+) -> axum::response::Result<Json<serde_json::Value>, AppError> {
+    info!("fetching transactions pivot table");
+    let result = match params.kind {
+        Some(TransactionKind::Income) => {
+            return Err(AppError::NotImplemented(
+                "Getting pivot table for Income is not supported yet!".to_string(),
+            ));
+        },
+        Some(TransactionKind::Expenses) => {
+            let data = projections::expenses::get_expenses_pivot_table(
+                &state.db,
+                params.start_date,
+                params.end_date,
+            )
+            .await?;
+            serde_json::to_value(data)
+        },
+        None => {
+            return Err(AppError::NotImplemented(
+                "Getting pivot table for general transactions is not supported yet!".to_string(),
+            ));
+        },
+    };
+
+    result
+        .map(Json)
+        .map_err(|err| AppError::Database(err.to_string()))
+}
+
 /// Handler for GET request to /transactions/{transaction_id}
 ///
 /// # Errors
@@ -425,8 +472,8 @@ mod tests {
     use infra::{
         append_event_to_db,
         append_multi_events_to_db,
+        create_new_session,
         get_all_events,
-        insert_new_session,
         sync_database_schema,
     };
     use sea_orm::Database;
@@ -462,9 +509,13 @@ mod tests {
     async fn in_memory_state() -> Arc<AppState> {
         let db = Database::connect("sqlite::memory:").await.unwrap();
         sync_database_schema(&db).await.unwrap();
-        insert_new_session(&db, EnableBankingSession::from_json(MOCK_SESSION).unwrap())
-            .await
-            .unwrap();
+        create_new_session(
+            &db,
+            "mock-session".to_string(),
+            EnableBankingSession::from_json(MOCK_SESSION).unwrap(),
+        )
+        .await
+        .unwrap();
         Arc::new(AppState { db })
     }
 
@@ -472,8 +523,9 @@ mod tests {
     async fn in_memory_state_with_expired_session() -> Arc<AppState> {
         let db = Database::connect("sqlite::memory:").await.unwrap();
         sync_database_schema(&db).await.unwrap();
-        insert_new_session(
+        create_new_session(
             &db,
+            "mock-expired-session".to_string(),
             EnableBankingSession::from_json(MOCK_EXPIRED_SESSION).unwrap(),
         )
         .await
