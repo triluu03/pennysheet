@@ -13,9 +13,9 @@ use crate::errors::DomainError;
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportRequestData {
     pub request_id: Uuid,
+    pub session_id: i64,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
-    pub session_id: i64,
 }
 
 impl ImportRequestData {
@@ -23,9 +23,9 @@ impl ImportRequestData {
     pub fn new(start_date: NaiveDate, end_date: NaiveDate, session_id: i64) -> Self {
         ImportRequestData {
             request_id: Uuid::new_v4(),
+            session_id,
             start_date,
             end_date,
-            session_id,
         }
     }
 }

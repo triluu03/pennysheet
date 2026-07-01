@@ -206,6 +206,7 @@ mod tests {
         CoreAggregate::new(&[
             Event::ImportTransactionsRequested(ImportRequestData {
                 request_id,
+                session_id,
                 ..Default::default()
             }),
             Event::ImportTransactionsFailed(ImportStatusData {
@@ -423,26 +424,35 @@ mod tests {
     fn failed_event_makes_request_eligible_for_retry() {
         let aggregate = CoreAggregate::new(&[]);
         let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+
         let requested_events: Vec<Event> = commands
             .into_iter()
             .map(|command| aggregate.execute(command).unwrap())
             .collect();
-        let request_id = request_id_from_event(requested_events.first().unwrap());
+        let request_id_1 = request_id_from_event(requested_events.first().unwrap());
+        let request_id_2 = request_id_from_event(requested_events.get(1).unwrap());
+
         let aggregate = aggregate.multi_apply(&requested_events);
 
         // Failing the pending request both clears it and records it as retryable.
         let failed = Event::ImportTransactionsFailed(ImportStatusData {
-            request_id,
+            request_id: request_id_1,
             session_id: 1,
         });
         let aggregate = aggregate.apply(&failed);
 
+        let succeeded = Event::ImportTransactionsCompleted(ImportStatusData {
+            request_id: request_id_2,
+            session_id: 2,
+        });
+        let aggregate = aggregate.apply(&succeeded);
+
         let retry =
-            Command::create_retry_failed_import_request(&request_id.to_string(), 1).unwrap();
+            Command::create_retry_failed_import_request(&request_id_1.to_string(), 1).unwrap();
         assert!(aggregate.execute(retry).is_ok());
 
         let retry2 =
-            Command::create_retry_failed_import_request(&request_id.to_string(), 2).unwrap();
+            Command::create_retry_failed_import_request(&request_id_2.to_string(), 2).unwrap();
         assert!(aggregate.execute(retry2).is_err());
     }
 
