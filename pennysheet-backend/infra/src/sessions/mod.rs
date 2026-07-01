@@ -4,6 +4,7 @@ use gateway::schema::enable_banking_session::EnableBankingSession;
 use sea_orm::{
     ActiveValue::Set,
     DeriveEntityModel,
+    FromQueryResult,
     QuerySelect,
     entity::prelude::*,
 };
@@ -27,30 +28,30 @@ pub struct Model {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-/// Sessions SELECT results.
+/// Sessions medata.
 #[derive(Debug, Clone, Serialize)]
-pub struct SessionResult {
+pub struct SessionMetadata {
     pub session_id: i64,
     pub session_name: String,
     pub created_at: DateTime,
 }
 
-/// Get all stored Enable Banking sessions, both valid and expired ones.
+/// Get the metadata of all stored Enable Banking sessions, both valid and expired ones.
 ///
 /// # Errors
 ///
 /// Returns [`DbErr`] if the query operation fails.
 #[instrument(skip(db))]
-pub async fn get_all_sessions(
+pub async fn get_all_sessions_metadata(
     db: &DatabaseConnection,
-) -> Result<(Vec<SessionResult>, Vec<SessionResult>), DbErr> {
+) -> Result<(Vec<SessionMetadata>, Vec<SessionMetadata>), DbErr> {
     let all_sessions: Vec<Model> = Entity::find().all(db).await?;
 
     let (expired_sessions, valid_sessions): (Vec<Model>, Vec<Model>) = all_sessions
         .into_iter()
         .partition(|model| model.enable_banking_session.is_expired());
 
-    let model_to_result_closure = |session: Model| SessionResult {
+    let model_to_result_closure = |session: Model| SessionMetadata {
         session_id: session.session_id,
         session_name: session.session_name,
         created_at: session.created_at,
@@ -67,32 +68,67 @@ pub async fn get_all_sessions(
     ))
 }
 
-/// Get the current Enable Banking session.
-///
-/// Return None if the session has expired!
+/// Sessions data.
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
+pub struct SessionData {
+    pub session_id: i64,
+    pub enable_banking_session: EnableBankingSession,
+}
+
+/// Get all Enable Banking sessions, both valid and expired ones.
 ///
 /// # Errors
 ///
 /// Returns [`DbErr`] if the query operation fails.
 #[instrument(skip(db))]
-pub async fn get_current_session(
+pub async fn get_all_sessions(
     db: &DatabaseConnection,
-) -> Result<Option<EnableBankingSession>, DbErr> {
-    let session: Option<EnableBankingSession> = Entity::find()
+) -> Result<(Vec<SessionData>, Vec<SessionData>), DbErr> {
+    let all_sessions: Vec<SessionData> = Entity::find()
         .select_only()
+        .column(Column::SessionId)
         .column(Column::EnableBankingSession)
         .order_by_id_desc()
-        .into_tuple()
-        .one(db)
+        .into_model()
+        .all(db)
         .await?;
 
-    Ok(session.and_then(|session| {
-        if session.is_expired() {
-            None
-        } else {
-            Some(session)
-        }
-    }))
+    let (expired_sessions, valid_sessions): (Vec<SessionData>, Vec<SessionData>) = all_sessions
+        .into_iter()
+        .partition(|session_data| session_data.enable_banking_session.is_expired());
+
+    Ok((valid_sessions, expired_sessions))
+}
+
+/// Get one Enable Banking session based on ID.
+///
+/// # Errors
+///
+/// Returns [`DbErr`] if the query operation fails.
+#[instrument(skip(db))]
+pub async fn get_session_by_id(
+    db: &DatabaseConnection,
+    session_id: i64,
+) -> Result<SessionData, DbErr> {
+    let session_data: SessionData = Entity::find_by_id(session_id)
+        .select_only()
+        .column(Column::SessionId)
+        .column(Column::EnableBankingSession)
+        .order_by_id_desc()
+        .into_model()
+        .one(db)
+        .await?
+        .ok_or(DbErr::RecordNotFound(format!(
+            "Session ID {session_id} is not found!"
+        )))?;
+
+    if session_data.enable_banking_session.is_expired() {
+        Err(DbErr::Custom(format!(
+            "Session ID {session_id} has expired!"
+        )))
+    } else {
+        Ok(session_data)
+    }
 }
 
 /// Insert new session to the table.
@@ -105,7 +141,7 @@ pub async fn create_new_session(
     db: &DatabaseConnection,
     name: String,
     session: EnableBankingSession,
-) -> Result<SessionResult, DbErr> {
+) -> Result<SessionMetadata, DbErr> {
     let new_session = ActiveModel {
         session_name: Set(name),
         enable_banking_session: Set(session),
@@ -115,7 +151,7 @@ pub async fn create_new_session(
     let result: Model = new_session.insert(db).await?;
     info!(session_id = result.session_id, "created new session");
 
-    Ok(SessionResult {
+    Ok(SessionMetadata {
         session_id: result.session_id,
         session_name: result.session_name,
         created_at: result.created_at,

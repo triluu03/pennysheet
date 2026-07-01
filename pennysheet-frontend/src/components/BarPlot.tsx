@@ -38,6 +38,7 @@ export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
           <Legend />
           {barDataKeys.map(dataKey => (
             <Bar
+              key={dataKey}
               dataKey={dataKey}
               stackId="a"
               fill={TRANSACTION_PIVOT_COLORS[dataKey]}
