@@ -72,7 +72,7 @@ pub async fn get_all_sessions_metadata(
 #[derive(Debug, Clone, Serialize, FromQueryResult)]
 pub struct SessionData {
     pub session_id: i64,
-    pub session: EnableBankingSession,
+    pub enable_banking_session: EnableBankingSession,
 }
 
 /// Get all Enable Banking sessions, both valid and expired ones.
@@ -95,9 +95,40 @@ pub async fn get_all_sessions(
 
     let (expired_sessions, valid_sessions): (Vec<SessionData>, Vec<SessionData>) = all_sessions
         .into_iter()
-        .partition(|session_data| session_data.session.is_expired());
+        .partition(|session_data| session_data.enable_banking_session.is_expired());
 
     Ok((valid_sessions, expired_sessions))
+}
+
+/// Get one Enable Banking session based on ID.
+///
+/// # Errors
+///
+/// Returns [`DbErr`] if the query operation fails.
+#[instrument(skip(db))]
+pub async fn get_session_by_id(
+    db: &DatabaseConnection,
+    session_id: i64,
+) -> Result<SessionData, DbErr> {
+    let session_data: SessionData = Entity::find_by_id(session_id)
+        .select_only()
+        .column(Column::SessionId)
+        .column(Column::EnableBankingSession)
+        .order_by_id_desc()
+        .into_model()
+        .one(db)
+        .await?
+        .ok_or(DbErr::RecordNotFound(format!(
+            "Session ID {session_id} is not found!"
+        )))?;
+
+    if session_data.enable_banking_session.is_expired() {
+        Err(DbErr::Custom(format!(
+            "Session ID {session_id} has expired!"
+        )))
+    } else {
+        Ok(session_data)
+    }
 }
 
 /// Insert new session to the table.

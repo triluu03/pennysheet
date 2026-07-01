@@ -9,12 +9,10 @@ use domain::{
     },
     process_managers::TransactionProcessManager,
 };
-use gateway::{
-    client::enable_banking_client::EnableBankingClient,
-    schema::enable_banking_session::EnableBankingSession,
-};
+use gateway::client::enable_banking_client::EnableBankingClient;
 use infra::{
     DatabaseConnection,
+    SessionData,
     append_event_to_db,
     append_multi_events_to_db,
     get_all_events,
@@ -29,19 +27,20 @@ use uuid::Uuid;
 /// Run a transaction import.
 ///
 /// This task is meant to be run in the background to avoid blocking the clients.
-#[instrument(skip(db, session), fields(%request_id))]
+#[instrument(skip(db, session_data), fields(%request_id, %session_id = session_data.session_id))]
 pub async fn run_transaction_import(
     db: DatabaseConnection,
-    session: EnableBankingSession,
+    session_data: SessionData,
     request_id: Uuid,
 ) {
     info!("starting transaction import");
-    let client = match EnableBankingClient::new(session) {
+    let client = match EnableBankingClient::new(session_data.enable_banking_session) {
         Ok(client) => client,
         Err(error) => {
             return fail_import(
                 &db,
                 request_id,
+                session_data.session_id,
                 "init Enable Banking client",
                 &error.to_string(),
             )
@@ -55,6 +54,7 @@ pub async fn run_transaction_import(
             return fail_import(
                 &db,
                 request_id,
+                session_data.session_id,
                 "get the current event table",
                 &error.to_string(),
             )
@@ -62,23 +62,32 @@ pub async fn run_transaction_import(
         },
     };
 
-    let mut manager = match TransactionProcessManager::new(&current_event_table) {
-        Ok(manager) => manager,
+    let mut manager =
+        match TransactionProcessManager::new(session_data.session_id, &current_event_table) {
+            Ok(manager) => manager,
+            Err(error) => {
+                return fail_import(
+                    &db,
+                    request_id,
+                    session_data.session_id,
+                    "init transaction process manager",
+                    &error.to_string(),
+                )
+                .await;
+            },
+        };
+
+    let mut injector = match EventInjector::new(session_data.session_id, &current_event_table) {
+        Ok(injector) => injector,
         Err(error) => {
             return fail_import(
                 &db,
                 request_id,
-                "init transaction process manager",
+                session_data.session_id,
+                "init event injector",
                 &error.to_string(),
             )
             .await;
-        },
-    };
-
-    let mut injector = match EventInjector::new(&current_event_table) {
-        Ok(injector) => injector,
-        Err(error) => {
-            return fail_import(&db, request_id, "init event injector", &error.to_string()).await;
         },
     };
 
@@ -86,16 +95,28 @@ pub async fn run_transaction_import(
         let gateway_query_params = match manager.create_gateway_command() {
             Ok(GatewayCommand::ImportTransactions(query_params)) => query_params,
             Err(error) => {
-                return fail_import(&db, request_id, "issue gateway command", &error.to_string())
-                    .await;
+                return fail_import(
+                    &db,
+                    request_id,
+                    session_data.session_id,
+                    "issue gateway command",
+                    &error.to_string(),
+                )
+                .await;
             },
         };
 
         let response = match client.get_transactions(gateway_query_params).await {
             Ok(response) => response,
             Err(error) => {
-                return fail_import(&db, request_id, "fetch transactions", &error.to_string())
-                    .await;
+                return fail_import(
+                    &db,
+                    request_id,
+                    session_data.session_id,
+                    "fetch transactions",
+                    &error.to_string(),
+                )
+                .await;
             },
         };
 
@@ -105,6 +126,7 @@ pub async fn run_transaction_import(
                 return fail_import(
                     &db,
                     request_id,
+                    session_data.session_id,
                     "inject events from response",
                     &error.to_string(),
                 )
@@ -127,7 +149,14 @@ pub async fn run_transaction_import(
 
         info!("injecting {} new events", new_events.len());
         if let Err(error) = append_multi_events_to_db(&db, new_events).await {
-            return fail_import(&db, request_id, "inject new events", &error.to_string()).await;
+            return fail_import(
+                &db,
+                request_id,
+                session_data.session_id,
+                "inject new events",
+                &error.to_string(),
+            )
+            .await;
         }
 
         if completed_event.is_some() {
@@ -144,13 +173,23 @@ pub async fn run_transaction_import(
 /// Record a failed import.
 ///
 /// Append an [`Event::ImportTransactionsFailed`] and log the cause.
-async fn fail_import(db: &DatabaseConnection, request_id: Uuid, context: &str, error: &str) {
+async fn fail_import(
+    db: &DatabaseConnection,
+    request_id: Uuid,
+    session_id: i64,
+    context: &str,
+    error: &str,
+) {
     error!(%request_id, context, error, "transaction import failed");
 
-    let failed_event = Event::ImportTransactionsFailed(ImportStatusData { request_id });
+    let failed_event = Event::ImportTransactionsFailed(ImportStatusData {
+        request_id,
+        session_id,
+    });
     if let Err(error) = append_event_to_db(db, failed_event).await {
         error!(
             %request_id,
+            %session_id,
             %error,
             "failed to append ImportTransactionsFailed event",
         );

@@ -30,7 +30,7 @@ impl fmt::Display for AppError {
             Self::NotImplemented(error) => {
                 write!(f, "Requested resource is not supported: {error}")
             },
-            Self::ExpiredSession => write!(f, "Session has expired."),
+            Self::ExpiredSession => write!(f, "One or more sessions is expired!"),
         }
     }
 }

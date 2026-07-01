@@ -24,6 +24,7 @@ pub use crate::{
         delete_session,
         get_all_sessions,
         get_all_sessions_metadata,
+        get_session_by_id,
     },
     user_settings::{
         UserSettingsResult,
