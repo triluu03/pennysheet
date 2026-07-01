@@ -17,10 +17,12 @@ use crate::{
 
 #[derive(Default, Debug, Clone)]
 pub struct CoreAggregate {
-    /// ID of the current pending request.
-    pending_request_id: Option<Uuid>,
-    /// A set of all failed requests' IDs.
-    failed_request_id_set: HashSet<Uuid>,
+    /// Whether there are pending requests ongoing.
+    having_pending_requests: bool,
+    /// A set of sessions in use for pending requests.
+    sessions_being_used_set: HashSet<i64>,
+    /// A set of all failed requests' IDs and their corresponding sessions.
+    failed_request_id_set: HashSet<(Uuid, i64)>,
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
@@ -42,9 +44,11 @@ impl CoreAggregate {
     pub fn execute(&self, command: Command) -> Result<Event, DomainError> {
         match command {
             Command::ImportTransactions(c) => {
-                if self.pending_request_id.is_some() {
+                if self.having_pending_requests
+                    & self.sessions_being_used_set.contains(&c.session_id)
+                {
                     Err(DomainError::CommandRejected(
-                        "There's a pending request waiting to be resolved!".to_string(),
+                        "There are pending requests waiting to be resolved!".to_string(),
                     ))
                 } else if c.start_date > c.end_date {
                     Err(DomainError::CommandRejected(
@@ -54,22 +58,30 @@ impl CoreAggregate {
                     Ok(Event::ImportTransactionsRequested(ImportRequestData::new(
                         c.start_date,
                         c.end_date,
+                        c.session_id,
                     )))
                 }
             },
             Command::RetryFailedImportRequest(c) => {
-                if self.pending_request_id.is_some() {
+                // NOTE: a retry request with an available session should not be rejected!
+                // TODO: accept a retry request if its corresponding session is not in use.
+                if self.having_pending_requests {
                     Err(DomainError::CommandRejected(
-                        "There's a pending request waiting to be resolved!".to_string(),
+                        "There are pending requests waiting to be resolved!".to_string(),
                     ))
-                } else if !self.failed_request_id_set.contains(&c.request_id) {
+                } else if !self
+                    .failed_request_id_set
+                    .contains(&(c.request_id, c.session_id))
+                {
                     Err(DomainError::CommandRejected(
-                        "The provided request ID is not found in the past failed requests."
+                        "The provided request ID and its session are not found in the past failed \
+                         requests."
                             .to_string(),
                     ))
                 } else {
                     Ok(Event::TransactionImportRetryRequested(ImportStatusData {
                         request_id: c.request_id,
+                        session_id: c.session_id,
                     }))
                 }
             },
@@ -116,21 +128,29 @@ impl CoreAggregate {
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
             Event::ImportTransactionsRequested(data) => {
-                self.pending_request_id = Some(data.request_id);
+                self.having_pending_requests = true;
+                self.sessions_being_used_set.insert(data.session_id);
             },
             Event::TransactionImportRetryRequested(data) => {
-                self.pending_request_id = Some(data.request_id)
+                self.having_pending_requests = true;
+                self.sessions_being_used_set.insert(data.session_id);
             },
             Event::ImportTransactionsCompleted(data) => {
-                if self.pending_request_id == Some(data.request_id) {
-                    self.failed_request_id_set.remove(&data.request_id);
-                    self.pending_request_id = None
+                self.failed_request_id_set
+                    .remove(&(data.request_id, data.session_id));
+
+                self.sessions_being_used_set.remove(&data.session_id);
+                if self.sessions_being_used_set.is_empty() {
+                    self.having_pending_requests = false;
                 }
             },
             Event::ImportTransactionsFailed(data) => {
-                if self.pending_request_id == Some(data.request_id) {
-                    self.failed_request_id_set.insert(data.request_id);
-                    self.pending_request_id = None
+                self.failed_request_id_set
+                    .insert((data.request_id, data.session_id));
+
+                self.sessions_being_used_set.remove(&data.session_id);
+                if self.sessions_being_used_set.is_empty() {
+                    self.having_pending_requests = false;
                 }
             },
             Event::TransactionRecorded(data) => {
@@ -156,6 +176,8 @@ impl CoreAggregate {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use uuid::Uuid;
 
     use super::CoreAggregate;
@@ -180,99 +202,165 @@ mod tests {
 
     /// Build an aggregate that has already seen the given request fail, so the
     /// request id is recorded in the failed-request set and is eligible for retry.
-    fn aggregate_with_failed_request(request_id: Uuid) -> CoreAggregate {
+    fn aggregate_with_failed_request(request_id: Uuid, session_id: i64) -> CoreAggregate {
         CoreAggregate::new(&[
             Event::ImportTransactionsRequested(ImportRequestData {
                 request_id,
                 ..Default::default()
             }),
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id,
+            }),
         ])
     }
 
     #[test]
     fn execute_succeeds_with_no_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
-        assert!(aggregate.execute(command).is_ok());
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        assert!(
+            commands
+                .into_iter()
+                .all(|command| aggregate.execute(command).is_ok())
+        );
     }
 
     #[test]
-    fn execute_rejects_when_pending_request_exists() {
+    fn execute_rejects_when_trying_to_use_overlapping_sessions() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
-        let event = aggregate.execute(command).unwrap();
-        let aggregate = aggregate.apply(&event);
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let events: Vec<Event> = commands
+            .into_iter()
+            .map(|c| aggregate.execute(c).unwrap())
+            .collect();
+        let aggregate = aggregate.multi_apply(&events);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
-        assert!(aggregate.execute(command).is_err());
+        let commands = Command::create_import_transactions(None, None, vec![2, 3]).unwrap();
+        let commands_accepted: Vec<bool> = commands
+            .into_iter()
+            .map(|c| aggregate.execute(c).is_ok())
+            .collect();
+        assert!(!commands_accepted.first().unwrap());
+        assert!(commands_accepted.get(1).unwrap());
     }
 
     #[test]
     fn execute_rejects_command_with_invalid_dates() {
         let aggregate = CoreAggregate::new(&[]);
-        let invalid_command =
-            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-01")).unwrap();
-        assert!(aggregate.execute(invalid_command).is_err());
+        let invalid_commands =
+            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-01"), vec![1, 2])
+                .unwrap();
+        assert!(
+            invalid_commands
+                .into_iter()
+                .all(|command| aggregate.execute(command).is_err())
+        );
 
         let valid_command =
-            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-05")).unwrap();
-        assert!(aggregate.execute(valid_command).is_ok());
+            Command::create_import_transactions(Some("2026-06-05"), Some("2026-06-05"), vec![1, 2])
+                .unwrap();
+        assert!(
+            valid_command
+                .into_iter()
+                .all(|command| aggregate.execute(command).is_ok())
+        );
     }
 
     #[test]
     fn apply_completed_event_clears_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
-        let requested = aggregate.execute(command).unwrap();
-        let request_id = request_id_from_event(&requested);
-        let aggregate = aggregate.apply(&requested);
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let requested_events: Vec<Event> = commands
+            .into_iter()
+            .map(|command| aggregate.execute(command).unwrap())
+            .collect();
+        let request_id = request_id_from_event(requested_events.first().unwrap());
+        let aggregate = aggregate.multi_apply(&requested_events);
 
-        let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
+        let completed = Event::ImportTransactionsCompleted(ImportStatusData {
+            request_id,
+            session_id: 1,
+        });
         let aggregate = aggregate.apply(&completed);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
-        assert!(aggregate.execute(command).is_ok());
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let commands_accepted: Vec<bool> = commands
+            .into_iter()
+            .map(|c| aggregate.execute(c).is_ok())
+            .collect();
+
+        // Accepted command
+        assert!(commands_accepted.first().unwrap());
+        // Rejected command
+        assert!(!commands_accepted.get(1).unwrap());
     }
 
     #[test]
     fn apply_failed_event_clears_pending_request() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
-        let requested = aggregate.execute(command).unwrap();
-        let request_id = request_id_from_event(&requested);
-        let aggregate = aggregate.apply(&requested);
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let requested_events: Vec<Event> = commands
+            .into_iter()
+            .map(|command| aggregate.execute(command).unwrap())
+            .collect();
+        let request_id = request_id_from_event(requested_events.first().unwrap());
+        let aggregate = aggregate.multi_apply(&requested_events);
 
-        let failed = Event::ImportTransactionsFailed(ImportStatusData { request_id });
+        let failed = Event::ImportTransactionsFailed(ImportStatusData {
+            request_id,
+            session_id: 1,
+        });
         let aggregate = aggregate.apply(&failed);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
-        assert!(aggregate.execute(command).is_ok());
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let commands_accepted: Vec<bool> = commands
+            .into_iter()
+            .map(|c| aggregate.execute(c).is_ok())
+            .collect();
+
+        // Accepted command
+        assert!(commands_accepted.first().unwrap());
+        // Rejected command
+        assert!(!commands_accepted.get(1).unwrap());
     }
 
     #[test]
     fn apply_mismatched_completed_event_keeps_request_pending() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None, vec![1])
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         let requested = aggregate.execute(command).unwrap();
         let aggregate = aggregate.apply(&requested);
 
-        // A completed event for a different request should not unblock the aggregate.
+        // A completed event for a different session should not unblock the aggregate.
         let completed = Event::ImportTransactionsCompleted(ImportStatusData {
             request_id: Uuid::new_v4(),
+            session_id: 2,
         });
         let aggregate = aggregate.apply(&completed);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None, vec![1])
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
     #[test]
     fn execute_retry_succeeds_for_known_failed_request() {
         let request_id = Uuid::new_v4();
-        let aggregate = aggregate_with_failed_request(request_id);
+        let session_id = 1;
 
-        let command = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
+        let aggregate = aggregate_with_failed_request(request_id, session_id);
+
+        let command =
+            Command::create_retry_failed_import_request(&request_id.to_string(), session_id)
+                .unwrap();
         let event = aggregate.execute(command).unwrap();
 
         assert!(matches!(
@@ -287,7 +375,7 @@ mod tests {
 
         // The request id was never seen failing, so there is nothing to retry.
         let command =
-            Command::create_retry_failed_import_request(&Uuid::new_v4().to_string()).unwrap();
+            Command::create_retry_failed_import_request(&Uuid::new_v4().to_string(), 1).unwrap();
         assert!(aggregate.execute(command).is_err());
     }
 
@@ -295,55 +383,91 @@ mod tests {
     fn execute_retry_rejects_when_pending_request_exists() {
         let request_id = Uuid::new_v4();
         // Record the failure, then start a fresh import so a request is pending again.
-        let aggregate = aggregate_with_failed_request(request_id);
-        let pending = Command::create_import_transactions(None, None).unwrap();
+        let aggregate = aggregate_with_failed_request(request_id, 1);
+        let pending = Command::create_import_transactions(None, None, vec![1])
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         let requested = aggregate.execute(pending).unwrap();
         let aggregate = aggregate.apply(&requested);
 
-        let retry = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
+        let retry =
+            Command::create_retry_failed_import_request(&request_id.to_string(), 2).unwrap();
         assert!(aggregate.execute(retry).is_err());
     }
 
     #[test]
-    fn apply_retry_requested_blocks_new_requests() {
+    fn apply_retry_requested_blocks_new_requests_with_same_sessions() {
         let request_id = Uuid::new_v4();
         // A retry-requested event marks a request as pending again.
         let aggregate =
             CoreAggregate::new(&[Event::TransactionImportRetryRequested(ImportStatusData {
                 request_id,
+                session_id: 1,
             })]);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
-        assert!(aggregate.execute(command).is_err());
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let commands_accepted: Vec<bool> = commands
+            .into_iter()
+            .map(|c| aggregate.execute(c).is_ok())
+            .collect();
+
+        // Rejected command
+        assert!(!commands_accepted.first().unwrap());
+        // Accepted command
+        assert!(commands_accepted.get(1).unwrap());
     }
 
     #[test]
     fn failed_event_makes_request_eligible_for_retry() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
-        let requested = aggregate.execute(command).unwrap();
-        let request_id = request_id_from_event(&requested);
-        let aggregate = aggregate.apply(&requested);
+        let commands = Command::create_import_transactions(None, None, vec![1, 2]).unwrap();
+        let requested_events: Vec<Event> = commands
+            .into_iter()
+            .map(|command| aggregate.execute(command).unwrap())
+            .collect();
+        let request_id = request_id_from_event(requested_events.first().unwrap());
+        let aggregate = aggregate.multi_apply(&requested_events);
 
         // Failing the pending request both clears it and records it as retryable.
-        let failed = Event::ImportTransactionsFailed(ImportStatusData { request_id });
+        let failed = Event::ImportTransactionsFailed(ImportStatusData {
+            request_id,
+            session_id: 1,
+        });
         let aggregate = aggregate.apply(&failed);
 
-        let retry = Command::create_retry_failed_import_request(&request_id.to_string()).unwrap();
+        let retry =
+            Command::create_retry_failed_import_request(&request_id.to_string(), 1).unwrap();
         assert!(aggregate.execute(retry).is_ok());
+
+        let retry2 =
+            Command::create_retry_failed_import_request(&request_id.to_string(), 2).unwrap();
+        assert!(aggregate.execute(retry2).is_err());
     }
 
     #[test]
     fn multi_apply_handles_full_request_lifecycle() {
         let aggregate = CoreAggregate::new(&[]);
-        let command = Command::create_import_transactions(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None, vec![1])
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         let requested = aggregate.execute(command).unwrap();
         let request_id = request_id_from_event(&requested);
-        let completed = Event::ImportTransactionsCompleted(ImportStatusData { request_id });
+        let completed = Event::ImportTransactionsCompleted(ImportStatusData {
+            request_id,
+            session_id: 1,
+        });
 
         let aggregate = CoreAggregate::new(&[]).multi_apply(&[requested, completed]);
 
-        let command = Command::create_import_transactions(None, None).unwrap();
+        let command = Command::create_import_transactions(None, None, vec![1])
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
 }

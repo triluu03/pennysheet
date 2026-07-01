@@ -36,7 +36,7 @@ pub enum GatewayCommand {
 }
 
 impl Command {
-    /// Create a new [`Command::ImportTransactions`] command.
+    /// Create multiple [`Command::ImportTransactions`] commands.
     ///
     /// # Errors
     ///
@@ -45,7 +45,8 @@ impl Command {
     pub fn create_import_transactions(
         start_date: Option<&str>,
         end_date: Option<&str>,
-    ) -> Result<Self, DomainError> {
+        session_ids: Vec<i64>,
+    ) -> Result<Vec<Self>, DomainError> {
         let parsed_start_date = start_date
             .map(|str| NaiveDate::parse_from_str(str, "%Y-%m-%d"))
             .transpose()?
@@ -55,12 +56,18 @@ impl Command {
             .map(|str| NaiveDate::parse_from_str(str, "%Y-%m-%d"))
             .transpose()?;
 
-        let command = Command::ImportTransactions(ImportTransactionsData::new(
-            parsed_start_date,
-            parsed_end_date,
-        ));
+        let commands = session_ids
+            .iter()
+            .map(|session_id| {
+                Command::ImportTransactions(ImportTransactionsData::new(
+                    parsed_start_date,
+                    parsed_end_date,
+                    *session_id,
+                ))
+            })
+            .collect();
 
-        Ok(command)
+        Ok(commands)
     }
 
     /// Create a new [`Command::RetryFailedImportRequest`] command.
@@ -68,10 +75,14 @@ impl Command {
     /// # Errors
     ///
     /// Return [`DomainError::CommandCreation`] if the provided request ID is not a valid UUID.
-    pub fn create_retry_failed_import_request(request_id: &str) -> Result<Self, DomainError> {
+    pub fn create_retry_failed_import_request(
+        request_id: &str,
+        session_id: i64,
+    ) -> Result<Self, DomainError> {
         let parsed_request_id = Uuid::from_str(request_id)?;
         Ok(Command::RetryFailedImportRequest(ImportRequestData {
             request_id: parsed_request_id,
+            session_id,
         }))
     }
 
@@ -147,24 +158,32 @@ mod tests {
 
     /// Unwrap the result and assert it is an [`Command::ImportTransactions`],
     /// returning the inner data for further assertions.
-    fn expect_import_transactions(
-        result: Result<Command, DomainError>,
+    fn expect_one_import_transactions_command(
+        result: Result<Vec<Command>, DomainError>,
     ) -> super::ImportTransactionsData {
         match result {
-            Ok(Command::ImportTransactions(data)) => data,
+            //Ok(Command::ImportTransactions(data)) => data,
+            Ok(commands) => {
+                assert_eq!(commands.len(), 1);
+                if let Command::ImportTransactions(data) = commands.first().unwrap() {
+                    data.to_owned()
+                } else {
+                    panic!("expected one Command::ImportTransactions");
+                }
+            },
             other => panic!("expected Command::ImportTransactions, got {other:?}"),
         }
     }
 
     #[test]
     fn both_none_creates_command_with_todays_date() {
-        assert!(Command::create_import_transactions(None, None).is_ok());
+        assert!(Command::create_import_transactions(None, None, vec![1, 2]).is_ok());
     }
 
     #[test]
     fn valid_start_date_creates_command() {
-        let result = Command::create_import_transactions(Some("2024-01-15"), None);
-        let data = expect_import_transactions(result);
+        let result = Command::create_import_transactions(Some("2024-01-15"), None, vec![1]);
+        let data = expect_one_import_transactions_command(result);
         assert_eq!(
             data.start_date,
             NaiveDate::from_ymd_opt(2024, 1, 15).unwrap()
@@ -173,8 +192,9 @@ mod tests {
 
     #[test]
     fn valid_start_and_end_dates_creates_command() {
-        let result = Command::create_import_transactions(Some("2024-01-01"), Some("2024-01-31"));
-        let data = expect_import_transactions(result);
+        let result =
+            Command::create_import_transactions(Some("2024-01-01"), Some("2024-01-31"), vec![1]);
+        let data = expect_one_import_transactions_command(result);
         assert_eq!(
             data.start_date,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()
@@ -184,27 +204,28 @@ mod tests {
 
     #[test]
     fn none_end_date_defaults_end_to_start() {
-        let result = Command::create_import_transactions(Some("2024-06-15"), None);
-        let data = expect_import_transactions(result);
+        let result = Command::create_import_transactions(Some("2024-06-15"), None, vec![1]);
+        let data = expect_one_import_transactions_command(result);
         assert_eq!(data.start_date, data.end_date);
     }
 
     #[test]
     fn invalid_start_date_returns_command_creation_error() {
-        let result = Command::create_import_transactions(Some("not-a-date"), None);
+        let result = Command::create_import_transactions(Some("not-a-date"), None, vec![1]);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 
     #[test]
     fn invalid_end_date_returns_command_creation_error() {
-        let result = Command::create_import_transactions(Some("2024-01-01"), Some("not-a-date"));
+        let result =
+            Command::create_import_transactions(Some("2024-01-01"), Some("not-a-date"), vec![1]);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 
     #[test]
     fn valid_request_id_creates_retry_command() {
         let request_id = Uuid::new_v4();
-        let result = Command::create_retry_failed_import_request(&request_id.to_string());
+        let result = Command::create_retry_failed_import_request(&request_id.to_string(), 1);
         match result {
             Ok(Command::RetryFailedImportRequest(data)) => {
                 assert_eq!(data.request_id, request_id);
@@ -215,13 +236,13 @@ mod tests {
 
     #[test]
     fn invalid_request_id_returns_command_creation_error() {
-        let result = Command::create_retry_failed_import_request("not-a-uuid");
+        let result = Command::create_retry_failed_import_request("not-a-uuid", 1);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 
     #[test]
     fn empty_request_id_returns_command_creation_error() {
-        let result = Command::create_retry_failed_import_request("");
+        let result = Command::create_retry_failed_import_request("", 1);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 }

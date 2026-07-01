@@ -15,15 +15,17 @@ pub struct ImportRequestData {
     pub request_id: Uuid,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
+    pub session_id: i64,
 }
 
 impl ImportRequestData {
     /// Import transactions requested constructor.
-    pub fn new(start_date: NaiveDate, end_date: NaiveDate) -> Self {
+    pub fn new(start_date: NaiveDate, end_date: NaiveDate, session_id: i64) -> Self {
         ImportRequestData {
             request_id: Uuid::new_v4(),
             start_date,
             end_date,
+            session_id,
         }
     }
 }
@@ -31,11 +33,13 @@ impl ImportRequestData {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportStatusData {
     pub request_id: Uuid,
+    pub session_id: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportContinueData {
     pub request_id: Uuid,
+    pub session_id: i64,
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
     pub continuation_key: String,
