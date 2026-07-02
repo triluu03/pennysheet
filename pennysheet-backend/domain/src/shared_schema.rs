@@ -36,6 +36,8 @@ pub enum TransactionCategory {
     Services,
     Leisure,
     Others,
+    Investments,
+    Excluded,
 }
 
 impl FromStr for TransactionCategory {
@@ -49,6 +51,8 @@ impl FromStr for TransactionCategory {
             "services" | "Services" => Ok(Self::Services),
             "leisure" | "Leisure" => Ok(Self::Leisure),
             "others" | "Others" => Ok(Self::Others),
+            "investments" | "Investments" => Ok(Self::Investments),
+            "excluded" | "Excluded" => Ok(Self::Excluded),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
             ))),
@@ -77,6 +81,7 @@ pub enum TransactionClassification {
     MustHave,
     NiceToHave,
     Wasted,
+    Excluded,
 }
 
 impl FromStr for TransactionClassification {
@@ -87,6 +92,7 @@ impl FromStr for TransactionClassification {
             "must-have" => Ok(Self::MustHave),
             "nice-to-have" => Ok(Self::NiceToHave),
             "wasted" => Ok(Self::Wasted),
+            "excluded" => Ok(Self::Excluded),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
             ))),

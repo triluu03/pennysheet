@@ -189,12 +189,14 @@ pub struct PivotRow {
     pub Services: f64,
     pub Leisure: f64,
     pub Others: f64,
+    pub Uncategorized: f64,
     // Classification
     #[serde(rename = "must-have")]
     pub must_have: f64,
     #[serde(rename = "nice-to-have")]
     pub nice_to_have: f64,
     pub wasted: f64,
+    pub unclassified: f64,
 }
 
 /// Get transactions pivot table.
@@ -262,6 +264,14 @@ where
             category.into_value(),
         );
     }
+    select_query.expr_as(
+        // TODO: simplify this nested functions queries.
+        Expr::cust(
+            "ROUND(COALESCE(SUM(amount) FILTER (WHERE category IS NULL), 0)::NUMERIC, 2)::DOUBLE \
+             PRECISION",
+        ),
+        "Uncategorized",
+    );
 
     // Loop through each classification and calculate the total for each of them.
     for classification in TransactionClassification::iter() {
@@ -275,6 +285,14 @@ where
             classification.into_value().replace('-', "_"),
         );
     }
+    select_query.expr_as(
+        // TODO: simplify this nested functions queries.
+        Expr::cust(
+            "ROUND(COALESCE(SUM(amount) FILTER (WHERE classification IS NULL), 0)::NUMERIC, \
+             2)::DOUBLE PRECISION",
+        ),
+        "unclassified",
+    );
 
     let (sql, values) = select_query
         .with(WithClause::new().cte(coalsce_table).to_owned())
