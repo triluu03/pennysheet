@@ -10,7 +10,7 @@ import {
   type TransactionsPivot
 } from "../api/endpoints/transactions";
 
-export function useTransactions(startDate: string, endDate: string, kind?: TransactionKind) {
+export function useTransactions(startDate: Date, endDate: Date, kind?: TransactionKind) {
   const [data, setData] = useState<Transactions[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,8 +26,8 @@ export function useTransactions(startDate: string, endDate: string, kind?: Trans
 }
 
 export function useTransactionsAggregated(
-  startDate: string,
-  endDate: string,
+  startDate: Date,
+  endDate: Date,
   kind?: TransactionKind,
   timeAggregation?: TimeAggregation
 ) {
@@ -45,7 +45,7 @@ export function useTransactionsAggregated(
   return { data, loading, error };
 }
 
-export function useTransactionsPivot(startDate: string, endDate: string) {
+export function useTransactionsPivot(startDate: Date, endDate: Date) {
   const [data, setData] = useState<TransactionsPivot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

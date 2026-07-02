@@ -57,7 +57,7 @@ interface EditableCellProps {
   transactionId: string;
   field: keyof Transactions;
   value: string | null;
-  onSave?: (trasactionId: string, value: string) => Promise<number>;
+  onSave?: (transactionId: string, value: string) => Promise<number>;
 }
 
 /**

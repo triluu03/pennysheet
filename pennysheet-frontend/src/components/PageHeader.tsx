@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useAppContext } from "../App";
 import { requestImportTransactions } from "../api/endpoints/transactions";
+import { formatDate } from "../api/utils";
 
 interface PageHeaderProps {
   title: string;
@@ -20,7 +21,7 @@ export default function PageHeader({
 
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const todayDateString = new Date().toISOString().split("T")[0];
+  const todayDateString = formatDate(new Date());
   const [startDate, setStartDate] = useState<string>(todayDateString);
   const [endDate, setEndDate] = useState<string>(todayDateString);
 

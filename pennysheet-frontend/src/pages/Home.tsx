@@ -1,18 +1,14 @@
 import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
 import PageHeader from "../components/PageHeader";
-import { useTransactionsAggregated, useTransactionsPivot } from "../hooks/useTransactions";
+import { useTransactionsPivot } from "../hooks/useTransactions";
 
 /**
  * Homepage.
  */
 export default function Home() {
   const { startDate, endDate } = useAppContext();
-
-  const { data } = useTransactionsPivot(
-    startDate.toISOString().split("T")[0],
-    endDate.toISOString().split("T")[0]
-  );
+  const { data } = useTransactionsPivot(startDate, endDate);
 
   return (
     <div className="flex flex-col h-full">

@@ -8,12 +8,7 @@ import { useTransactions } from "../hooks/useTransactions";
  */
 export default function DetailsPage() {
   const { startDate, endDate } = useAppContext();
-
-  const { data } = useTransactions(
-    startDate.toISOString().split("T")[0],
-    endDate.toISOString().split("T")[0],
-    "expenses"
-  );
+  const { data } = useTransactions(startDate, endDate, "expenses");
 
   return (
     <div className="flex flex-col h-full">

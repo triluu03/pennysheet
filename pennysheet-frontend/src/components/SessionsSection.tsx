@@ -5,6 +5,7 @@ import {
   deleteSession,
   type EnableBankingSession
 } from "../api/endpoints/sessions";
+import { formatDate } from "../api/utils";
 import { useSessions } from "../hooks/useSessions";
 
 /**
@@ -133,7 +134,7 @@ export default function SessionsSection() {
             <div className="flex flex-col">
               <span className="text-sm font-medium">{session.session_name}</span>
               <span className="text-xs text-gray-500">
-                {new Date(session.created_at).toISOString().split("T")[0]}
+                {formatDate(new Date(session.created_at))}
               </span>
             </div>
 

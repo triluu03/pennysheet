@@ -1,4 +1,5 @@
 import client from "../client";
+import { formatDate } from "../utils";
 
 export interface Transactions {
   id: number;
@@ -64,48 +65,63 @@ export const TRANSACTION_CATEGORIES = [
   "Others",
   "Investments",
   "Excluded"
-];
+] as const;
 export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
 
-export const TRANSACTION_CLASSIFICATIONS = ["must-have", "nice-to-have", "wasted", "excluded"];
+export const TRANSACTION_CLASSIFICATIONS = [
+  "must-have",
+  "nice-to-have",
+  "wasted",
+  "excluded"
+] as const;
 export type TransactionClassification = (typeof TRANSACTION_CLASSIFICATIONS)[number];
 
 /**
  * Get transactions.
  *
- * @param startDate {string} - (Optional) Start booking date.
- * @param endDate {string} - (Optional) End booking date.
+ * @param startDate {Date} - (Optional) Start booking date.
+ * @param endDate {Date} - (Optional) End booking date.
  * @param kind {TransactionKind} - (Optional) Transactions kind.
  * @returns {Promise<Transactions[]>} - Array of transactions.
  */
 export async function getTransactions(
-  startDate?: string,
-  endDate?: string,
+  startDate?: Date,
+  endDate?: Date,
   kind?: TransactionKind
 ): Promise<Transactions[]> {
   return await client
-    .get("/transactions", { params: { start_date: startDate, end_date: endDate, kind } })
+    .get("/transactions", {
+      params: {
+        start_date: startDate ? formatDate(startDate) : undefined,
+        end_date: endDate ? formatDate(endDate) : undefined,
+        kind
+      }
+    })
     .then(response => response.data);
 }
 
 /**
  * Get transactions time aggregated.
  *
- * @param startDate {string} - (Optional) Start booking date.
- * @param endDate {string} - (Optional) End booking date.
+ * @param startDate {Date} - (Optional) Start booking date.
+ * @param endDate {Date} - (Optional) End booking date.
  * @param kind {TransactionKind} - (Optional) Transactions kind.
  * @param timeAggregation {TimeAggregation} - (Optional) Time aggregation level.
  * @returns {Promise<TransactionsAggregated[]>} - Array of transactions.
  */
 export async function getTransactionsTimeAggregated(
-  startDate?: string,
-  endDate?: string,
+  startDate?: Date,
+  endDate?: Date,
   kind?: TransactionKind,
   timeAggregation?: TimeAggregation
 ): Promise<TransactionsAggregated[]> {
   return await client
     .get(`/transactions/aggregate/${timeAggregation}`, {
-      params: { start_date: startDate, end_date: endDate, kind }
+      params: {
+        start_date: startDate ? formatDate(startDate) : undefined,
+        end_date: endDate ? formatDate(endDate) : undefined,
+        kind
+      }
     })
     .then(response => response.data);
 }
@@ -113,17 +129,21 @@ export async function getTransactionsTimeAggregated(
 /**
  * Get transactions pivot table.
  *
- * @param startDate {string} - (Optional) Start booking date.
- * @param endDate {string} - (Optional) End booking date.
+ * @param startDate {Date} - (Optional) Start booking date.
+ * @param endDate {Date} - (Optional) End booking date.
  * @returns {Promise<TransactionsPivot[]>} - Array of transactions.
  */
 export async function getTransactionsPivotTable(
-  startDate?: string,
-  endDate?: string
+  startDate?: Date,
+  endDate?: Date
 ): Promise<TransactionsPivot[]> {
   return await client
     .get(`/transactions/pivot`, {
-      params: { start_date: startDate, end_date: endDate, kind: "expenses" }
+      params: {
+        start_date: startDate ? formatDate(startDate) : undefined,
+        end_date: endDate ? formatDate(endDate) : undefined,
+        kind: "expenses"
+      }
     })
     .then(response => response.data);
 }
