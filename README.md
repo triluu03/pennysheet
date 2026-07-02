@@ -8,10 +8,9 @@ Link to the architecture design docs: https://triluu03.github.io/pennysheet/
 
 ```
 pennysheet/
-├── pennysheet-backend/   # Axum REST API server
-├── pennysheet-cli/       # Command-line interface
-├── pennysheet-frontend/  # Web frontend
-└── pennysheet-catalog/   # Documentation
+├── pennysheet-backend/   # Axum REST API server based on event-sourcing
+├── pennysheet-frontend/  # React client
+└── pennysheet-catalog/   # Documentation based on Event catalog
 ```
 
 ## Event-sourcing Design Preview
