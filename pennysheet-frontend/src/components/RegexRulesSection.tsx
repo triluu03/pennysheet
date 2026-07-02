@@ -1,6 +1,11 @@
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
-import type { TransactionCategory, TransactionClassification } from "../api/endpoints/transactions";
+import {
+  TRANSACTION_CATEGORIES,
+  TRANSACTION_CLASSIFICATIONS,
+  type TransactionCategory,
+  type TransactionClassification
+} from "../api/endpoints/transactions";
 import {
   createUserSetting,
   deleteUserSetting,
@@ -9,24 +14,9 @@ import {
 } from "../api/endpoints/userSettings";
 import { useUserSettings } from "../hooks/useUserSettings";
 
-const CATEGORY_OPTIONS: { value: TransactionCategory; label: string }[] = [
-  { value: "Groceries", label: "Groceries" },
-  { value: "Health", label: "Health" },
-  { value: "Transport", label: "Transport" },
-  { value: "Services", label: "Services" },
-  { value: "Leisure", label: "Leisure" },
-  { value: "Others", label: "Others" },
-  { value: "Investments", label: "Investments" },
-  { value: "Excluded", label: "Excluded" }
-];
-
-const CLASSIFICATION_OPTIONS: { value: TransactionClassification; label: string }[] = [
-  { value: "must-have", label: "must-have" },
-  { value: "nice-to-have", label: "nice-to-have" },
-  { value: "wasted", label: "wasted" },
-  { value: "excluded", label: "excluded" }
-];
-
+/**
+ * Create a new default regex rule.
+ */
 async function freshRule(): Promise<UserSettings> {
   return await createUserSetting({
     regex_rule: "example",
@@ -147,9 +137,9 @@ export default function RegexRulesSection() {
               }}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
             >
-              {CATEGORY_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              {TRANSACTION_CATEGORIES.map(category => (
+                <option key={category} value={category}>
+                  {category}
                 </option>
               ))}
             </select>
@@ -167,9 +157,9 @@ export default function RegexRulesSection() {
               }}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
             >
-              {CLASSIFICATION_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              {TRANSACTION_CLASSIFICATIONS.map(classification => (
+                <option key={classification} value={classification}>
+                  {classification}
                 </option>
               ))}
             </select>

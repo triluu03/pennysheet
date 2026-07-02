@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   categorizeTransaction,
   classifyTransaction,
+  TRANSACTION_CATEGORIES,
+  TRANSACTION_CLASSIFICATIONS,
   type TransactionCategory,
   type TransactionClassification,
   type Transactions,
@@ -48,19 +50,8 @@ const TABLE_COLUMNS: {
  * Columns to support edit feature.
  */
 const EDITABLE_COLUMNS: (keyof Transactions)[] = ["category", "classification", "note"];
-
-const CATEGORY_OPTIONS = [
-  null,
-  "Groceries",
-  "Health",
-  "Transport",
-  "Services",
-  "Leisure",
-  "Others",
-  "Investments",
-  "Excluded"
-];
-const CLASSIFICATION_OPTIONS = [null, "must-have", "nice-to-have", "wasted", "excluded"];
+const CATEGORY_OPTIONS = [null, ...TRANSACTION_CATEGORIES];
+const CLASSIFICATION_OPTIONS = [null, ...TRANSACTION_CLASSIFICATIONS];
 
 interface EditableCellProps {
   transactionId: string;
