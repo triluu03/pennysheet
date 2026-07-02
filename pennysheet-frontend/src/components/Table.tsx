@@ -56,9 +56,11 @@ const CATEGORY_OPTIONS = [
   "Transport",
   "Services",
   "Leisure",
-  "Others"
+  "Others",
+  "Investments",
+  "Excluded"
 ];
-const CLASSIFICATION_OPTIONS = [null, "must-have", "nice-to-have", "wasted"];
+const CLASSIFICATION_OPTIONS = [null, "must-have", "nice-to-have", "wasted", "excluded"];
 
 interface EditableCellProps {
   transactionId: string;

@@ -15,20 +15,23 @@ const CATEGORY_OPTIONS: { value: TransactionCategory; label: string }[] = [
   { value: "Transport", label: "Transport" },
   { value: "Services", label: "Services" },
   { value: "Leisure", label: "Leisure" },
-  { value: "Others", label: "Others" }
+  { value: "Others", label: "Others" },
+  { value: "Investments", label: "Investments" },
+  { value: "Excluded", label: "Excluded" }
 ];
 
-const CLASSIFICATION_OPTIONS: { value: TransactionClassification | ""; label: string }[] = [
+const CLASSIFICATION_OPTIONS: { value: TransactionClassification; label: string }[] = [
   { value: "must-have", label: "must-have" },
   { value: "nice-to-have", label: "nice-to-have" },
-  { value: "wasted", label: "wasted" }
+  { value: "wasted", label: "wasted" },
+  { value: "excluded", label: "excluded" }
 ];
 
 async function freshRule(): Promise<UserSettings> {
   return await createUserSetting({
     regex_rule: "example",
-    category: "Others",
-    classification: "nice-to-have"
+    category: "Excluded",
+    classification: "excluded"
   });
 }
 
