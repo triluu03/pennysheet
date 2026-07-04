@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
 import PageHeader from "../components/PageHeader";
+import { useToast } from "../components/Toast";
 import { useTransactionsPivot } from "../hooks/useTransactions";
 
 /**
@@ -8,7 +10,12 @@ import { useTransactionsPivot } from "../hooks/useTransactions";
  */
 export default function Home() {
   const { startDate, endDate } = useAppContext();
-  const { data } = useTransactionsPivot(startDate, endDate);
+  const { showToast } = useToast();
+
+  const { data, error } = useTransactionsPivot(startDate, endDate);
+  useEffect(() => {
+    if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
+  }, [error]);
 
   return (
     <div className="flex flex-col h-full">
