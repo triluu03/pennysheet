@@ -7,16 +7,19 @@ import {
 } from "../api/endpoints/sessions";
 import { formatDate } from "../api/utils";
 import { useSessions } from "../hooks/useSessions";
+import { useToast } from "./Toast";
 
 /**
  * Section for managing Enable Banking sessions.
  */
 export default function SessionsSection() {
+  const { showToast } = useToast();
+
   const [sessions, setSessions] = useState<EnableBankingSession[]>([]);
   const { data, loading, error } = useSessions();
   useEffect(() => {
     if (!loading && !error) setSessions(data);
-    if (error) console.error(`Error when fetching the Enable Banking sessions: ${error}`);
+    if (error) showToast(`Error when fetching the Enable Banking sessions: ${error}`, "error");
   }, [data, loading, error]);
 
   const [showImport, setShowImport] = useState(false);
