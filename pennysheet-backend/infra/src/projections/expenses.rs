@@ -234,6 +234,12 @@ where
         )
         .column(Column::Amount)
         .from(Entity)
+        .apply_if(start_date, |query, value| {
+            query.and_where(Expr::col(Column::BookingDate).gte(value));
+        })
+        .apply_if(end_date, |query, value| {
+            query.and_where(Expr::col(Column::BookingDate).lte(value));
+        })
         .to_owned();
 
     let coalsce_table = CommonTableExpression::new()

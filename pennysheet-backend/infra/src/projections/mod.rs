@@ -156,10 +156,10 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .select_only()
             .columns(Self::Column::iter())
             .apply_if(start_date, |query, value| {
-                query.filter(Self::booking_date_column().gt(value))
+                query.filter(Self::booking_date_column().gte(value))
             })
             .apply_if(end_date, |query, value| {
-                query.filter(Self::booking_date_column().lt(value))
+                query.filter(Self::booking_date_column().lte(value))
             })
             .apply_if(transaction_id, |query, value| {
                 query.filter(Self::id_column().eq(value))
@@ -231,10 +231,10 @@ pub trait TransactionProjectionTrait: EntityTrait {
         Self::find()
             .select_only()
             .apply_if(start_date, |query, value| {
-                query.filter(Self::booking_date_column().gt(value))
+                query.filter(Self::booking_date_column().gte(value))
             })
             .apply_if(end_date, |query, value| {
-                query.filter(Self::booking_date_column().lt(value))
+                query.filter(Self::booking_date_column().lte(value))
             })
             .column_as(date_trunc_expr.clone().cast_as("date"), "date")
             // TODO: how to get away from this CASTING madness?
