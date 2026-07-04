@@ -24,7 +24,18 @@ interface BarPlotProps {
  * Bar plot for transactions.
  */
 export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
-  const barDataKeys = groupBy === "category" ? TRANSACTION_CATEGORIES : TRANSACTION_CLASSIFICATIONS;
+  const barDataKeys =
+    groupBy === "category"
+      ? [
+          ...TRANSACTION_CATEGORIES.filter(
+            category => category !== "Investments" && category !== "Excluded"
+          ),
+          "Uncategorized"
+        ]
+      : [
+          ...TRANSACTION_CLASSIFICATIONS.filter(classification => classification !== "excluded"),
+          "unclassified"
+        ];
 
   return (
     <div className="flex flex-col gap-2 p-2 pr-5 rounded-lg bg-white">
@@ -38,6 +49,7 @@ export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
           <Legend />
           {barDataKeys.map(dataKey => (
             <Bar
+              key={dataKey}
               dataKey={dataKey}
               stackId="a"
               fill={TRANSACTION_PIVOT_COLORS[dataKey]}

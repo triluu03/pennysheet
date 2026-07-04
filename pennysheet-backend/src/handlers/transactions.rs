@@ -13,12 +13,15 @@ use chrono::NaiveDate;
 use domain::{
     aggregates::CoreAggregate,
     commands::Command,
+    errors::DomainError,
     events::Event,
 };
 use infra::{
     append_event_to_db,
+    append_multi_events_to_db,
     get_all_events,
-    get_current_session,
+    get_all_sessions,
+    get_session_by_id,
     projections::{
         self,
         TimeAggregation,
@@ -264,30 +267,52 @@ pub async fn import_transactions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportTransactionsPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let session = get_current_session(&state.db)
-        .await?
-        .ok_or(AppError::ExpiredSession)?;
+    let (valid_sessions, expired_sessions) = get_all_sessions(&state.db).await?;
+    if !expired_sessions.is_empty() {
+        return Err(AppError::ExpiredSession);
+    }
 
-    let command = Command::create_import_transactions(
+    let commands = Command::create_import_transactions(
         payload.start_date.as_deref(),
         payload.end_date.as_deref(),
+        valid_sessions
+            .iter()
+            .map(|session_data| session_data.session_id)
+            .collect(),
     )?;
     debug!("import transactions command built");
 
     let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
+    let aggregate = CoreAggregate::new(&all_events);
 
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "import transactions event appended");
+    // NOTE: here, the aggregate doesn't consume the emitted event before executing a new command.
+    // This is find in this case as these events are independent, but it does not fully respect the
+    // design and concepts of an event-sourcing system.
+    let events = commands
+        .into_iter()
+        .map(|command| aggregate.execute(command))
+        .collect::<Result<Vec<Event>, DomainError>>()?;
 
-    // Spawn a background job running transaction process manager.
-    if let Event::ImportTransactionsRequested(data) = &event {
-        tokio::spawn(run_transaction_import(
-            state.db.clone(),
-            session,
-            data.request_id,
-        ));
-    }
+    let _res = append_multi_events_to_db(&state.db, events.clone()).await?;
+    info!(
+        n_requests = events.len(),
+        "import transactions events appended"
+    );
+
+    // Spawn background jobs running transaction process managers.
+    events.iter().for_each(|event| {
+        if let Event::ImportTransactionsRequested(data) = &event
+            && let Some(session) = valid_sessions
+                .iter()
+                .find(|session_data| session_data.session_id == data.session_id)
+        {
+            tokio::spawn(run_transaction_import(
+                state.db.clone(),
+                session.to_owned(),
+                data.request_id,
+            ));
+        }
+    });
 
     Ok((
         StatusCode::ACCEPTED,
@@ -298,6 +323,7 @@ pub async fn import_transactions_handler(
 #[derive(Deserialize)]
 pub struct TransactionImportRetryPayload {
     pub request_id: String,
+    pub session_id: i64,
 }
 
 /// Handler for POST request to /transactions/import/retry
@@ -321,11 +347,10 @@ pub async fn transaction_import_retry_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TransactionImportRetryPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let session = get_current_session(&state.db)
-        .await?
-        .ok_or(AppError::ExpiredSession)?;
+    let session_data = get_session_by_id(&state.db, payload.session_id).await?;
 
-    let command = Command::create_retry_failed_import_request(&payload.request_id)?;
+    let command =
+        Command::create_retry_failed_import_request(&payload.request_id, payload.session_id)?;
 
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
@@ -337,7 +362,7 @@ pub async fn transaction_import_retry_handler(
     if let Event::TransactionImportRetryRequested(data) = &event {
         tokio::spawn(run_transaction_import(
             state.db.clone(),
-            session,
+            session_data,
             data.request_id,
         ));
     }
@@ -578,14 +603,19 @@ mod tests {
         // Seed a request that has already failed, making it eligible for retry.
         // The aggregate marks a request retryable from the failure event alone.
         let request_id = Uuid::new_v4();
+        let session_id = 1;
         append_multi_events_to_db(
             &state.db,
             vec![
                 Event::ImportTransactionsRequested(ImportRequestData {
                     request_id,
+                    session_id,
                     ..Default::default()
                 }),
-                Event::ImportTransactionsFailed(ImportStatusData { request_id }),
+                Event::ImportTransactionsFailed(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
             ],
         )
         .await
@@ -595,6 +625,7 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: request_id.to_string(),
+                session_id,
             }),
         )
         .await;
@@ -627,6 +658,7 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: Uuid::new_v4().to_string(),
+                session_id: 1,
             }),
         )
         .await;
@@ -651,6 +683,7 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: "not-a-uuid".to_string(),
+                session_id: 1,
             }),
         )
         .await;
@@ -669,15 +702,19 @@ mod tests {
 
         // A previously failed request is, on its own, eligible for retry.
         let failed_id = Uuid::new_v4();
+        let session_id = 1;
+
         append_multi_events_to_db(
             &state.db,
             vec![
                 Event::ImportTransactionsRequested(ImportRequestData {
                     request_id: failed_id,
+                    session_id,
                     ..Default::default()
                 }),
                 Event::ImportTransactionsFailed(ImportStatusData {
                     request_id: failed_id,
+                    session_id,
                 }),
             ],
         )
@@ -688,7 +725,13 @@ mod tests {
         // (rather than the handler) keeps the pending state deterministic, since
         // no background job is spawned to race in a terminal event.
         let pending = CoreAggregate::new(&[])
-            .execute(Command::create_import_transactions(None, None).unwrap())
+            .execute(
+                Command::create_import_transactions(None, None, vec![session_id])
+                    .unwrap()
+                    .into_iter()
+                    .next()
+                    .unwrap(),
+            )
             .unwrap();
         append_event_to_db(&state.db, pending).await.unwrap();
 
@@ -698,6 +741,7 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: failed_id.to_string(),
+                session_id,
             }),
         )
         .await;
@@ -748,6 +792,7 @@ mod tests {
             State(state.clone()),
             Json(TransactionImportRetryPayload {
                 request_id: "this-does-not-matter".to_string(),
+                session_id: 1,
             }),
         )
         .await;

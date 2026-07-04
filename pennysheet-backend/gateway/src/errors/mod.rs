@@ -1,8 +1,9 @@
 //! Gateway errors.
 
 use core::fmt;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum GatewayError {
     /// Authorization related error.
     Authorization(String),

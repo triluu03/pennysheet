@@ -14,6 +14,8 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct TransactionProcessManager {
+    /// ID of the current Enable Banking session.
+    session_id: i64,
     /// ID of the current pending import request.
     pending_request_id: Option<Uuid>,
     /// Data of the current pending import request.
@@ -36,8 +38,9 @@ impl TransactionProcessManager {
     /// # Errors
     ///
     /// Returns [`DomainError`] if there's no pending transaction import request.
-    pub fn new(all_events: &[Event]) -> Result<Self, DomainError> {
+    pub fn new(session_id: i64, all_events: &[Event]) -> Result<Self, DomainError> {
         let new_self = Self {
+            session_id,
             ..Default::default()
         }
         .multi_apply(all_events);
@@ -75,15 +78,19 @@ impl TransactionProcessManager {
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
             Event::ImportTransactionsRequested(data) => {
-                self.pending_request_id = Some(data.request_id);
-                self.pending_request_data = Some(RequestData {
-                    start_date: data.start_date,
-                    end_date: data.end_date,
-                    continuation_key: None,
-                });
+                if self.session_id == data.session_id {
+                    self.pending_request_id = Some(data.request_id);
+                    self.pending_request_data = Some(RequestData {
+                        start_date: data.start_date,
+                        end_date: data.end_date,
+                        continuation_key: None,
+                    });
+                }
             },
             Event::ImportTransactionsContinued(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     self.pending_request_data = Some(RequestData {
                         start_date: data.start_date,
                         end_date: data.end_date,
@@ -92,7 +99,9 @@ impl TransactionProcessManager {
                 }
             },
             Event::ImportTransactionsCompleted(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     if let Some(request_id) = self.pending_request_id {
                         self.failed_request_map.remove(&request_id);
                     };
@@ -102,7 +111,9 @@ impl TransactionProcessManager {
                 }
             },
             Event::ImportTransactionsFailed(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     if let (Some(request_id), Some(request_data)) =
                         (self.pending_request_id, self.pending_request_data)
                     {
@@ -114,7 +125,9 @@ impl TransactionProcessManager {
                 }
             },
             Event::TransactionImportRetryRequested(data) => {
-                if let Some(request_data) = self.failed_request_map.get(&data.request_id) {
+                if self.session_id == data.session_id
+                    && let Some(request_data) = self.failed_request_map.get(&data.request_id)
+                {
                     self.pending_request_id = Some(data.request_id);
                     self.pending_request_data = Some(request_data.to_owned());
                 };
@@ -168,11 +181,12 @@ mod tests {
     }
 
     /// Build an `ImportTransactionsRequested` event with a known request id and date range.
-    fn requested_event(request_id: Uuid) -> Event {
+    fn requested_event(request_id: Uuid, session_id: i64) -> Event {
         Event::ImportTransactionsRequested(ImportRequestData {
             request_id,
             start_date: start_date(),
             end_date: end_date(),
+            session_id,
         })
     }
 
@@ -186,24 +200,34 @@ mod tests {
 
     #[test]
     fn new_fails_without_pending_request() {
-        let result = TransactionProcessManager::new(&[]);
+        let result = TransactionProcessManager::new(1, &[]);
+        assert!(matches!(result, Err(DomainError::ComponentInit(_))));
+
+        let result = TransactionProcessManager::new(2, &[requested_event(Uuid::new_v4(), 1)]);
         assert!(matches!(result, Err(DomainError::ComponentInit(_))));
     }
 
     #[test]
     fn new_succeeds_with_pending_request() {
-        assert!(TransactionProcessManager::new(&[requested_event(Uuid::new_v4())]).is_ok());
+        assert!(TransactionProcessManager::new(1, &[requested_event(Uuid::new_v4(), 1)]).is_ok());
     }
 
     #[test]
     fn new_fails_after_request_completed() {
         let request_id = Uuid::new_v4();
         let events = [
-            requested_event(request_id),
-            Event::ImportTransactionsCompleted(ImportStatusData { request_id }),
+            requested_event(request_id, 1),
+            Event::ImportTransactionsCompleted(ImportStatusData {
+                request_id,
+                session_id: 1,
+            }),
         ];
         assert!(matches!(
-            TransactionProcessManager::new(&events),
+            TransactionProcessManager::new(1, &events),
+            Err(DomainError::ComponentInit(_))
+        ));
+        assert!(matches!(
+            TransactionProcessManager::new(2, &events),
             Err(DomainError::ComponentInit(_))
         ));
     }
@@ -212,18 +236,25 @@ mod tests {
     fn new_ignores_completion_for_a_different_request() {
         let request_id = Uuid::new_v4();
         let events = [
-            requested_event(request_id),
+            requested_event(request_id, 1),
             // A completion for an unrelated request must not clear our pending state.
             Event::ImportTransactionsCompleted(ImportStatusData {
                 request_id: Uuid::new_v4(),
+                session_id: 1,
+            }),
+            // A completion for an unrelated request must not clear our pending state.
+            Event::ImportTransactionsCompleted(ImportStatusData {
+                request_id,
+                session_id: 2,
             }),
         ];
-        assert!(TransactionProcessManager::new(&events).is_ok());
+        assert!(TransactionProcessManager::new(1, &events).is_ok());
     }
 
     #[test]
     fn gateway_command_uses_pending_request_dates() {
-        let manager = TransactionProcessManager::new(&[requested_event(Uuid::new_v4())]).unwrap();
+        let manager =
+            TransactionProcessManager::new(1, &[requested_event(Uuid::new_v4(), 1)]).unwrap();
         let params = expect_query_params(&manager);
 
         assert_eq!(params.date_from, Some(start_date().to_string()));
@@ -235,10 +266,16 @@ mod tests {
     #[test]
     fn gateway_command_fails_when_no_pending_request() {
         let request_id = Uuid::new_v4();
-        let manager = TransactionProcessManager::new(&[requested_event(request_id)]).unwrap();
+        let session_id = 1;
+
+        let manager =
+            TransactionProcessManager::new(session_id, &[requested_event(request_id, session_id)])
+                .unwrap();
+
         // Completing the pending request leaves the manager with nothing to import.
         let manager = manager.apply(&Event::ImportTransactionsCompleted(ImportStatusData {
             request_id,
+            session_id,
         }));
         assert!(matches!(
             manager.create_gateway_command(),
@@ -249,17 +286,23 @@ mod tests {
     #[test]
     fn continuation_advances_dates_and_carries_continuation_key() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         let continued_start = NaiveDate::from_ymd_opt(2026, 6, 10).expect("valid test date");
         let continued_end = NaiveDate::from_ymd_opt(2026, 6, 20).expect("valid test date");
-        let manager = TransactionProcessManager::new(&[
-            requested_event(request_id),
-            Event::ImportTransactionsContinued(ImportContinueData {
-                request_id,
-                start_date: continued_start,
-                end_date: continued_end,
-                continuation_key: "next-page".to_string(),
-            }),
-        ])
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsContinued(ImportContinueData {
+                    request_id,
+                    session_id,
+                    start_date: continued_start,
+                    end_date: continued_end,
+                    continuation_key: "next-page".to_string(),
+                }),
+            ],
+        )
         .unwrap();
 
         let params = expect_query_params(&manager);
@@ -273,16 +316,22 @@ mod tests {
     #[test]
     fn continuation_for_a_different_request_is_ignored() {
         let request_id = Uuid::new_v4();
-        let manager = TransactionProcessManager::new(&[
-            requested_event(request_id),
-            // A continuation belonging to another request must not alter our state.
-            Event::ImportTransactionsContinued(ImportContinueData {
-                request_id: Uuid::new_v4(),
-                start_date: NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid test date"),
-                end_date: NaiveDate::from_ymd_opt(2020, 1, 2).expect("valid test date"),
-                continuation_key: "unrelated".to_string(),
-            }),
-        ])
+        let session_id = 1;
+
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                // A continuation belonging to another request must not alter our state.
+                Event::ImportTransactionsContinued(ImportContinueData {
+                    request_id: Uuid::new_v4(),
+                    session_id,
+                    start_date: NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid test date"),
+                    end_date: NaiveDate::from_ymd_opt(2020, 1, 2).expect("valid test date"),
+                    continuation_key: "unrelated".to_string(),
+                }),
+            ],
+        )
         .unwrap();
 
         let params = expect_query_params(&manager);
@@ -294,13 +343,24 @@ mod tests {
     #[test]
     fn retry_after_failure_restores_original_request() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         // The original request fails and is then retried; the manager must become
         // pending on the original request id again with its original date range.
-        let manager = TransactionProcessManager::new(&[
-            requested_event(request_id),
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
-            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
-        ])
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsFailed(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+                Event::TransactionImportRetryRequested(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+            ],
+        )
         .expect("a retried request should re-initialize the manager");
 
         let params = expect_query_params(&manager);
@@ -314,9 +374,10 @@ mod tests {
         // so it must not establish a pending request and the manager stays uninitialized.
         let events = [Event::TransactionImportRetryRequested(ImportStatusData {
             request_id: Uuid::new_v4(),
+            session_id: 1,
         })];
         assert!(matches!(
-            TransactionProcessManager::new(&events),
+            TransactionProcessManager::new(1, &events),
             Err(DomainError::ComponentInit(_))
         ));
     }
@@ -324,18 +385,32 @@ mod tests {
     #[test]
     fn completion_makes_request_ineligible_for_later_retry() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         // Failing records the request as retryable, a retry restores it, and the
         // subsequent completion must drop it from the failed-request map. A further
         // retry then references an unknown request and cannot restore a pending one.
         let events = [
-            requested_event(request_id),
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
-            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
-            Event::ImportTransactionsCompleted(ImportStatusData { request_id }),
-            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+            Event::TransactionImportRetryRequested(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+            Event::ImportTransactionsCompleted(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+            Event::TransactionImportRetryRequested(ImportStatusData {
+                request_id,
+                session_id,
+            }),
         ];
         assert!(matches!(
-            TransactionProcessManager::new(&events),
+            TransactionProcessManager::new(session_id, &events),
             Err(DomainError::ComponentInit(_))
         ));
     }
@@ -353,6 +428,7 @@ mod tests {
         use crate::events::transactions::TransactionData;
 
         let request_id = Uuid::new_v4();
+        let session_id = 1;
         // Recorded transactions are irrelevant to the process manager's pending
         // state, so the manager must remain pending on the original request.
         let recorded = TransactionData::new(Transaction {
@@ -368,10 +444,13 @@ mod tests {
             transaction_date: Some("2026-06-14".to_string()),
         })
         .expect("a valid transaction yields transaction data");
-        let manager = TransactionProcessManager::new(&[
-            requested_event(request_id),
-            Event::TransactionRecorded(recorded),
-        ])
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::TransactionRecorded(recorded),
+            ],
+        )
         .expect("recorded transactions must not clear the pending request");
 
         let params = expect_query_params(&manager);

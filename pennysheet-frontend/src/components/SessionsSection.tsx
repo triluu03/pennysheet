@@ -5,17 +5,21 @@ import {
   deleteSession,
   type EnableBankingSession
 } from "../api/endpoints/sessions";
+import { formatDate } from "../api/utils";
 import { useSessions } from "../hooks/useSessions";
+import { useToast } from "./Toast";
 
 /**
  * Section for managing Enable Banking sessions.
  */
 export default function SessionsSection() {
+  const { showToast } = useToast();
+
   const [sessions, setSessions] = useState<EnableBankingSession[]>([]);
   const { data, loading, error } = useSessions();
   useEffect(() => {
     if (!loading && !error) setSessions(data);
-    if (error) console.error(`Error when fetching the Enable Banking sessions: ${error}`);
+    if (error) showToast(`Error when fetching the Enable Banking sessions: ${error}`, "error");
   }, [data, loading, error]);
 
   const [showImport, setShowImport] = useState(false);
@@ -133,7 +137,7 @@ export default function SessionsSection() {
             <div className="flex flex-col">
               <span className="text-sm font-medium">{session.session_name}</span>
               <span className="text-xs text-gray-500">
-                {new Date(session.created_at).toISOString().split("T")[0]}
+                {formatDate(new Date(session.created_at))}
               </span>
             </div>
 

@@ -22,6 +22,8 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct EventInjector {
+    /// ID of the current Enable Banking session.
+    session_id: i64,
     /// ID of the current pending request.
     pending_request_id: Option<Uuid>,
     /// Data of the current pending request.
@@ -47,8 +49,9 @@ impl EventInjector {
     ///
     /// Returns [`DomainError`] if there's no pending transaction import request
     /// found in the event table.
-    pub fn new(all_events: &[Event]) -> Result<Self, DomainError> {
+    pub fn new(session_id: i64, all_events: &[Event]) -> Result<Self, DomainError> {
         let new_self = Self {
+            session_id,
             ..Default::default()
         }
         .multi_apply(all_events);
@@ -104,6 +107,7 @@ impl EventInjector {
 
             new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
                 request_id,
+                session_id: self.session_id,
                 start_date: request_data.start_date,
                 end_date: request_data.end_date,
                 continuation_key,
@@ -115,6 +119,7 @@ impl EventInjector {
                         "corrupted state of event injector: request_id".to_string(),
                     )
                 })?,
+                session_id: self.session_id,
             }));
         }
 
@@ -125,14 +130,18 @@ impl EventInjector {
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
             Event::ImportTransactionsRequested(data) => {
-                self.pending_request_id = Some(data.request_id);
-                self.pending_request_data = Some(RequestData {
-                    start_date: data.start_date,
-                    end_date: data.end_date,
-                })
+                if self.session_id == data.session_id {
+                    self.pending_request_id = Some(data.request_id);
+                    self.pending_request_data = Some(RequestData {
+                        start_date: data.start_date,
+                        end_date: data.end_date,
+                    })
+                }
             },
             Event::TransactionImportRetryRequested(data) => {
-                if let Some(request_data) = self.failed_request_map.get(&data.request_id) {
+                if self.session_id == data.session_id
+                    && let Some(request_data) = self.failed_request_map.get(&data.request_id)
+                {
                     self.pending_request_id = Some(data.request_id);
                     self.pending_request_data = Some(request_data.to_owned());
                 };
@@ -142,7 +151,9 @@ impl EventInjector {
                     .insert(*data.get_transaction_id());
             },
             Event::ImportTransactionsCompleted(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     if let Some(request_id) = self.pending_request_id {
                         self.failed_request_map.remove(&request_id);
                     };
@@ -152,7 +163,9 @@ impl EventInjector {
                 }
             },
             Event::ImportTransactionsFailed(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     if let (Some(request_id), Some(request_data)) =
                         (self.pending_request_id, self.pending_request_data)
                     {
@@ -164,7 +177,9 @@ impl EventInjector {
                 }
             },
             Event::ImportTransactionsContinued(data) => {
-                if self.pending_request_id == Some(data.request_id) {
+                if self.session_id == data.session_id
+                    && self.pending_request_id == Some(data.request_id)
+                {
                     self.pending_request_data = Some(RequestData {
                         start_date: data.start_date,
                         end_date: data.end_date,
@@ -225,17 +240,18 @@ mod tests {
     }
 
     /// Build an `ImportTransactionsRequested` event with a known request id and date range.
-    fn requested_event(request_id: Uuid) -> Event {
+    fn requested_event(request_id: Uuid, session_id: i64) -> Event {
         Event::ImportTransactionsRequested(ImportRequestData {
             request_id,
+            session_id,
             start_date: start_date(),
             end_date: end_date(),
         })
     }
 
     /// Build an injector already holding a pending request, ready to inject events.
-    fn pending_injector(request_id: Uuid) -> EventInjector {
-        EventInjector::new(&[requested_event(request_id)])
+    fn pending_injector(session_id: i64, request_id: Uuid) -> EventInjector {
+        EventInjector::new(session_id, &[requested_event(request_id, session_id)])
             .expect("a pending request should initialize the injector")
     }
 
@@ -257,47 +273,63 @@ mod tests {
 
     #[test]
     fn new_fails_without_pending_request() {
-        let result = EventInjector::new(&[]);
+        let result = EventInjector::new(1, &[]);
         assert!(matches!(result, Err(DomainError::ComponentInit(_))));
     }
 
     #[test]
     fn new_fails_after_request_completed() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         let events = [
-            requested_event(request_id),
-            Event::ImportTransactionsCompleted(ImportStatusData { request_id }),
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsCompleted(ImportStatusData {
+                request_id,
+                session_id,
+            }),
         ];
-        let result = EventInjector::new(&events);
+        let result = EventInjector::new(session_id, &events);
         assert!(matches!(result, Err(DomainError::ComponentInit(_))));
     }
 
     #[test]
     fn new_ignores_completion_for_a_different_request() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         let events = [
-            requested_event(request_id),
+            requested_event(request_id, session_id),
             // A completion for an unrelated request must not clear our pending state.
             Event::ImportTransactionsCompleted(ImportStatusData {
                 request_id: Uuid::new_v4(),
+                session_id,
+            }),
+            Event::ImportTransactionsCompleted(ImportStatusData {
+                request_id,
+                session_id: 2,
             }),
         ];
-        assert!(EventInjector::new(&events).is_ok());
+        assert!(EventInjector::new(session_id, &events).is_ok());
     }
 
     #[test]
     fn new_succeeds_with_pending_request() {
-        assert!(EventInjector::new(&[requested_event(Uuid::new_v4())]).is_ok());
+        assert!(EventInjector::new(1, &[requested_event(Uuid::new_v4(), 1)]).is_ok());
+        assert!(EventInjector::new(2, &[requested_event(Uuid::new_v4(), 1)]).is_err());
     }
 
     #[test]
     fn new_fails_with_retry_for_unknown_request() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         let events = [Event::TransactionImportRetryRequested(ImportStatusData {
             request_id,
+            session_id,
         })];
         assert!(matches!(
-            EventInjector::new(&events),
+            EventInjector::new(session_id, &events),
             Err(DomainError::ComponentInit(_))
         ));
     }
@@ -307,11 +339,22 @@ mod tests {
         // Replaying a request that failed and was then retried must leave the
         // injector pending on the original request id again.
         let request_id = Uuid::new_v4();
-        let injector = EventInjector::new(&[
-            requested_event(request_id),
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
-            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
-        ])
+        let session_id = 1;
+
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsFailed(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+                Event::TransactionImportRetryRequested(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+            ],
+        )
         .expect("a retried request should re-initialize the injector");
 
         let response = TransactionResponse {
@@ -332,11 +375,22 @@ mod tests {
         // range, not merely the request id. A paginated response should resume
         // from the same window the original request was issued for.
         let request_id = Uuid::new_v4();
-        let injector = EventInjector::new(&[
-            requested_event(request_id),
-            Event::ImportTransactionsFailed(ImportStatusData { request_id }),
-            Event::TransactionImportRetryRequested(ImportStatusData { request_id }),
-        ])
+        let session_id = 1;
+
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsFailed(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+                Event::TransactionImportRetryRequested(ImportStatusData {
+                    request_id,
+                    session_id,
+                }),
+            ],
+        )
         .expect("a retried request should re-initialize the injector");
 
         // A continuation key forces a continuation event, which is the only place
@@ -375,11 +429,16 @@ mod tests {
     #[test]
     fn inject_skips_transaction_already_recorded_in_history() {
         let request_id = Uuid::new_v4();
+        let session_id = 1;
+
         // The event history already contains this exact transaction as a recorded event.
-        let injector = EventInjector::new(&[
-            requested_event(request_id),
-            recorded_event(transaction_with_amount("12.34")),
-        ])
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                recorded_event(transaction_with_amount("12.34")),
+            ],
+        )
         .expect("a pending request should initialize the injector");
 
         // The incoming batch re-delivers the same transaction (same content => same id).
@@ -401,10 +460,15 @@ mod tests {
     #[test]
     fn inject_emits_only_transactions_not_already_recorded() {
         let request_id = Uuid::new_v4();
-        let injector = EventInjector::new(&[
-            requested_event(request_id),
-            recorded_event(transaction_with_amount("12.34")),
-        ])
+        let session_id = 1;
+
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                recorded_event(transaction_with_amount("12.34")),
+            ],
+        )
         .expect("a pending request should initialize the injector");
 
         // One transaction duplicates history, the other is brand new.
@@ -433,7 +497,9 @@ mod tests {
     #[test]
     fn inject_records_all_transactions_and_completes_without_continuation() {
         let request_id = Uuid::new_v4();
-        let injector = pending_injector(request_id);
+        let session_id = 1;
+
+        let injector = pending_injector(session_id, request_id);
 
         let response = TransactionResponse {
             transactions: vec![
@@ -460,7 +526,9 @@ mod tests {
     #[test]
     fn inject_emits_continuation_event_when_continuation_key_present() {
         let request_id = Uuid::new_v4();
-        let injector = pending_injector(request_id);
+        let session_id = 1;
+
+        let injector = pending_injector(session_id, request_id);
 
         let response = TransactionResponse {
             transactions: vec![transaction_with_amount("10.00")],
@@ -484,7 +552,7 @@ mod tests {
 
     #[test]
     fn inject_maps_gateway_transaction_fields_to_event() {
-        let injector = pending_injector(Uuid::new_v4());
+        let injector = pending_injector(1, Uuid::new_v4());
 
         let response = TransactionResponse {
             transactions: vec![transaction_with_amount("99.95")],
@@ -508,7 +576,7 @@ mod tests {
 
     #[test]
     fn inject_fails_instead_of_dropping_transaction_with_invalid_amount() {
-        let injector = pending_injector(Uuid::new_v4());
+        let injector = pending_injector(1, Uuid::new_v4());
 
         // A batch with one good and one un-parseable amount must fail the whole injection
         // rather than silently dropping the bad transaction.
@@ -526,7 +594,7 @@ mod tests {
 
     #[test]
     fn inject_fails_instead_of_dropping_transaction_with_invalid_date() {
-        let injector = pending_injector(Uuid::new_v4());
+        let injector = pending_injector(1, Uuid::new_v4());
 
         let mut transaction = transaction_with_amount("12.34");
         transaction.booking_date = Some("2026-13-40".to_string());

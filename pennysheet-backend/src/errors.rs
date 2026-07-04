@@ -1,6 +1,7 @@
 //! Errors handler.
 
 use axum::{
+    Json,
     http::StatusCode,
     response::IntoResponse,
 };
@@ -30,7 +31,7 @@ impl fmt::Display for AppError {
             Self::NotImplemented(error) => {
                 write!(f, "Requested resource is not supported: {error}")
             },
-            Self::ExpiredSession => write!(f, "Session has expired."),
+            Self::ExpiredSession => write!(f, "One or more sessions is expired!"),
         }
     }
 }
@@ -40,31 +41,43 @@ impl IntoResponse for AppError {
         match self {
             Self::Domain(error) => {
                 warn!(%error, "command rejected");
-                (StatusCode::BAD_REQUEST, format!("{}", error)).into_response()
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"message": error})),
+                )
+                    .into_response()
             },
-            Self::Database(message) => {
-                error!(%message, "database error while handling request");
+            Self::Database(error) => {
+                error!(%error, "database error while handling request");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Database error: {}", message),
+                    Json(serde_json::json!({"message": error})),
                 )
                     .into_response()
             },
             Self::Gateway(error) => {
                 error!(%error, "gateway error while handling request");
-                (StatusCode::BAD_GATEWAY, format!("{}", error)).into_response()
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(serde_json::json!({"message": error})),
+                )
+                    .into_response()
             },
             Self::NotImplemented(error) => {
                 error!(%error, "not implemented error while handling request");
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("Not implemented error: {}", error),
+                    Json(serde_json::json!({"message": error})),
                 )
                     .into_response()
             },
             Self::ExpiredSession => {
                 warn!("session has expired");
-                (StatusCode::UNAUTHORIZED, "Session has expired!".to_string()).into_response()
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({"message": "Session has expired!"})),
+                )
+                    .into_response()
             },
         }
     }

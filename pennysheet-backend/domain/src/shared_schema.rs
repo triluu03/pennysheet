@@ -36,6 +36,8 @@ pub enum TransactionCategory {
     Services,
     Leisure,
     Others,
+    Investments,
+    Excluded,
 }
 
 impl FromStr for TransactionCategory {
@@ -43,12 +45,14 @@ impl FromStr for TransactionCategory {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "groceries" | "Groceries" => Ok(Self::Groceries),
-            "health" | "Health" => Ok(Self::Health),
-            "transport" | "Transport" => Ok(Self::Transport),
-            "services" | "Services" => Ok(Self::Services),
-            "leisure" | "Leisure" => Ok(Self::Leisure),
-            "others" | "Others" => Ok(Self::Others),
+            "groceries" => Ok(Self::Groceries),
+            "health" => Ok(Self::Health),
+            "transport" => Ok(Self::Transport),
+            "services" => Ok(Self::Services),
+            "leisure" => Ok(Self::Leisure),
+            "others" => Ok(Self::Others),
+            "investments" => Ok(Self::Investments),
+            "excluded" => Ok(Self::Excluded),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
             ))),
@@ -77,6 +81,7 @@ pub enum TransactionClassification {
     MustHave,
     NiceToHave,
     Wasted,
+    Excluded,
 }
 
 impl FromStr for TransactionClassification {
@@ -87,6 +92,7 @@ impl FromStr for TransactionClassification {
             "must-have" => Ok(Self::MustHave),
             "nice-to-have" => Ok(Self::NiceToHave),
             "wasted" => Ok(Self::Wasted),
+            "excluded" => Ok(Self::Excluded),
             _ => Err(DomainError::Parsing(format!(
                 "the value `{s}` is not expected"
             ))),

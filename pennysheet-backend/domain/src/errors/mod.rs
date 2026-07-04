@@ -1,9 +1,10 @@
 //! Domain errors.
 
 use core::fmt;
+use serde::Serialize;
 use std::num::ParseFloatError;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DomainError {
     CommandCreation(String),
     CommandRejected(String),

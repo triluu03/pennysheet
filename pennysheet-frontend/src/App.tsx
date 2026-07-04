@@ -1,7 +1,7 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import "./App.css";
 import { createContext, useContext, useMemo, useState } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
+import ToastProvider from "./components/Toast";
 import DetailsPage from "./pages/Details";
 import Home from "./pages/Home";
 import UserPage from "./pages/User";
@@ -48,15 +48,17 @@ export function useAppContext() {
 export default function App() {
   return (
     <AppProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/details" element={<DetailsPage />} />
-            <Route path="/user" element={<UserPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/details" element={<DetailsPage />} />
+              <Route path="/user" element={<UserPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </AppProvider>
   );
 }

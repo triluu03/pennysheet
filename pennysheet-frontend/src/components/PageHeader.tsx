@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { useAppContext } from "../App";
 import { requestImportTransactions } from "../api/endpoints/transactions";
+import { formatDate } from "../api/utils";
+import { useToast } from "./Toast";
 
 interface PageHeaderProps {
   title: string;
@@ -17,17 +19,18 @@ export default function PageHeader({
   enableButtons = true
 }: PageHeaderProps) {
   const { nLastMonths, setNLastMonths } = useAppContext();
+  const { showToast } = useToast();
 
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const todayDateString = new Date().toISOString().split("T")[0];
+  const todayDateString = formatDate(new Date());
   const [startDate, setStartDate] = useState<string>(todayDateString);
   const [endDate, setEndDate] = useState<string>(todayDateString);
 
   function sendTransactionImportRequest() {
     requestImportTransactions(startDate, endDate)
-      .then(_ => console.log("Successfully request transaction import"))
-      .catch(error => console.error(`Failed to request transaction import: ${error}`));
+      .then(_ => showToast("Successfully request transaction import", "success"))
+      .catch(error => showToast(`Failed to request transaction import: ${error}`, "error"));
   }
 
   return (

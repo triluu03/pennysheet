@@ -10,10 +10,10 @@ use axum::{
 };
 use gateway::schema::enable_banking_session::EnableBankingSession;
 use infra::{
-    SessionResult,
+    SessionMetadata,
     create_new_session,
     delete_session,
-    get_all_sessions,
+    get_all_sessions_metadata,
 };
 use serde::{
     Deserialize,
@@ -38,8 +38,8 @@ pub struct ImportSessionPayload {
 
 #[derive(Serialize)]
 pub struct GetSessionResponse {
-    pub valid_sessions: Vec<SessionResult>,
-    pub expired_sessions: Vec<SessionResult>,
+    pub valid_sessions: Vec<SessionMetadata>,
+    pub expired_sessions: Vec<SessionMetadata>,
 }
 
 /// Handler for GET request to /sessions
@@ -54,7 +54,7 @@ pub async fn get_sessions_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<GetSessionResponse>, AppError> {
     info!("getting all sessions");
-    let (valid_sessions, expired_sessions) = get_all_sessions(&state.db).await?;
+    let (valid_sessions, expired_sessions) = get_all_sessions_metadata(&state.db).await?;
 
     Ok(Json(GetSessionResponse {
         valid_sessions,
@@ -75,7 +75,7 @@ pub async fn get_sessions_handler(
 pub async fn create_sessions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportSessionPayload>,
-) -> axum::response::Result<Json<SessionResult>, AppError> {
+) -> axum::response::Result<Json<SessionMetadata>, AppError> {
     info!("creating new sessions");
     let session = EnableBankingSession::from_json(&payload.session)?;
     create_new_session(&state.db, payload.name, session)
