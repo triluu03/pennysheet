@@ -49,9 +49,15 @@ async fn main() {
     tokio::spawn(spawn_and_subscribe_core_projector(db.clone()));
     info!("projector spawned in the background");
 
-    let app = routes::app_router().with_state(Arc::new(AppState { db }));
+    let app = routes::app_router()
+        .with_state(Arc::new(AppState { db }))
+        .fallback_service(tower_http::services::ServeDir::new("dist"));
 
-    let addr = "0.0.0.0:3000";
+    let addr = if cfg!(debug_assertions) {
+        "0.0.0.0:3000"
+    } else {
+        "0.0.0.0:49200"
+    };
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     info!(%addr, "listening");
     axum::serve(listener, app).await.unwrap();
