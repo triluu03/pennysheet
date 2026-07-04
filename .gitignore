@@ -2,6 +2,9 @@
 .DS_Store
 *.pem
 
+# Generate plist file
+com.triluu.pennysheet.plist
+
 # local env files
 .env*.local
 .env
