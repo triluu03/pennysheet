@@ -4,7 +4,7 @@ import axios from "axios";
  * Axios client to work with the backend via REST API.
  */
 const client = axios.create({
-  baseURL: import.meta.env.PENNYSHEET_BACKEND_URL || "http://localhost:3000",
+  baseURL: import.meta.env.VITE_PENNYSHEET_BACKEND_URL,
   headers: { "Content-Type": "application/json" }
 });
 
