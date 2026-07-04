@@ -25,6 +25,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     const now = new Date();
     const startDate = new Date(now);
     startDate.setMonth(now.getMonth() - nLastMonths);
+    startDate.setDate(1);
 
     return { startDate, endDate: now };
   }, [nLastMonths]);
