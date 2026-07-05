@@ -17,7 +17,7 @@ const navItems = [
  * Side-bar navigation.
  */
 export default function SideNav() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <aside
