@@ -8,6 +8,10 @@ use infra::{
     sync_database_schema,
 };
 use std::sync::Arc;
+use tower_http::services::{
+    ServeDir,
+    ServeFile,
+};
 use tracing::info;
 
 use crate::background_jobs::spawn_and_subscribe_core_projector;
@@ -51,7 +55,9 @@ async fn main() {
 
     let app = routes::app_router()
         .with_state(Arc::new(AppState { db }))
-        .fallback_service(tower_http::services::ServeDir::new("dist"));
+        .fallback_service(
+            ServeDir::new("dist").not_found_service(ServeFile::new("dist/index.html")),
+        );
 
     let addr = if cfg!(debug_assertions) {
         "0.0.0.0:3000"
