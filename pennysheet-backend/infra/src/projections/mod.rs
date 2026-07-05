@@ -148,6 +148,10 @@ pub trait TransactionProjectionTrait: EntityTrait {
         start_date: Option<Date>,
         end_date: Option<Date>,
         transaction_id: Option<Uuid>,
+        // TODO: make these categories and classifications to be Option<Vec<_>>, so the query
+        // doesn't need to have the FILTERS everytime.
+        categories: Vec<TransactionCategory>,
+        classifications: Vec<TransactionClassification>,
     ) -> Result<Vec<Self::Model>, DbErr>
     where
         C: ConnectionTrait,
@@ -155,6 +159,16 @@ pub trait TransactionProjectionTrait: EntityTrait {
         Self::find()
             .select_only()
             .columns(Self::Column::iter())
+            .filter(
+                Condition::any()
+                    .add(Self::category_column().is_null())
+                    .add(Self::category_column().is_in(categories.clone())),
+            )
+            .filter(
+                Condition::any()
+                    .add(Self::classification_column().is_null())
+                    .add(Self::classification_column().is_in(classifications.clone())),
+            )
             .apply_if(start_date, |query, value| {
                 query.filter(Self::booking_date_column().gte(value))
             })
@@ -167,31 +181,43 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .apply_if(
                 Self::auto_category_column(),
                 |query, auto_category_column| {
-                    query.column_as(
-                        Expr::cust_with_exprs(
-                            "COALESCE($1, $2)",
-                            [
-                                Expr::col(Self::category_column()),
-                                Expr::col(auto_category_column),
-                            ],
-                        ),
-                        Self::category_column(),
-                    )
+                    query
+                        .filter(
+                            Condition::any()
+                                .add(auto_category_column.is_null())
+                                .add(auto_category_column.is_in(categories)),
+                        )
+                        .column_as(
+                            Expr::cust_with_exprs(
+                                "COALESCE($1, $2)",
+                                [
+                                    Expr::col(Self::category_column()),
+                                    Expr::col(auto_category_column),
+                                ],
+                            ),
+                            Self::category_column(),
+                        )
                 },
             )
             .apply_if(
                 Self::auto_classification_column(),
                 |query, auto_classification_column| {
-                    query.column_as(
-                        Expr::cust_with_exprs(
-                            "COALESCE($1, $2)",
-                            [
-                                Expr::col(Self::classification_column()),
-                                Expr::col(auto_classification_column),
-                            ],
-                        ),
-                        Self::classification_column(),
-                    )
+                    query
+                        .filter(
+                            Condition::any()
+                                .add(auto_classification_column.is_null())
+                                .add(auto_classification_column.is_in(classifications)),
+                        )
+                        .column_as(
+                            Expr::cust_with_exprs(
+                                "COALESCE($1, $2)",
+                                [
+                                    Expr::col(Self::classification_column()),
+                                    Expr::col(auto_classification_column),
+                                ],
+                            ),
+                            Self::classification_column(),
+                        )
                 },
             )
             .order_by_desc(Self::booking_date_column())

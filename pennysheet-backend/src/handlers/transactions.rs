@@ -34,6 +34,7 @@ use infra::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use strum::IntoEnumIterator;
 use tracing::{
     debug,
     info,
@@ -90,6 +91,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -100,6 +103,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -110,6 +115,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -243,10 +250,17 @@ pub async fn get_one_transaction_handler(
     Path(transaction_id): Path<Uuid>,
 ) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
     info!("fetching one transaction");
-    projections::transactions::Entity::get_transactions(&state.db, None, None, Some(transaction_id))
-        .await
-        .map(Json)
-        .map_err(AppError::from)
+    projections::transactions::Entity::get_transactions(
+        &state.db,
+        None,
+        None,
+        Some(transaction_id),
+        TransactionCategory::iter().collect(),
+        TransactionClassification::iter().collect(),
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 #[derive(Deserialize)]
