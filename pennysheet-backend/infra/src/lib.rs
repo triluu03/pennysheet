@@ -55,7 +55,12 @@ const DB_NAME_ENV: &str = "DB_NAME";
 ///
 /// Returns [`DbErr::Custom`] if the environment variabels cannot be found.
 pub fn get_database_url() -> Result<(String, String), DbErr> {
-    dotenvy::dotenv().ok();
+    if cfg!(debug_assertions) {
+        dotenvy::from_filename(".env-dev.local").ok();
+    } else {
+        dotenvy::from_filename(".env-prod.local").ok();
+    }
+
     let database_url = std::env::var(DATABASE_URL_ENV).map_err(|error| {
         DbErr::Custom(format!(
             "failed to read the `{DATABASE_URL_ENV}` environment variable ({error}); set \

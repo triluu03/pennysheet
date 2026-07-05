@@ -82,13 +82,18 @@ fn user_settings_router() -> Router<Arc<AppState>> {
         )
 }
 
-/// Define App router.
-pub fn app_router() -> Router<Arc<AppState>> {
+/// Define API router.
+fn api_router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/status", get(|| async { "Working fine!" }))
         .nest("/sessions", sessions_router())
         .nest("/transactions", transactions_router())
         .nest("/settings", user_settings_router())
+}
+
+/// Define App router.
+pub fn app_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .nest("/api", api_router())
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()

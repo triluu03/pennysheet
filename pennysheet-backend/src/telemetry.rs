@@ -23,7 +23,8 @@ pub fn init_tracing() -> Result<(), String> {
 
     fmt()
         .with_env_filter(filter)
-        .with_target(true)
+        .with_target(cfg!(debug_assertions))
+        .with_ansi(cfg!(debug_assertions))
         .try_init()
         .map_err(|error| format!("failed to initialize tracing subscriber: {error}"))
 }

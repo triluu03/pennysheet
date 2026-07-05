@@ -2,15 +2,25 @@
 .DS_Store
 *.pem
 
+# Generate plist file
+com.triluu.pennysheet.plist
+
 # local env files
 .env*.local
 .env
+.env.development
+.env.dev
+.env.production
+.env.prod
 .env-*
 
 # Misc
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# General builds
+builds/
 
 # Event catalog builds
 pennysheet-catalog/node_modules
