@@ -189,6 +189,8 @@ pub struct PivotRow {
     pub Services: f64,
     pub Leisure: f64,
     pub Others: f64,
+    pub Investments: f64,
+    pub Excluded: f64,
     pub Uncategorized: f64,
     // Classification
     #[serde(rename = "must-have")]
@@ -196,6 +198,7 @@ pub struct PivotRow {
     #[serde(rename = "nice-to-have")]
     pub nice_to_have: f64,
     pub wasted: f64,
+    pub excluded: f64,
     pub unclassified: f64,
 }
 
@@ -209,6 +212,8 @@ pub async fn get_expenses_pivot_table<C>(
     db: &C,
     start_date: Option<Date>,
     end_date: Option<Date>,
+    categories: Vec<TransactionCategory>,
+    classifications: Vec<TransactionClassification>,
 ) -> Result<Vec<PivotRow>, DbErr>
 where
     C: ConnectionTrait,
@@ -255,6 +260,8 @@ where
     select_query
         .expr_as(date_trunc_expr.clone().cast_as("date"), "date")
         .from("coalesce_table")
+        .and_where(Expr::col("category").is_in(categories))
+        .and_where(Expr::col("classification").is_in(classifications))
         .add_group_by([date_trunc_expr.clone()])
         .order_by_expr(date_trunc_expr, Order::Asc);
 

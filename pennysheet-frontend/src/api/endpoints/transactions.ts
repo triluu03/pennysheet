@@ -28,11 +28,14 @@ export interface TransactionsPivot {
   Services: number;
   Leisure: number;
   Others: number;
+  Investments: number;
+  Excluded: number;
   Uncategorized: number;
   // Classification
   "must-have": number;
   "nice-to-have": number;
   wasted: number;
+  excluded: number;
   unclassified: number;
 }
 export const TRANSACTION_PIVOT_COLORS: Record<string, string> = {
@@ -43,12 +46,15 @@ export const TRANSACTION_PIVOT_COLORS: Record<string, string> = {
   Services: "#ea4335", // red
   Leisure: "#00897b", // teal
   Others: "#9334e6", // purple
+  Investments: "#3949ab", // material indigo
+  Excluded: "#757575", // dark gray
   Uncategorized: "#9ca3af", // gray
 
   // Classification
   "must-have": "#4285f4", // blue
   "nice-to-have": "#f9ab00", // yellow
   wasted: "#ea4335", // red
+  excluded: "#757575", // dark gray
   unclassified: "#9ca3af" // gray
 } as const;
 
@@ -87,14 +93,18 @@ export type TransactionClassification = (typeof TRANSACTION_CLASSIFICATIONS)[num
 export async function getTransactions(
   startDate?: Date,
   endDate?: Date,
-  kind?: TransactionKind
+  kind?: TransactionKind,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ): Promise<Transactions[]> {
   return await client
     .get("/transactions", {
       params: {
         start_date: startDate ? formatDate(startDate) : undefined,
         end_date: endDate ? formatDate(endDate) : undefined,
-        kind
+        kind,
+        categories: categories ? categories : TRANSACTION_CATEGORIES,
+        classifications: classifications ? classifications : TRANSACTION_CLASSIFICATIONS
       }
     })
     .then(response => response.data);
@@ -135,14 +145,18 @@ export async function getTransactionsTimeAggregated(
  */
 export async function getTransactionsPivotTable(
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ): Promise<TransactionsPivot[]> {
   return await client
     .get(`/transactions/pivot`, {
       params: {
         start_date: startDate ? formatDate(startDate) : undefined,
         end_date: endDate ? formatDate(endDate) : undefined,
-        kind: "expenses"
+        kind: "expenses",
+        categories: categories ? categories : TRANSACTION_CATEGORIES,
+        classifications: classifications ? classifications : TRANSACTION_CLASSIFICATIONS
       }
     })
     .then(response => response.data);

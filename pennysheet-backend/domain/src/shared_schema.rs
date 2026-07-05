@@ -7,20 +7,20 @@ use std::str::FromStr;
 #[cfg(feature = "sea-orm-support")]
 use sea_orm::{
     DeriveActiveEnum,
-    EnumIter,
     entity::prelude::*,
 };
 use serde::{
     Deserialize,
     Serialize,
 };
+use strum::EnumIter;
 use uuid::Uuid;
 
 use crate::errors::DomainError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumIter)]
 #[serde(rename_all = "PascalCase")]
-#[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
+#[cfg_attr(feature = "sea-orm-support", derive(DeriveActiveEnum))]
 #[cfg_attr(
     feature = "sea-orm-support",
     sea_orm(
@@ -66,9 +66,9 @@ pub struct TransactionCategoryData {
     pub category: TransactionCategory,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumIter)]
 #[serde(rename_all = "kebab-case")]
-#[cfg_attr(feature = "sea-orm-support", derive(EnumIter, DeriveActiveEnum))]
+#[cfg_attr(feature = "sea-orm-support", derive(DeriveActiveEnum))]
 #[cfg_attr(
     feature = "sea-orm-support",
     sea_orm(

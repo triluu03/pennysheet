@@ -1,5 +1,11 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import {
+  TRANSACTION_CATEGORIES,
+  TRANSACTION_CLASSIFICATIONS,
+  type TransactionCategory,
+  type TransactionClassification
+} from "./api/endpoints/transactions";
 import Layout from "./components/Layout";
 import ToastProvider from "./components/Toast";
 import DetailsPage from "./pages/Details";
@@ -8,9 +14,13 @@ import UserPage from "./pages/User";
 
 interface AppContextType {
   startDate: Date;
+  setStartDate: React.Dispatch<React.SetStateAction<Date>>;
   endDate: Date;
-  nLastMonths: number;
-  setNLastMonths: React.Dispatch<React.SetStateAction<number>>;
+  setEndDate: React.Dispatch<React.SetStateAction<Date>>;
+  categories: TransactionCategory[];
+  setCategories: React.Dispatch<React.SetStateAction<TransactionCategory[]>>;
+  classifications: TransactionClassification[];
+  setClassifications: React.Dispatch<React.SetStateAction<TransactionClassification[]>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -19,19 +29,36 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
  * App provider containing the global context/states of the app.
  */
 function AppProvider({ children }: { children: React.ReactNode }) {
-  const [nLastMonths, setNLastMonths] = useState<number>(3);
+  const now = new Date();
+  const last3Months = new Date(now);
+  last3Months.setMonth(now.getMonth() - 3);
+  last3Months.setDate(1);
 
-  const { startDate, endDate } = useMemo(() => {
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setMonth(now.getMonth() - nLastMonths);
-    startDate.setDate(1);
+  const [startDate, setStartDate] = useState<Date>(last3Months);
+  const [endDate, setEndDate] = useState<Date>(now);
 
-    return { startDate, endDate: now };
-  }, [nLastMonths]);
+  const [categories, setCategories] = useState<TransactionCategory[]>([
+    ...TRANSACTION_CATEGORIES.filter(
+      category => category !== "Investments" && category !== "Excluded"
+    )
+  ]);
+  const [classifications, setClassifications] = useState<TransactionClassification[]>([
+    ...TRANSACTION_CLASSIFICATIONS.filter(classification => classification !== "excluded")
+  ]);
 
   return (
-    <AppContext.Provider value={{ startDate, endDate, nLastMonths, setNLastMonths }}>
+    <AppContext.Provider
+      value={{
+        startDate,
+        setStartDate,
+        endDate,
+        setEndDate,
+        categories,
+        setCategories,
+        classifications,
+        setClassifications
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

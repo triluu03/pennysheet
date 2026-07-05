@@ -4,17 +4,21 @@ use axum::{
     Json,
     extract::{
         Path,
-        Query,
         State,
     },
     http::StatusCode,
 };
+use axum_extra::extract::Query;
 use chrono::NaiveDate;
 use domain::{
     aggregates::CoreAggregate,
     commands::Command,
     errors::DomainError,
-    events::Event,
+    events::{
+        Event,
+        TransactionCategory,
+        TransactionClassification,
+    },
 };
 use infra::{
     append_event_to_db,
@@ -30,6 +34,7 @@ use infra::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use strum::IntoEnumIterator;
 use tracing::{
     debug,
     info,
@@ -48,6 +53,9 @@ pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
     kind: Option<TransactionKind>,
+    // TODO: make this to Option<_>, a way to support empty array.
+    categories: Vec<TransactionCategory>,
+    classifications: Vec<TransactionClassification>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,6 +92,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -94,6 +104,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -104,6 +116,8 @@ pub async fn get_transactions_handler(
                 params.start_date,
                 params.end_date,
                 None,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -186,6 +200,8 @@ pub async fn get_transactions_time_aggregated_handler(
         start_date = ?params.start_date,
         end_date = ?params.end_date,
         kind = ?params.kind,
+        categories = ?params.categories,
+        classifications = ?params.classifications,
     )
 )]
 // TODO: write tests for this handler!
@@ -205,6 +221,8 @@ pub async fn get_transactions_pivot_handler(
                 &state.db,
                 params.start_date,
                 params.end_date,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -233,10 +251,17 @@ pub async fn get_one_transaction_handler(
     Path(transaction_id): Path<Uuid>,
 ) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
     info!("fetching one transaction");
-    projections::transactions::Entity::get_transactions(&state.db, None, None, Some(transaction_id))
-        .await
-        .map(Json)
-        .map_err(AppError::from)
+    projections::transactions::Entity::get_transactions(
+        &state.db,
+        None,
+        None,
+        Some(transaction_id),
+        TransactionCategory::iter().collect(),
+        TransactionClassification::iter().collect(),
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 #[derive(Deserialize)]
