@@ -24,7 +24,9 @@ export default function SideNav() {
       className={`flex flex-col h-full bg-white border-r border-gray-200 ${collapsed ? "w-21" : "w-60"}`}
     >
       {/* Logo */}
-      <div className="px-7 py-6 border-b border-gray-200">
+      <div
+        className={`border-b border-gray-200 ${collapsed ? "flex items-center justify-center py-6" : "px-7 py-6"}`}
+      >
         <span className="text-xl font-semibold text-gray-900">
           {collapsed ? "P" : "Pennysheet"}
         </span>
