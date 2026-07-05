@@ -28,11 +28,14 @@ export interface TransactionsPivot {
   Services: number;
   Leisure: number;
   Others: number;
+  Investments: number;
+  Excluded: number;
   Uncategorized: number;
   // Classification
   "must-have": number;
   "nice-to-have": number;
   wasted: number;
+  excluded: number;
   unclassified: number;
 }
 export const TRANSACTION_PIVOT_COLORS: Record<string, string> = {
@@ -43,12 +46,15 @@ export const TRANSACTION_PIVOT_COLORS: Record<string, string> = {
   Services: "#ea4335", // red
   Leisure: "#00897b", // teal
   Others: "#9334e6", // purple
+  Investments: "#3949ab", // material indigo
+  Excluded: "#757575", // dark gray
   Uncategorized: "#9ca3af", // gray
 
   // Classification
   "must-have": "#4285f4", // blue
   "nice-to-have": "#f9ab00", // yellow
   wasted: "#ea4335", // red
+  excluded: "#757575", // dark gray
   unclassified: "#9ca3af" // gray
 } as const;
 

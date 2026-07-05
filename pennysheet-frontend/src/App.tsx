@@ -37,9 +37,13 @@ function AppProvider({ children }: { children: React.ReactNode }) {
   const [startDate, setStartDate] = useState<Date>(last3Months);
   const [endDate, setEndDate] = useState<Date>(now);
 
-  const [categories, setCategories] = useState<TransactionCategory[]>([...TRANSACTION_CATEGORIES]);
+  const [categories, setCategories] = useState<TransactionCategory[]>([
+    ...TRANSACTION_CATEGORIES.filter(
+      category => category !== "Investments" && category !== "Excluded"
+    )
+  ]);
   const [classifications, setClassifications] = useState<TransactionClassification[]>([
-    ...TRANSACTION_CLASSIFICATIONS
+    ...TRANSACTION_CLASSIFICATIONS.filter(classification => classification !== "excluded")
   ]);
 
   return (
