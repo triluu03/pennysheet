@@ -12,17 +12,23 @@ import {
   type TransactionsPivot
 } from "../api/endpoints/transactions";
 
-export function useTransactions(startDate: Date, endDate: Date, kind?: TransactionKind) {
+export function useTransactions(
+  startDate: Date,
+  endDate: Date,
+  kind: TransactionKind,
+  categories: TransactionCategory[],
+  classifications: TransactionClassification[]
+) {
   const [data, setData] = useState<Transactions[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getTransactions(startDate, endDate, kind)
+    getTransactions(startDate, endDate, kind, categories, classifications)
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
-  }, [startDate, endDate]);
+  }, [startDate, endDate, categories, classifications]);
 
   return { data, loading, error };
 }

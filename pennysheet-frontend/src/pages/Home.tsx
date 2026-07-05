@@ -28,7 +28,7 @@ export default function Home() {
   }, [error]);
 
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden">
       <FilterSideBar
         filter={{
           startDate,
@@ -43,7 +43,7 @@ export default function Home() {
           setEndDate(filter.endDate);
         }}
       />
-      <div className="flex flex-col flex-1 h-full p-8">
+      <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
         <PageHeader title="Transactions Overview" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <BarPlot data={data} groupBy="category" />

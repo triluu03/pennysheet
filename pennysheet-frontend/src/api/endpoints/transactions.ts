@@ -87,14 +87,18 @@ export type TransactionClassification = (typeof TRANSACTION_CLASSIFICATIONS)[num
 export async function getTransactions(
   startDate?: Date,
   endDate?: Date,
-  kind?: TransactionKind
+  kind?: TransactionKind,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ): Promise<Transactions[]> {
   return await client
     .get("/transactions", {
       params: {
         start_date: startDate ? formatDate(startDate) : undefined,
         end_date: endDate ? formatDate(endDate) : undefined,
-        kind
+        kind,
+        categories: categories ? categories : TRANSACTION_CATEGORIES,
+        classifications: classifications ? classifications : TRANSACTION_CLASSIFICATIONS
       }
     })
     .then(response => response.data);
