@@ -53,6 +53,7 @@ pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
     kind: Option<TransactionKind>,
+    // TODO: make this to Option<_>, a way to support empty array.
     categories: Vec<TransactionCategory>,
     classifications: Vec<TransactionClassification>,
 }
