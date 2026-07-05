@@ -18,7 +18,7 @@ export default function DetailsPage() {
   }, [error]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full p-8">
       <PageHeader title="Transactions Details" />
       <div className="flex flex-col flex-1 rounded-lg gap-5">
         <Table data={data} />

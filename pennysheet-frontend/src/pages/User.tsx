@@ -7,7 +7,7 @@ import SessionsSection from "../components/SessionsSection";
  */
 export default function UserPage() {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full p-8">
       <PageHeader title="User Settings" subtitle="Tri Luu" enableButtons={false} />
       <div className="flex flex-col flex-1 pb-5 rounded-lg gap-5">
         <section className="rounded-xl border border-gray-200 bg-white p-6">
