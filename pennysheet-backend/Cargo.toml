@@ -38,6 +38,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
 tower-http = { version = "0.6.6", features = ["trace", "cors", "fs"] }
+axum-extra = { version = "0.12.6", features = ["query"] }
 
 [dev-dependencies]
 sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }

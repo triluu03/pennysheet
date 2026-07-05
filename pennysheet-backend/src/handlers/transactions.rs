@@ -4,17 +4,21 @@ use axum::{
     Json,
     extract::{
         Path,
-        Query,
         State,
     },
     http::StatusCode,
 };
+use axum_extra::extract::Query;
 use chrono::NaiveDate;
 use domain::{
     aggregates::CoreAggregate,
     commands::Command,
     errors::DomainError,
-    events::Event,
+    events::{
+        Event,
+        TransactionCategory,
+        TransactionClassification,
+    },
 };
 use infra::{
     append_event_to_db,
@@ -48,6 +52,8 @@ pub struct GetTransactionsQuery {
     start_date: Option<NaiveDate>,
     end_date: Option<NaiveDate>,
     kind: Option<TransactionKind>,
+    categories: Vec<TransactionCategory>,
+    classifications: Vec<TransactionClassification>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,6 +192,8 @@ pub async fn get_transactions_time_aggregated_handler(
         start_date = ?params.start_date,
         end_date = ?params.end_date,
         kind = ?params.kind,
+        categories = ?params.categories,
+        classifications = ?params.classifications,
     )
 )]
 // TODO: write tests for this handler!
@@ -205,6 +213,8 @@ pub async fn get_transactions_pivot_handler(
                 &state.db,
                 params.start_date,
                 params.end_date,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
