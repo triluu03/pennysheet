@@ -135,14 +135,18 @@ export async function getTransactionsTimeAggregated(
  */
 export async function getTransactionsPivotTable(
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ): Promise<TransactionsPivot[]> {
   return await client
     .get(`/transactions/pivot`, {
       params: {
         start_date: startDate ? formatDate(startDate) : undefined,
         end_date: endDate ? formatDate(endDate) : undefined,
-        kind: "expenses"
+        kind: "expenses",
+        categories: categories ? categories : TRANSACTION_CATEGORIES,
+        classifications: classifications ? classifications : TRANSACTION_CLASSIFICATIONS
       }
     })
     .then(response => response.data);

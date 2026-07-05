@@ -22,7 +22,7 @@ export default function Home() {
   } = useAppContext();
   const { showToast } = useToast();
 
-  const { data, error } = useTransactionsPivot(startDate, endDate);
+  const { data, error } = useTransactionsPivot(startDate, endDate, categories, classifications);
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
   }, [error]);
