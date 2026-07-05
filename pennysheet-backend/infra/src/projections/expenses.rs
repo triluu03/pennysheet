@@ -189,6 +189,8 @@ pub struct PivotRow {
     pub Services: f64,
     pub Leisure: f64,
     pub Others: f64,
+    pub Investments: f64,
+    pub Excluded: f64,
     pub Uncategorized: f64,
     // Classification
     #[serde(rename = "must-have")]
@@ -196,6 +198,7 @@ pub struct PivotRow {
     #[serde(rename = "nice-to-have")]
     pub nice_to_have: f64,
     pub wasted: f64,
+    pub excluded: f64,
     pub unclassified: f64,
 }
 
