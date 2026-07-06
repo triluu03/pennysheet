@@ -17,4 +17,5 @@ pennysheet/
 For more information of each module, check its corresponding README.md.
 
 ## Event-sourcing Design Preview
-<img width="2555" height="1288" alt="Core domain architecture" src="https://github.com/user-attachments/assets/70f5f758-8ac1-4bb1-9644-b075cb42e4bb" />
+<img width="2557" height="1289" alt="Core domain design" src="https://github.com/user-attachments/assets/138158b1-f2fb-482b-a95b-30eb1554094a" />
+
