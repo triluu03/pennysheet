@@ -6,7 +6,10 @@ use infra::{
     DatabaseConnection,
     get_user_settings,
     projections,
-    projectors::CoreProjector,
+    projectors::{
+        CoreProjector,
+        ProjectorTrait,
+    },
 };
 use tracing::{
     error,
@@ -24,7 +27,7 @@ use tracing::{
 #[instrument(skip(db))]
 pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
     let closure_run_helper = async |db: &DatabaseConnection| {
-        let mut projector = CoreProjector::new(db).await?;
+        let mut projector = CoreProjector::new(db.to_owned()).await?;
         projector.listen_to_new_events().await
     };
 

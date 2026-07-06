@@ -1,4 +1,4 @@
-//! Projectors
+//! Core Projector
 
 use domain::events::Event;
 use sea_orm::{
@@ -7,6 +7,7 @@ use sea_orm::{
     DatabaseTransaction,
     DbErr,
     TransactionTrait,
+    prelude::async_trait,
 };
 use sqlx::postgres::PgListener;
 use tracing::{
@@ -27,6 +28,7 @@ use crate::{
         },
         transactions,
     },
+    projectors::ProjectorTrait,
     user_settings::{
         UserSettingsResult,
         get_user_settings,
@@ -45,14 +47,15 @@ macro_rules! project_to_all {
 const PROJECTOR_NAME: &str = "CoreProjector";
 
 #[derive(Debug, Clone)]
-pub struct CoreProjector<'db> {
-    db: &'db DatabaseConnection,
+pub struct CoreProjector {
+    db: DatabaseConnection,
     name: String,
     last_seen_event_number: i64,
     user_settings: Vec<UserSettingsResult>,
 }
 
-impl<'db> CoreProjector<'db> {
+#[async_trait::async_trait]
+impl ProjectorTrait for CoreProjector {
     /// Construct a [`CoreProjector`] from a [`DatabaseConnection`] reference.
     ///
     /// # Errors
@@ -60,9 +63,9 @@ impl<'db> CoreProjector<'db> {
     /// Returns [`DbErr`] if fails to get the projector state or the user settings
     /// from the database.
     #[instrument(skip(db))]
-    pub async fn new(db: &'db DatabaseConnection) -> Result<Self, DbErr> {
-        let last_seen_event_number = get_projector_state(db, PROJECTOR_NAME).await?.unwrap_or(0);
-        let user_settings = get_user_settings(db).await?;
+    async fn new(db: DatabaseConnection) -> Result<Self, DbErr> {
+        let last_seen_event_number = get_projector_state(&db, PROJECTOR_NAME).await?.unwrap_or(0);
+        let user_settings = get_user_settings(&db).await?;
 
         info!("projector initialized");
         Ok(Self {
@@ -82,7 +85,7 @@ impl<'db> CoreProjector<'db> {
     ///
     /// Returns [`DbErr`] if the listener crashes or the projections fails.
     #[instrument(skip(self))]
-    pub async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
+    async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
         let (database_url, db_name) = get_database_url()?;
 
         let mut listener = PgListener::connect(&format!("{database_url}/{db_name}"))
@@ -118,8 +121,8 @@ impl<'db> CoreProjector<'db> {
     ///
     /// Returns [`DbErr`] if the projections fails.
     #[instrument(skip(self))]
-    pub async fn run_projections(&mut self) -> Result<(), DbErr> {
-        let unseen_events = get_events_with_offset(self.db, self.last_seen_event_number).await?;
+    async fn run_projections(&mut self) -> Result<(), DbErr> {
+        let unseen_events = get_events_with_offset(&self.db, self.last_seen_event_number).await?;
         let n_unseen_events: i64 = unseen_events
             .len()
             .try_into()
