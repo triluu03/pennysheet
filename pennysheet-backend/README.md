@@ -2,7 +2,7 @@
 
 An event-sourcing system exposed as a REST API built in Axum.
 
-The core event-sourcing logic is built from scratch without using any external crates. Hence, there are certainly rooms for improvements and refactorings.
+The core event-sourcing logic is built from scratch without any external crates. Hence, there are certainly rooms for improvements and refactorings.
 
 ## Project Structure
 
