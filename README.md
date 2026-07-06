@@ -8,6 +8,7 @@ Link to the architecture design docs: https://triluu03.github.io/pennysheet/
 
 ```
 pennysheet/
+├── pennysheet-auth/      # Flask App for Enable Banking authentication
 ├── pennysheet-backend/   # Axum REST API server based on event-sourcing
 ├── pennysheet-frontend/  # React client
 └── pennysheet-catalog/   # Documentation based on Event catalog
