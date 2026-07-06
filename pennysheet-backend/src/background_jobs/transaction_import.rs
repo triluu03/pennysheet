@@ -44,7 +44,7 @@ use crate::errors::AppError;
 #[instrument(skip(db))]
 pub async fn scheduled_transaction_import(db: DatabaseConnection) {
     let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
-    let evening = NaiveTime::from_hms_opt(22, 0, 0).unwrap();
+    let evening = NaiveTime::from_hms_opt(20, 0, 0).unwrap();
 
     loop {
         let now = Local::now();
