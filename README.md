@@ -14,5 +14,7 @@ pennysheet/
 └── pennysheet-catalog/   # Documentation based on Event catalog
 ```
 
+For more information of each module, check its corresponding README.md.
+
 ## Event-sourcing Design Preview
 <img width="2555" height="1288" alt="Core domain architecture" src="https://github.com/user-attachments/assets/70f5f758-8ac1-4bb1-9644-b075cb42e4bb" />
