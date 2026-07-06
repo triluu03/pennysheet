@@ -1,7 +1,18 @@
 //! Transaction import
 
+use chrono::{
+    Duration,
+    Local,
+    NaiveTime,
+    TimeZone,
+};
 use domain::{
-    commands::GatewayCommand,
+    aggregates::CoreAggregate,
+    commands::{
+        Command,
+        GatewayCommand,
+    },
+    errors::DomainError,
     event_injectors::EventInjector,
     events::{
         Event,
@@ -16,6 +27,7 @@ use infra::{
     append_event_to_db,
     append_multi_events_to_db,
     get_all_events,
+    get_all_sessions,
 };
 use tracing::{
     error,
@@ -23,6 +35,114 @@ use tracing::{
     instrument,
 };
 use uuid::Uuid;
+
+use crate::errors::AppError;
+
+/// Scheduled-polling of the Enable Banking API.
+///
+/// This task is meant to be run in the background.
+#[instrument(skip(db))]
+pub async fn scheduled_transaction_import(db: DatabaseConnection) {
+    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+    let evening = NaiveTime::from_hms_opt(22, 0, 0).unwrap();
+
+    loop {
+        let now = Local::now();
+        let today = now.date_naive();
+
+        let upcoming_schedules = [
+            Local.from_local_datetime(&today.and_time(noon)).unwrap(),
+            Local.from_local_datetime(&today.and_time(evening)).unwrap(),
+            Local
+                .from_local_datetime(&(today + Duration::days(1)).and_time(noon))
+                .unwrap(),
+            Local
+                .from_local_datetime(&(today + Duration::days(1)).and_time(evening))
+                .unwrap(),
+        ];
+
+        let next_run = upcoming_schedules
+            .into_iter()
+            .filter(|dt| *dt > now)
+            .min()
+            .unwrap();
+
+        let duration_until = (next_run - now).to_std().unwrap();
+        info!(
+            next_run = next_run.to_string(),
+            "waiting until the next scheduled import"
+        );
+        tokio::time::sleep(duration_until).await;
+
+        match run_scheduled_polling_job(&db).await {
+            Ok(()) => continue,
+            Err(error) => error!(
+                error = error.to_string(),
+                "error occurred when running the scheduled import"
+            ),
+        }
+    }
+}
+
+/// Run the scheduled polling job.
+///
+/// NOTE: this function has quite many overlapping features with the
+/// [`crate::handlers::import_transactions_handler`].
+/// TODO: consider refactoring them into one helper function to avoid duplicate maintenance.
+#[instrument(skip(db))]
+async fn run_scheduled_polling_job(db: &DatabaseConnection) -> Result<(), AppError> {
+    let (valid_sessions, expired_sessions) = get_all_sessions(db).await?;
+    if !expired_sessions.is_empty() {
+        error!("Some expired sessions found! Skipping this scheduled import!");
+        return Err(AppError::ExpiredSession);
+    };
+
+    let today = Local::now().date_naive();
+    let last_week = today - Duration::days(7);
+
+    let commands = Command::create_import_transactions(
+        Some(&last_week.to_string()),
+        Some(&today.to_string()),
+        valid_sessions
+            .iter()
+            .map(|session_data| session_data.session_id)
+            .collect(),
+    )?;
+
+    let all_events = get_all_events(db).await?;
+    let aggregate = CoreAggregate::new(&all_events);
+
+    // NOTE: here, the aggregate doesn't consume the emitted event before executing a new command.
+    // This is find in this case as these events are independent, but it does not fully respect the
+    // design and concepts of an event-sourcing system.
+    let events = commands
+        .into_iter()
+        .map(|command| aggregate.execute(command))
+        .collect::<Result<Vec<Event>, DomainError>>()?;
+
+    let _res = append_multi_events_to_db(db, events.clone()).await?;
+    info!(
+        n_requests = events.len(),
+        "import transactions events appended"
+    );
+
+    // Spawn background jobs running transaction process managers.
+    events.iter().for_each(|event| {
+        if let Event::ImportTransactionsRequested(data) = &event
+            && let Some(session) = valid_sessions
+                .iter()
+                .find(|session_data| session_data.session_id == data.session_id)
+        {
+            tokio::spawn(run_transaction_import(
+                db.to_owned(),
+                session.to_owned(),
+                data.request_id,
+            ));
+        }
+    });
+
+    Ok(())
+}
 
 /// Run a transaction import.
 ///
