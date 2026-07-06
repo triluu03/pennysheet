@@ -14,7 +14,10 @@ use tower_http::services::{
 };
 use tracing::info;
 
-use crate::background_jobs::spawn_and_subscribe_core_projector;
+use crate::background_jobs::{
+    scheduled_transaction_import,
+    spawn_and_subscribe_core_projector,
+};
 
 mod background_jobs;
 mod errors;
@@ -52,6 +55,9 @@ async fn main() {
 
     tokio::spawn(spawn_and_subscribe_core_projector(db.clone()));
     info!("projector spawned in the background");
+
+    tokio::spawn(scheduled_transaction_import(db.clone()));
+    info!("scheduled transactions import in the background");
 
     let app = routes::app_router()
         .with_state(Arc::new(AppState { db }))
