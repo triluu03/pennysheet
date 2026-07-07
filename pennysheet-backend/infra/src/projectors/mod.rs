@@ -31,19 +31,42 @@ mod import_request_projector;
 pub use core_projector::CoreProjector;
 pub use import_request_projector::ImportRequestProjector;
 
+#[derive(Debug, Clone)]
+pub struct ProjectorState {
+    db: DatabaseConnection,
+    last_seen_event_number: i64,
+    user_settings: Vec<UserSettingsResult>,
+}
+
 /// Projector trait that defines the interface for all projectors.
 #[async_trait::async_trait]
 pub trait ProjectorTrait {
     /// Projector name
     fn projector_name() -> &'static str;
+    /// Projector state reference.
+    fn state(&self) -> &ProjectorState;
+    /// Projector state mutatble reference.
+    fn state_mut(&mut self) -> &mut ProjectorState;
+
     /// Database connection
-    fn database_connection(&self) -> &DatabaseConnection;
+    fn database_connection(&self) -> &DatabaseConnection {
+        &self.state().db
+    }
+
     /// User settings
-    fn user_settings(&self) -> &[UserSettingsResult];
+    fn user_settings(&self) -> &[UserSettingsResult] {
+        &self.state().user_settings
+    }
+
     /// Last seen event numbers.
-    fn last_seen_event_number(&self) -> i64;
+    fn last_seen_event_number(&self) -> i64 {
+        self.state().last_seen_event_number
+    }
+
     /// Last seen event numbers mutable reference.
-    fn last_seen_event_number_mut(&mut self) -> &mut i64;
+    fn last_seen_event_number_mut(&mut self) -> &mut i64 {
+        &mut self.state_mut().last_seen_event_number
+    }
 
     /// Initialize a projector from its expected fields.
     fn init(

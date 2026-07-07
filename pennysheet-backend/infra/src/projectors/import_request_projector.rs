@@ -11,14 +11,15 @@ use tracing::instrument;
 
 use crate::{
     UserSettingsResult,
-    projectors::ProjectorTrait,
+    projectors::{
+        ProjectorState,
+        ProjectorTrait,
+    },
 };
 
 #[derive(Debug, Clone)]
 pub struct ImportRequestProjector {
-    db: DatabaseConnection,
-    last_seen_event_number: i64,
-    user_settings: Vec<UserSettingsResult>,
+    state: ProjectorState,
 }
 
 #[async_trait::async_trait]
@@ -27,21 +28,13 @@ impl ProjectorTrait for ImportRequestProjector {
     fn projector_name() -> &'static str {
         "ImportRequestProjector"
     }
-    /// Database connection
-    fn database_connection(&self) -> &DatabaseConnection {
-        &self.db
+    /// Projector state reference.
+    fn state(&self) -> &ProjectorState {
+        &self.state
     }
-    /// User settings
-    fn user_settings(&self) -> &[UserSettingsResult] {
-        &self.user_settings
-    }
-    /// Last seen event numbers.
-    fn last_seen_event_number(&self) -> i64 {
-        self.last_seen_event_number
-    }
-    /// Last seen event numbers mutable reference.
-    fn last_seen_event_number_mut(&mut self) -> &mut i64 {
-        &mut self.last_seen_event_number
+    /// Projector state mutatble reference.
+    fn state_mut(&mut self) -> &mut ProjectorState {
+        &mut self.state
     }
 
     /// Init a new [`ImportRequestProjector`].
@@ -51,9 +44,11 @@ impl ProjectorTrait for ImportRequestProjector {
         user_settings: Vec<UserSettingsResult>,
     ) -> Self {
         Self {
-            db,
-            last_seen_event_number,
-            user_settings,
+            state: ProjectorState {
+                db,
+                last_seen_event_number,
+                user_settings,
+            },
         }
     }
 
