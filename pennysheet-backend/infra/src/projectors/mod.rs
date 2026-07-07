@@ -1,45 +1,144 @@
 //! Projectors
 
-mod core_projector;
-mod import_request_projector;
-
-pub use core_projector::CoreProjector;
-
+use domain::events::Event;
 use sea_orm::{
     DatabaseConnection,
     DatabaseTransaction,
     DbErr,
+    TransactionTrait,
     prelude::async_trait,
 };
+use sqlx::postgres::PgListener;
+use tracing::{
+    info,
+    instrument,
+};
 
-use crate::user_settings::UserSettingsResult;
-use domain::events::Event;
+use crate::{
+    get_database_url,
+    get_events_with_offset,
+    get_user_settings,
+    projections::projector_states::{
+        get_projector_state,
+        update_projector_state,
+    },
+    user_settings::UserSettingsResult,
+};
+
+mod core_projector;
+mod import_request_projector;
+
+pub use core_projector::CoreProjector;
+pub use import_request_projector::ImportRequestProjector;
 
 /// Projector trait that defines the interface for all projectors.
 #[async_trait::async_trait]
 pub trait ProjectorTrait {
-    /// Construct a new projector from a database connection reference.
+    /// Projector name
+    fn projector_name() -> &'static str;
+    /// Database connection
+    fn database_connection(&self) -> &DatabaseConnection;
+    /// User settings
+    fn user_settings(&self) -> &[UserSettingsResult];
+    /// Last seen event numbers.
+    fn last_seen_event_number(&self) -> i64;
+    /// Last seen event numbers mutable reference.
+    fn last_seen_event_number_mut(&mut self) -> &mut i64;
+
+    /// Initialize a projector from its expected fields.
+    fn init(
+        db: DatabaseConnection,
+        last_seen_event_number: i64,
+        user_settings: Vec<UserSettingsResult>,
+    ) -> Self
+    where
+        Self: Sized;
+
+    /// Construct a new projector from an owned database connection.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the initialization fails.
+    #[instrument(skip(db))]
     async fn new(db: DatabaseConnection) -> Result<Self, DbErr>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        let last_seen_event_number = get_projector_state(&db, Self::projector_name())
+            .await?
+            .unwrap_or(0);
+        let user_settings = get_user_settings(&db).await?;
+
+        info!("projector initialized");
+        Ok(Self::init(db, last_seen_event_number, user_settings))
+    }
 
     /// Listen to new events appended and run the projections.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the listener crashes or the projection fails.
-    async fn listen_to_new_events(&mut self) -> Result<(), DbErr>;
+    #[instrument(skip(self))]
+    async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
+        let (database_url, db_name) = get_database_url()?;
+
+        let mut listener = PgListener::connect(&format!("{database_url}/{db_name}"))
+            .await
+            .map_err(|err| DbErr::Custom(format!("Failed to connect PgListener: {}", err)))?;
+
+        listener.listen("EventStore").await.map_err(|err| {
+            DbErr::Custom(format!("Failed to listen to the event table: {}", err))
+        })?;
+
+        // Refresh any unseen events appended while the project was not online.
+        info!("trigger a projection run to clear the backlog");
+        self.run_projections().await?;
+
+        // Subscribe to notifications from the event table.
+        loop {
+            match listener.recv().await {
+                Ok(notification) => {
+                    if notification.payload() == "new-events-appended" {
+                        self.run_projections().await?;
+                    }
+                },
+                Err(e) => {
+                    return Err(DbErr::Custom(format!("Listener crashed: {}", e)));
+                },
+            }
+        }
+    }
 
     /// Run projections.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the projection fails.
-    async fn run_projections(&mut self) -> Result<(), DbErr>;
+    async fn run_projections(&mut self) -> Result<(), DbErr> {
+        let unseen_events =
+            get_events_with_offset(self.database_connection(), self.last_seen_event_number())
+                .await?;
+        let n_unseen_events: i64 = unseen_events
+            .len()
+            .try_into()
+            .map_err(|err| DbErr::Custom(format!("Failed to parse usize into i64: {}", err)))?;
+
+        info!(n_unseen_events, "projecting unseen events in a transaction");
+        let txn = self.database_connection().begin().await?;
+        Self::multi_project(&txn, &unseen_events, self.user_settings()).await?;
+        update_projector_state(
+            &txn,
+            Self::projector_name(),
+            self.last_seen_event_number() + n_unseen_events,
+        )
+        .await?;
+        txn.commit().await?;
+
+        // Update the state of the current spawned projector.
+        *self.last_seen_event_number_mut() += n_unseen_events;
+        info!("projection transaction committed");
+        Ok(())
+    }
 
     /// Project records based on a single event.
     ///
@@ -61,5 +160,10 @@ pub trait ProjectorTrait {
         txn: &DatabaseTransaction,
         events: &[Event],
         user_settings: &[UserSettingsResult],
-    ) -> Result<(), DbErr>;
+    ) -> Result<(), DbErr> {
+        for event in events.iter() {
+            Self::project(txn, event, user_settings).await?
+        }
+        Ok(())
+    }
 }
