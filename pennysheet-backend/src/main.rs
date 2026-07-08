@@ -17,6 +17,7 @@ use tracing::info;
 use crate::background_jobs::{
     scheduled_transaction_import,
     spawn_and_subscribe_core_projector,
+    spawn_and_subscribe_import_request_projector,
 };
 
 mod background_jobs;
@@ -54,7 +55,8 @@ async fn main() {
     info!("append-only event store ensured");
 
     tokio::spawn(spawn_and_subscribe_core_projector(db.clone()));
-    info!("projector spawned in the background");
+    tokio::spawn(spawn_and_subscribe_import_request_projector(db.clone()));
+    info!("projectors spawned in the background");
 
     tokio::spawn(scheduled_transaction_import(db.clone()));
     info!("scheduled transactions import in the background");
