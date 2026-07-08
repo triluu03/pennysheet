@@ -11,6 +11,10 @@ use tracing::instrument;
 
 use crate::{
     UserSettingsResult,
+    projections::{
+        self,
+        import_requests::ImportRequestStatus,
+    },
     projectors::{
         ProjectorState,
         ProjectorTrait,
@@ -63,6 +67,47 @@ impl ProjectorTrait for ImportRequestProjector {
         event: &Event,
         user_settings: &[UserSettingsResult],
     ) -> Result<(), DbErr> {
-        todo!()
+        match event {
+            Event::ImportTransactionsRequested(data) => {
+                projections::import_requests::create_new_import_request(
+                    txn,
+                    data.request_id,
+                    data.session_id,
+                )
+                .await
+            },
+            Event::ImportTransactionsCompleted(data) => {
+                projections::import_requests::update_import_request_status(
+                    txn,
+                    data.request_id,
+                    ImportRequestStatus::Succeeded,
+                )
+                .await
+            },
+            Event::ImportTransactionsFailed(data) => {
+                projections::import_requests::update_import_request_status(
+                    txn,
+                    data.request_id,
+                    ImportRequestStatus::Failed,
+                )
+                .await
+            },
+            Event::TransactionImportRetryRequested(data) => {
+                projections::import_requests::update_import_request_status(
+                    txn,
+                    data.request_id,
+                    ImportRequestStatus::Pending,
+                )
+                .await
+            },
+            Event::TransactionRecorded(_)
+            | Event::TransactionCategorized(_)
+            | Event::TransactionClassified(_)
+            | Event::TransactionNoteUpdated(_)
+            | Event::ImportTransactionsContinued(_) => {
+                // Skip these events.
+                Ok(())
+            },
+        }
     }
 }
