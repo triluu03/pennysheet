@@ -38,6 +38,17 @@ pub struct Model {
 
 impl ActiveModelBehavior for ActiveModel {}
 
+/// Get import requests metadata.
+///
+/// # Errors
+/// Returns [`DbErr`] if the query fails.
+pub async fn get_import_requests<C>(db: &C) -> Result<Vec<Model>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    Entity::find().all(db).await
+}
+
 /// Create a new import request into the projection.
 ///
 /// # Errors
