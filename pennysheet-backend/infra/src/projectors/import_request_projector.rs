@@ -73,6 +73,8 @@ impl ProjectorTrait for ImportRequestProjector {
                     txn,
                     data.request_id,
                     data.session_id,
+                    data.start_date,
+                    data.end_date,
                 )
                 .await
             },

@@ -29,6 +29,8 @@ pub struct Model {
     pub request_id: Uuid,
     pub session_id: i64,
     pub session_name: String,
+    pub start_date: Date,
+    pub end_date: Date,
     pub status: ImportRequestStatus,
     #[sea_orm(default_expr = "Expr::current_timestamp()")]
     pub created_at: DateTime,
@@ -41,10 +43,15 @@ impl ActiveModelBehavior for ActiveModel {}
 /// # Errors
 ///
 /// Returns [`DbErr`] if the insertion operation fails.
+// NOTE: this creation function goes with a different flavor compared with
+// [`crate::projections::transactions::ActiveModel::from_recorded_transaction`].
+// TODO: figure out which method is better and go with one only!
 pub async fn create_new_import_request<C>(
     db: &C,
     request_id: Uuid,
     session_id: i64,
+    start_date: Date,
+    end_date: Date,
 ) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
@@ -54,6 +61,8 @@ where
         request_id: Set(request_id),
         session_id: Set(session_id),
         session_name: Set(session_data.session_name),
+        start_date: Set(start_date),
+        end_date: Set(end_date),
         status: Set(ImportRequestStatus::Pending),
         ..ActiveModelTrait::default()
     }
