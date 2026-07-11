@@ -1,4 +1,5 @@
 import {
+  ArchiveBoxArrowDownIcon,
   BackwardIcon,
   ChartBarSquareIcon,
   ForwardIcon,
@@ -10,7 +11,8 @@ import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "/", label: "Home", icon: HomeIcon },
-  { to: "/details", label: "Details", icon: ChartBarSquareIcon }
+  { to: "/details", label: "Details", icon: ChartBarSquareIcon },
+  { to: "/requests", label: "Import Requests", icon: ArchiveBoxArrowDownIcon }
 ];
 
 /**
