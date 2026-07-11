@@ -10,6 +10,10 @@ sends:
     version: 0.0.1
   - id: TransactionImportFailed
     version: 0.0.1
+  - id: TransactionRecorded
+    version: 0.0.1
+  - id: BudgetExceeded
+    version: 0.0.1
 writesTo:
   - id: EventStore
     version: 0.0.1
@@ -23,6 +27,7 @@ It's responsible for writing three events:
 - [[event|TransactionImportContinued]]: set the import process to continue with a continuation key returned by the Enable Banking API.
 - [[event|TransactionImportCompleted]]: set the import process to be completed.
 - [[event|TransactionImportFailed]]: set the import process to be failed.
+- [[event|TransactionRecorded]]: record a transaction.
 
 
 <NodeGraph />
