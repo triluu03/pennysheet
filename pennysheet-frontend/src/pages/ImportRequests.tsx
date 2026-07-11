@@ -21,7 +21,7 @@ const TABLE_COLUMNS: TableColumn<keyof ImportRequestsMetadata>[] = [
 const EDITABLE_COLUMNS: EditableColumn<keyof ImportRequestsMetadata>[] = [];
 
 /**
- * Details page.
+ * Import Requests page.
  */
 export default function ImportRequestsPage() {
   const { showToast } = useToast();
