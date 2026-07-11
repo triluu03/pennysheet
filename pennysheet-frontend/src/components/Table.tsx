@@ -11,12 +11,9 @@ export interface EditableColumn<K extends string> {
   options?: (string | null)[];
 }
 
-interface RowData {
-  [prop: string]: number | string | null | undefined;
-}
-
 interface TableProps<K extends string> {
-  data: RowData[];
+  // TODO: have a better type interface for the data.
+  data: any;
   rowIdColumn: string;
   tableColumns: TableColumn<K>[];
   editableColumns: EditableColumn<K>[];
