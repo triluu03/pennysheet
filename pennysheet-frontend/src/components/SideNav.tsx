@@ -29,7 +29,7 @@ export default function SideNav() {
       <div
         className={`border-b border-gray-200 ${collapsed ? "flex items-center justify-center py-6" : "px-7 py-6"}`}
       >
-        <span className="text-xl font-semibold text-gray-900">
+        <span className="text-2xl font-semibold text-gray-900">
           {collapsed ? "P" : "Pennysheet"}
         </span>
       </div>
