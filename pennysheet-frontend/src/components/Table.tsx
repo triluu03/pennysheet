@@ -1,69 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  categorizeTransaction,
-  classifyTransaction,
-  TRANSACTION_CATEGORIES,
-  TRANSACTION_CLASSIFICATIONS,
-  type TransactionCategory,
-  type TransactionClassification,
-  type Transactions,
-  updateTransactionNote
-} from "../api/endpoints/transactions";
 
-interface TableProps {
-  data: Transactions[];
+export interface TableColumn<K extends string> {
+  key: K;
+  label: string;
+  editCellOnSave?: (rowId: string, value: string) => Promise<number>;
 }
 
-/**
- * Columns to be rendered in the table.
- */
-const TABLE_COLUMNS: {
-  key: keyof Transactions;
-  label: string;
-  editCellOnSave?: (transactionId: string, value: string) => Promise<number>;
-}[] = [
-  { key: "booking_date", label: "Date" },
-  { key: "creditor_name", label: "Creditor" },
-  { key: "amount", label: "Amount" },
-  { key: "currency", label: "Currency" },
-  {
-    key: "category",
-    label: "Category",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      categorizeTransaction(transactionId, value.toLowerCase() as TransactionCategory)
-  },
-  {
-    key: "classification",
-    label: "Classification",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      classifyTransaction(transactionId, value as TransactionClassification)
-  },
-  {
-    key: "note",
-    label: "Note",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      updateTransactionNote(transactionId, value)
-  }
-];
+export interface EditableColumn<K extends string> {
+  key: K;
+  options?: (string | null)[];
+}
 
-/**
- * Columns to support edit feature.
- */
-const EDITABLE_COLUMNS: (keyof Transactions)[] = ["category", "classification", "note"];
-const CATEGORY_OPTIONS = [null, ...TRANSACTION_CATEGORIES];
-const CLASSIFICATION_OPTIONS = [null, ...TRANSACTION_CLASSIFICATIONS];
+interface RowData {
+  [prop: string]: number | string | null | undefined;
+}
 
-interface EditableCellProps {
-  transactionId: string;
-  field: keyof Transactions;
+interface TableProps<K extends string> {
+  data: RowData[];
+  rowIdColumn: string;
+  tableColumns: TableColumn<K>[];
+  editableColumns: EditableColumn<K>[];
+}
+
+interface EditableCellProps<K extends string> {
+  rowId: string;
+  field: K;
   value: string | null;
-  onSave?: (transactionId: string, value: string) => Promise<number>;
+  options?: (string | null)[];
+  onSave?: (rowId: string, value: string) => Promise<number>;
 }
 
 /**
  * React component for an editable cell.
  */
-function EditableCell({ transactionId, field, value, onSave }: EditableCellProps) {
+function EditableCell<K extends string>({
+  rowId,
+  field,
+  value,
+  options,
+  onSave
+}: EditableCellProps<K>) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(value ?? "");
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
@@ -95,82 +71,73 @@ function EditableCell({ transactionId, field, value, onSave }: EditableCellProps
     );
   }
 
-  switch (field) {
-    case "category":
-    case "classification":
-      const options = field === "category" ? CATEGORY_OPTIONS : CLASSIFICATION_OPTIONS;
-      return (
-        <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
-          <select
-            ref={inputRef as React.RefObject<HTMLSelectElement>}
-            className="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            value={editValue}
-            onChange={e => {
-              setEditValue(e.target.value);
-              if (e.target.value !== value) onSave?.(transactionId, e.target.value);
-              setEditing(false);
-            }}
-            onKeyDown={e => {
-              if (e.key === "Escape") cancel();
-            }}
-          >
-            {options.map(opt => (
-              <option key={opt || ""} value={opt || ""}>
-                {opt || "N/A"}
-              </option>
-            ))}
-          </select>
-        </td>
-      );
-
-    case "note":
-      return (
-        <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
-          <input
-            ref={inputRef as React.RefObject<HTMLInputElement>}
-            type="text"
-            className="text-sm border border-gray-200 rounded-md px-2 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={() => {
+  if (options) {
+    return (
+      <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
+        <select
+          ref={inputRef as React.RefObject<HTMLSelectElement>}
+          className="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          value={editValue}
+          onChange={e => {
+            setEditValue(e.target.value);
+            if (e.target.value !== value) onSave?.(rowId, e.target.value);
+            setEditing(false);
+          }}
+          onKeyDown={e => {
+            if (e.key === "Escape") cancel();
+          }}
+        >
+          {options.map(opt => (
+            <option key={opt || ""} value={opt || ""}>
+              {opt || "N/A"}
+            </option>
+          ))}
+        </select>
+      </td>
+    );
+  } else {
+    return (
+      <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          type="text"
+          className="text-sm border border-gray-200 rounded-md px-2 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          value={editValue}
+          onChange={e => setEditValue(e.target.value)}
+          onBlur={cancel}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
               if (editValue !== value && editValue !== "") {
-                onSave?.(transactionId, editValue);
+                onSave?.(rowId, editValue);
               }
+              e.currentTarget.blur();
               setEditing(false);
-            }}
-            onKeyDown={e => {
-              if (e.key === "Enter") {
-                if (editValue !== value && editValue !== "") {
-                  onSave?.(transactionId, editValue);
-                }
-                e.currentTarget.blur();
-                setEditing(false);
-              }
-              if (e.key === "Escape") cancel();
-            }}
-          />
-        </td>
-      );
-
-    default:
-      return (
-        <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
-          {value || <span className="text-gray-300 italic">N/A</span>}
-        </td>
-      );
+            }
+            if (e.key === "Escape") cancel();
+          }}
+        />
+      </td>
+    );
   }
 }
 
 /**
  * Table view.
  */
-export default function Table({ data }: TableProps) {
+export default function Table<K extends string>({
+  data,
+  rowIdColumn,
+  tableColumns,
+  editableColumns
+}: TableProps<K>) {
+  const editableColumnKeys = editableColumns.map(col => col.key);
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            {TABLE_COLUMNS.map(col => (
+            {tableColumns.map(col => (
               <th
                 key={col.key}
                 className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -183,14 +150,15 @@ export default function Table({ data }: TableProps) {
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
           {data.map(row => (
-            <tr key={row.transaction_id} className="hover:bg-gray-50 transition-colors">
-              {TABLE_COLUMNS.map(col =>
-                EDITABLE_COLUMNS.includes(col.key) ? (
+            <tr key={row[rowIdColumn]} className="hover:bg-gray-50 transition-colors">
+              {tableColumns.map(col =>
+                editableColumnKeys.includes(col.key) ? (
                   <EditableCell
-                    transactionId={row.transaction_id}
+                    rowId={row[rowIdColumn] as string}
                     key={col.key}
                     field={col.key}
                     value={row[col.key]?.toString() || null}
+                    options={editableColumns.find(editCol => editCol.key === col.key)?.options}
                     onSave={col.editCellOnSave}
                   />
                 ) : (
