@@ -29,7 +29,7 @@ pub struct Model {
 impl ActiveModelBehavior for ActiveModel {}
 
 /// Sessions medata.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, FromQueryResult)]
 pub struct SessionMetadata {
     pub session_id: i64,
     pub session_name: String,
@@ -66,6 +66,34 @@ pub async fn get_all_sessions_metadata(
             .map(model_to_result_closure)
             .collect(),
     ))
+}
+
+/// Get one Enable Banking session metadata based on ID.
+///
+/// # Errors
+///
+/// Returns [`DbErr`] if the query operation fails.
+#[instrument(skip(db))]
+pub async fn get_session_metadata_by_id<C>(
+    db: &C,
+    session_id: i64,
+) -> Result<SessionMetadata, DbErr>
+where
+    C: ConnectionTrait,
+{
+    Entity::find_by_id(session_id)
+        .select_only()
+        .column(Column::SessionId)
+        .column(Column::SessionName)
+        .column(Column::CreatedAt)
+        .into_model()
+        .one(db)
+        .await
+        .and_then(|record| {
+            record.ok_or(DbErr::RecordNotFound(format!(
+                "Session ID {session_id} is not found!"
+            )))
+        })
 }
 
 /// Sessions data.

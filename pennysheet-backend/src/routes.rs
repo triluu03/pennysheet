@@ -23,6 +23,7 @@ use tower_http::{
 use crate::{
     AppState,
     handlers::{
+        import_requests::get_import_requests_handler,
         sessions::{
             create_sessions_handler,
             delete_sessions_handler,
@@ -88,6 +89,7 @@ fn api_router() -> Router<Arc<AppState>> {
         .nest("/sessions", sessions_router())
         .nest("/transactions", transactions_router())
         .nest("/settings", user_settings_router())
+        .route("/import_requests", get(get_import_requests_handler))
 }
 
 /// Define App router.

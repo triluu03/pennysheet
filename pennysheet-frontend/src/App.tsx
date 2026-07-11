@@ -10,6 +10,7 @@ import Layout from "./components/Layout";
 import ToastProvider from "./components/Toast";
 import DetailsPage from "./pages/Details";
 import Home from "./pages/Home";
+import ImportRequestsPage from "./pages/ImportRequests";
 import UserPage from "./pages/User";
 
 interface AppContextType {
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/details" element={<DetailsPage />} />
               <Route path="/user" element={<UserPage />} />
+              <Route path="/requests" element={<ImportRequestsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

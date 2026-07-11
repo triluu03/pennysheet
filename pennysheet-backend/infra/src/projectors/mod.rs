@@ -2,11 +2,11 @@
 
 use domain::events::Event;
 use sea_orm::{
-    ActiveModelTrait,
     DatabaseConnection,
     DatabaseTransaction,
     DbErr,
     TransactionTrait,
+    prelude::async_trait,
 };
 use sqlx::postgres::PgListener;
 use tracing::{
@@ -17,72 +17,92 @@ use tracing::{
 use crate::{
     get_database_url,
     get_events_with_offset,
-    projections::{
-        TransactionProjectionTrait,
-        expenses,
-        income,
-        projector_states::{
-            get_projector_state,
-            update_projector_state,
-        },
-        transactions,
+    get_user_settings,
+    projections::projector_states::{
+        get_projector_state,
+        update_projector_state,
     },
-    user_settings::{
-        UserSettingsResult,
-        get_user_settings,
-    },
+    user_settings::UserSettingsResult,
 };
 
-/// Project to all projections that implements [`TransactionProjectionTrait`].
-macro_rules! project_to_all {
-    ($method:ident, $txn:expr, $id:expr, $value:expr) => {{
-        transactions::Entity::$method($txn, $id, $value).await?;
-        expenses::Entity::$method($txn, $id, $value).await?;
-        income::Entity::$method($txn, $id, $value).await?;
-    }};
-}
+mod core_projector;
+mod import_request_projector;
 
-const PROJECTOR_NAME: &str = "CoreProjector";
+pub use core_projector::CoreProjector;
+pub use import_request_projector::ImportRequestProjector;
 
 #[derive(Debug, Clone)]
-pub struct CoreProjector<'db> {
-    db: &'db DatabaseConnection,
-    name: String,
+pub struct ProjectorState {
+    db: DatabaseConnection,
     last_seen_event_number: i64,
     user_settings: Vec<UserSettingsResult>,
 }
 
-impl<'db> CoreProjector<'db> {
-    /// Construct a [`CoreProjector`] from a [`DatabaseConnection`] reference.
+/// Projector trait that defines the interface for all projectors.
+#[async_trait::async_trait]
+pub trait ProjectorTrait {
+    /// Projector name
+    fn projector_name() -> &'static str;
+    /// Projector state reference.
+    fn state(&self) -> &ProjectorState;
+    /// Projector state mutatble reference.
+    fn state_mut(&mut self) -> &mut ProjectorState;
+
+    /// Database connection
+    fn database_connection(&self) -> &DatabaseConnection {
+        &self.state().db
+    }
+
+    /// User settings
+    fn user_settings(&self) -> &[UserSettingsResult] {
+        &self.state().user_settings
+    }
+
+    /// Last seen event numbers.
+    fn last_seen_event_number(&self) -> i64 {
+        self.state().last_seen_event_number
+    }
+
+    /// Last seen event numbers mutable reference.
+    fn last_seen_event_number_mut(&mut self) -> &mut i64 {
+        &mut self.state_mut().last_seen_event_number
+    }
+
+    /// Initialize a projector from its expected fields.
+    fn init(
+        db: DatabaseConnection,
+        last_seen_event_number: i64,
+        user_settings: Vec<UserSettingsResult>,
+    ) -> Self
+    where
+        Self: Sized;
+
+    /// Construct a new projector from an owned database connection.
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if fails to get the projector state or the user settings
-    /// from the database.
+    /// Returns [`DbErr`] if the initialization fails.
     #[instrument(skip(db))]
-    pub async fn new(db: &'db DatabaseConnection) -> Result<Self, DbErr> {
-        let last_seen_event_number = get_projector_state(db, PROJECTOR_NAME).await?.unwrap_or(0);
-        let user_settings = get_user_settings(db).await?;
+    async fn new(db: DatabaseConnection) -> Result<Self, DbErr>
+    where
+        Self: Sized,
+    {
+        let last_seen_event_number = get_projector_state(&db, Self::projector_name())
+            .await?
+            .unwrap_or(0);
+        let user_settings = get_user_settings(&db).await?;
 
         info!("projector initialized");
-        Ok(Self {
-            db,
-            name: PROJECTOR_NAME.to_string(),
-            last_seen_event_number,
-            user_settings,
-        })
+        Ok(Self::init(db, last_seen_event_number, user_settings))
     }
 
     /// Listen to new events appended and run the projections.
     ///
-    /// This function runs in an inifinite loop and is only meant to be used
-    /// within a separate Tokio's async task.
-    ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if the listener crashes or the projections fails.
+    /// Returns [`DbErr`] if the listener crashes or the projection fails.
     #[instrument(skip(self))]
-    pub async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
+    async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
         let (database_url, db_name) = get_database_url()?;
 
         let mut listener = PgListener::connect(&format!("{database_url}/{db_name}"))
@@ -116,104 +136,56 @@ impl<'db> CoreProjector<'db> {
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if the projections fails.
-    #[instrument(skip(self))]
-    pub async fn run_projections(&mut self) -> Result<(), DbErr> {
-        let unseen_events = get_events_with_offset(self.db, self.last_seen_event_number).await?;
+    /// Returns [`DbErr`] if the projection fails.
+    async fn run_projections(&mut self) -> Result<(), DbErr> {
+        let unseen_events =
+            get_events_with_offset(self.database_connection(), self.last_seen_event_number())
+                .await?;
         let n_unseen_events: i64 = unseen_events
             .len()
             .try_into()
             .map_err(|err| DbErr::Custom(format!("Failed to parse usize into i64: {}", err)))?;
 
         info!(n_unseen_events, "projecting unseen events in a transaction");
-        let txn = self.db.begin().await?;
-        CoreProjector::multi_project(&txn, &unseen_events, &self.user_settings).await?;
+        let txn = self.database_connection().begin().await?;
+        Self::multi_project(&txn, &unseen_events, self.user_settings()).await?;
         update_projector_state(
             &txn,
-            &self.name,
-            self.last_seen_event_number + n_unseen_events,
+            Self::projector_name(),
+            self.last_seen_event_number() + n_unseen_events,
         )
         .await?;
         txn.commit().await?;
 
         // Update the state of the current spawned projector.
-        self.last_seen_event_number += n_unseen_events;
+        *self.last_seen_event_number_mut() += n_unseen_events;
         info!("projection transaction committed");
         Ok(())
     }
 
-    /// Project records based on one event.
+    /// Project records based on a single event.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the insertion into the projection fails.
-    #[instrument(skip(txn))]
     async fn project(
         txn: &DatabaseTransaction,
         event: &Event,
         user_settings: &[UserSettingsResult],
-    ) -> Result<(), DbErr> {
-        match event {
-            Event::TransactionRecorded(data) => {
-                transactions::ActiveModel::from_recorded_transaction(data.clone())
-                    .insert(txn)
-                    .await?;
-
-                if let Some(expense) =
-                    expenses::ActiveModel::from_recorded_transaction(data.clone())
-                {
-                    expense
-                        .apply_user_settings(user_settings)
-                        .insert(txn)
-                        .await?;
-                };
-                if let Some(income) = income::ActiveModel::from_recorded_transaction(data.clone()) {
-                    income.insert(txn).await?;
-                };
-
-                Ok(())
-            },
-            Event::TransactionCategorized(data) => {
-                project_to_all!(update_category, txn, data.transaction_id, data.category);
-                Ok(())
-            },
-            Event::TransactionClassified(data) => {
-                project_to_all!(
-                    update_classification,
-                    txn,
-                    data.transaction_id,
-                    data.classification
-                );
-                Ok(())
-            },
-            Event::TransactionNoteUpdated(data) => {
-                project_to_all!(update_note, txn, data.transaction_id, data.note.clone());
-                Ok(())
-            },
-            Event::ImportTransactionsContinued(_)
-            | Event::ImportTransactionsRequested(_)
-            | Event::ImportTransactionsCompleted(_)
-            | Event::TransactionImportRetryRequested(_)
-            | Event::ImportTransactionsFailed(_) => {
-                // Skip these events.
-                Ok(())
-            },
-        }
-    }
+    ) -> Result<(), DbErr>;
 
     /// Project records based on multiple events.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if any insertion into the projection fails.
-    #[instrument(skip(txn))]
     async fn multi_project(
         txn: &DatabaseTransaction,
         events: &[Event],
         user_settings: &[UserSettingsResult],
     ) -> Result<(), DbErr> {
         for event in events.iter() {
-            CoreProjector::project(txn, event, user_settings).await?
+            Self::project(txn, event, user_settings).await?
         }
         Ok(())
     }

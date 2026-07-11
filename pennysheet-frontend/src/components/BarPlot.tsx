@@ -32,7 +32,7 @@ export default function BarPlot({ data, groupBy = "category" }: BarPlotProps) {
   return (
     <div className="flex flex-col gap-2 p-2 pr-5 rounded-lg bg-white">
       <h2 className="m-3 text-xl font-medium">Groupby: {groupBy}</h2>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={400} debounce={200}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="5 5 1 5" />
           <XAxis dataKey="date" niceTicks="snap125" />

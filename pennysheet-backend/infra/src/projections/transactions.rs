@@ -37,6 +37,9 @@ impl ActiveModelBehavior for ActiveModel {}
 
 impl ActiveModel {
     /// Construct a model from the recorded transaction data.
+    // NOTE: this creation method goes with a different flavor compared with
+    // [`crate::projections::transactions::import_requests::create_new_import_request`].
+    // TODO: figure out which method is better and go with one only!
     pub fn from_recorded_transaction(data: TransactionData) -> Self {
         Self {
             transaction_id: Set(data.transaction_id),

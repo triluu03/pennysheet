@@ -23,6 +23,7 @@ use serde::{
 use uuid::Uuid;
 
 pub mod expenses;
+pub mod import_requests;
 pub mod income;
 pub(crate) mod projector_states;
 pub mod transactions;
