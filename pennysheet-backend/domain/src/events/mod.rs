@@ -7,9 +7,11 @@ use serde::{
     Serialize,
 };
 
+pub mod budgets;
 pub mod transactions;
 
 pub use crate::shared_schema::*;
+use budgets::*;
 use transactions::*;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -34,4 +36,14 @@ pub enum Event {
     TransactionClassified(TransactionClassificationData),
     /// A transaction's note is updated.
     TransactionNoteUpdated(TransactionNoteData),
+    /// A new budget is created.
+    BudgetCreated(BudgetData),
+    /// A budget is updated.
+    BudgetUpdated(BudgetData),
+    /// A budget is deleted.
+    BudgetDeleted(BudgetId),
+    /// A budget has been exceeded.
+    BudgetExceeded(BudgetId),
+    /// A budget is reset.
+    BudgetReset(BudgetId),
 }

@@ -1,7 +1,9 @@
 //! Commands.
 
+mod budgets;
 mod transactions;
 
+use budgets::*;
 use chrono::{
     Local,
     NaiveDate,
@@ -11,8 +13,14 @@ use std::str::FromStr;
 use transactions::*;
 use uuid::Uuid;
 
-use crate::errors::DomainError;
 pub use crate::shared_schema::*;
+use crate::{
+    errors::DomainError,
+    events::budgets::{
+        BudgetId,
+        BudgetType,
+    },
+};
 
 /// Commands to be passed into the [`crate::aggregates::CoreAggregate`].
 #[derive(Debug)]
@@ -27,6 +35,14 @@ pub enum Command {
     ClassifyTransaction(TransactionClassificationData),
     /// Update the note of a transaction.
     UpdateTransactionNote(TransactionNoteData),
+    /// Create a new budget.
+    CreateBudget(NewBudgetData),
+    /// Update an existing budget.
+    UpdateBudget(BudgetUpdateData),
+    /// Delete an existing budget based on ID.
+    DeleteBudget(BudgetId),
+    /// Reset an enxisting budget.
+    ResetBudget(BudgetType),
 }
 
 /// Commands to be issued into [`gateway`].

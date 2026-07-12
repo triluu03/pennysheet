@@ -57,7 +57,7 @@ pub struct TransactionData {
 }
 
 /// UUID namespace for Transactions Data.
-pub const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
+const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
     0x6b, 0xa6, 0xb7, 0x14, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
 ]);
 
