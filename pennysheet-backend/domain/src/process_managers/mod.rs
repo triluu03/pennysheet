@@ -136,7 +136,14 @@ impl TransactionProcessManager {
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_) => {
-                // Ignore these events
+                // Ignore these transaction events
+            },
+            Event::BudgetCreated(_)
+            | Event::BudgetUpdated(_)
+            | Event::BudgetDeleted(_)
+            | Event::BudgetExceeded(_)
+            | Event::BudgetReset(_) => {
+                // Ignore all budget events.
             },
         }
         self
