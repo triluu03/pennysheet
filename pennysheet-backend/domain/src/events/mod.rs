@@ -41,9 +41,9 @@ pub enum Event {
     /// A budget is updated.
     BudgetUpdated(BudgetData),
     /// A budget is deleted.
-    BudgetDeleted(BudgetId),
+    BudgetDeleted(BudgetType),
     /// A budget has been exceeded.
-    BudgetExceeded(BudgetId),
+    BudgetExceeded(BudgetType),
     /// A budget is reset.
-    BudgetReset(BudgetId),
+    BudgetReset(BudgetType),
 }

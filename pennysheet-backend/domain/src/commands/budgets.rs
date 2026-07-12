@@ -1,9 +1,6 @@
 //! Budgets-related commands.
 
-use crate::events::budgets::{
-    BudgetId,
-    BudgetType,
-};
+use crate::events::budgets::BudgetType;
 
 #[derive(Debug, Clone)]
 pub struct NewBudgetData {
@@ -14,7 +11,6 @@ pub struct NewBudgetData {
 
 #[derive(Debug, Clone)]
 pub struct BudgetUpdateData {
-    pub budget_id: BudgetId,
     pub budget_type: BudgetType,
     pub amount: f64,
     pub threshold: f64,

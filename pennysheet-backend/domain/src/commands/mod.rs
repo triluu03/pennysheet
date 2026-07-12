@@ -16,10 +16,7 @@ use uuid::Uuid;
 pub use crate::shared_schema::*;
 use crate::{
     errors::DomainError,
-    events::budgets::{
-        BudgetId,
-        BudgetType,
-    },
+    events::budgets::BudgetType,
 };
 
 /// Commands to be passed into the [`crate::aggregates::CoreAggregate`].
@@ -40,7 +37,7 @@ pub enum Command {
     /// Update an existing budget.
     UpdateBudget(BudgetUpdateData),
     /// Delete an existing budget based on ID.
-    DeleteBudget(BudgetId),
+    DeleteBudget(BudgetType),
     /// Reset an enxisting budget.
     ResetBudget(BudgetType),
 }

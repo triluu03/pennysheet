@@ -30,10 +30,10 @@ pub struct CoreAggregate {
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
-    /// Weekly budget ID.
-    weekly_budget_id: Option<Uuid>,
-    /// Monthly budget ID.
-    monthly_budget_id: Option<Uuid>,
+    /// Whether there is an active weekly budget.
+    active_weekly_budget: bool,
+    /// Whether there is an active monthly budget.
+    active_monthly_budget: bool,
 }
 
 impl CoreAggregate {
@@ -130,67 +130,99 @@ impl CoreAggregate {
                 }
             },
             Command::CreateBudget(data) => match data.budget_type {
-                BudgetType::Weekly => match self.weekly_budget_id {
-                    None => Ok(Event::BudgetCreated(BudgetData::new(
-                        data.budget_type,
-                        data.amount,
-                        data.threshold,
-                    ))),
-                    Some(_) => Err(DomainError::CommandRejected(
-                        "A weekly budget has already existed!".to_string(),
-                    )),
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Err(DomainError::CommandRejected(
+                            "A weekly budget has already existed!".to_string(),
+                        ))
+                    } else {
+                        Ok(Event::BudgetCreated(BudgetData {
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    }
                 },
-                BudgetType::Monthly => match self.monthly_budget_id {
-                    None => Ok(Event::BudgetCreated(BudgetData::new(
-                        data.budget_type,
-                        data.amount,
-                        data.threshold,
-                    ))),
-                    Some(_) => Err(DomainError::CommandRejected(
-                        "A monthly budget has already existed!".to_string(),
-                    )),
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Err(DomainError::CommandRejected(
+                            "A monthly budget has already existed!".to_string(),
+                        ))
+                    } else {
+                        Ok(Event::BudgetCreated(BudgetData {
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    }
                 },
             },
-            Command::DeleteBudget(budget_id) => {
-                if Some(budget_id) == self.weekly_budget_id
-                    || Some(budget_id) == self.monthly_budget_id
-                {
-                    Ok(Event::BudgetDeleted(budget_id))
-                } else {
-                    Err(DomainError::CommandRejected(format!(
-                        "Budget ID {budget_id} is not found!"
-                    )))
-                }
+            Command::DeleteBudget(budget_type) => match budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetDeleted(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budget is active!".to_string(),
+                        ))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetDeleted(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budget is active!".to_string(),
+                        ))
+                    }
+                },
             },
-            Command::UpdateBudget(data) => {
-                if Some(data.budget_id) == self.weekly_budget_id
-                    || Some(data.budget_id) == self.monthly_budget_id
-                {
-                    Ok(Event::BudgetUpdated(BudgetData {
-                        budget_id: data.budget_id,
-                        budget_type: data.budget_type,
-                        amount: data.amount,
-                        threshold: data.threshold,
-                    }))
-                } else {
-                    Err(DomainError::CommandRejected(format!(
-                        "Budget ID {} is not found!",
-                        data.budget_id
-                    )))
-                }
+            Command::UpdateBudget(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetUpdated(BudgetData {
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budget is active!".to_string(),
+                        ))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetUpdated(BudgetData {
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budget is active!".to_string(),
+                        ))
+                    }
+                },
             },
             Command::ResetBudget(budget_type) => match budget_type {
-                BudgetType::Weekly => match self.weekly_budget_id {
-                    None => Err(DomainError::CommandRejected(
-                        "No weekly budgets are active!".to_string(),
-                    )),
-                    Some(budget_id) => Ok(Event::BudgetReset(budget_id)),
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetReset(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budgets are active!".to_string(),
+                        ))
+                    }
                 },
-                BudgetType::Monthly => match self.monthly_budget_id {
-                    None => Err(DomainError::CommandRejected(
-                        "No monthly budgets are active!".to_string(),
-                    )),
-                    Some(budget_id) => Ok(Event::BudgetReset(budget_id)),
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetReset(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budgets are active!".to_string(),
+                        ))
+                    }
                 },
             },
         }
@@ -235,16 +267,12 @@ impl CoreAggregate {
                 // Ignore these transactions events
             },
             Event::BudgetCreated(data) => match data.budget_type {
-                BudgetType::Weekly => self.weekly_budget_id = Some(data.budget_id),
-                BudgetType::Monthly => self.monthly_budget_id = Some(data.budget_id),
+                BudgetType::Weekly => self.active_weekly_budget = true,
+                BudgetType::Monthly => self.active_monthly_budget = true,
             },
-            Event::BudgetDeleted(budget_id) => {
-                if Some(budget_id) == self.weekly_budget_id.as_ref() {
-                    self.weekly_budget_id = None
-                }
-                if Some(budget_id) == self.monthly_budget_id.as_ref() {
-                    self.monthly_budget_id = None
-                }
+            Event::BudgetDeleted(budget_type) => match budget_type {
+                BudgetType::Weekly => self.active_weekly_budget = false,
+                BudgetType::Monthly => self.active_monthly_budget = false,
             },
             Event::BudgetUpdated(_) | Event::BudgetExceeded(_) | Event::BudgetReset(_) => {
                 // Ignore these budget events
