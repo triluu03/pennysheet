@@ -189,9 +189,17 @@ impl EventInjector {
             Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_) => {
-                // Ignore these events
+                // Ignore these transaction events
+            },
+            Event::BudgetCreated(_)
+            | Event::BudgetUpdated(_)
+            | Event::BudgetDeleted(_)
+            | Event::BudgetReset(_)
+            | Event::BudgetExceeded(_) => {
+                // Ignore this budget event
             },
         }
+
         self
     }
 
