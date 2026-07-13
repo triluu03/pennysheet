@@ -18,7 +18,7 @@ use domain::{
         Event,
         transactions::ImportStatusData,
     },
-    process_managers::TransactionProcessManager,
+    process_managers::transaction::TransactionProcessManager,
 };
 use gateway::client::enable_banking_client::EnableBankingClient;
 use infra::{
