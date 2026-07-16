@@ -25,13 +25,13 @@ use sea_orm::{
 };
 use serde::Serialize;
 use std::str::FromStr;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
-    projections::TransactionProjectionTrait,
+    projections::{
+        AutoUserSettingTrait,
+        TransactionProjectionTrait,
+    },
     user_settings::UserSettingsResult,
 };
 
@@ -125,57 +125,18 @@ impl TransactionProjectionTrait for Entity {
     }
 }
 
-/// Apply the regex rules from user settings to the whole table.
-///
-/// First, set "auto_category" and "auto_classification" columns in the database to be NULL
-/// and apply the user settings one by one over those two columns.
-///
-/// # Errors
-///
-/// Returns [`DbErr`] if any step of the operation fails.
-#[instrument(skip(db))]
-pub async fn apply_user_settings_all<C>(
-    db: &C,
-    user_settings: &[UserSettingsResult],
-) -> Result<(), DbErr>
-where
-    C: ConnectionTrait,
-{
-    info!("setting auto category and auto classification to NULL");
-    Entity::update_many()
-        .col_expr(
-            Column::AutoCategory,
-            Expr::value(Option::<TransactionCategory>::None),
-        )
-        .col_expr(
-            Column::AutoClassification,
-            Expr::value(Option::<TransactionClassification>::None),
-        )
-        .exec(db)
-        .await?;
-
-    info!("updating the user settings one by one");
-    for setting in user_settings {
-        Entity::update_many()
-            .col_expr(Column::AutoCategory, Expr::value(setting.category))
-            .col_expr(
-                Column::AutoClassification,
-                Expr::value(setting.classification),
-            )
-            .filter(Column::AutoCategory.is_null())
-            .filter(Column::AutoClassification.is_null())
-            .filter(Expr::cust_with_exprs(
-                "$1 ~ $2",
-                [
-                    Expr::col(Column::CreditorName),
-                    Expr::value(setting.regex_rule.as_str()),
-                ],
-            ))
-            .exec(db)
-            .await?;
+impl AutoUserSettingTrait for Entity {
+    fn auto_category_column() -> Self::Column {
+        self::Column::AutoCategory
     }
 
-    Ok(())
+    fn auto_classification_column() -> Self::Column {
+        self::Column::AutoClassification
+    }
+
+    fn regex_rule_target_column() -> Self::Column {
+        self::Column::CreditorName
+    }
 }
 
 #[derive(Debug, Serialize, FromQueryResult)]

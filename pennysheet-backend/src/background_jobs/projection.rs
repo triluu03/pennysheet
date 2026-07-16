@@ -5,7 +5,10 @@ use std::time::Duration;
 use infra::{
     DatabaseConnection,
     get_user_settings,
-    projections,
+    projections::{
+        self,
+        AutoUserSettingTrait,
+    },
     projectors::{
         CoreProjector,
         ImportRequestProjector,
@@ -96,7 +99,7 @@ pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
 
     // TODO: make this go through a transaction.
     info!("applying user settings to the expenses projection");
-    projections::expenses::apply_user_settings_all(&db, &user_settings)
+    projections::expenses::Entity::apply_user_settings_all(&db, &user_settings)
         .await
         .expect("apply user settings to the expenses projection should succeed");
 

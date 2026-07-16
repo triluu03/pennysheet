@@ -20,7 +20,13 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tracing::{
+    info,
+    instrument,
+};
 use uuid::Uuid;
+
+use crate::UserSettingsResult;
 
 pub mod expenses;
 pub mod import_requests;
@@ -278,5 +284,71 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .into_model()
             .all(db)
             .await
+    }
+}
+
+/// An abstract base class for a projection supporting user settings.
+#[async_trait::async_trait]
+pub trait AutoUserSettingTrait: EntityTrait {
+    /// Auto-category column
+    fn auto_category_column() -> Self::Column;
+
+    /// Auto-classification column
+    fn auto_classification_column() -> Self::Column;
+
+    /// Target column to apply regex rules on.
+    fn regex_rule_target_column() -> Self::Column;
+
+    /// Apply the regex rules from user settings to the whole table.
+    ///
+    /// First, set "auto_category" and "auto_classification" columns in the database to be NULL
+    /// and apply the user settings one by one over those two columns.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if any step of the operation fails.
+    #[instrument(skip(db))]
+    async fn apply_user_settings_all<C>(
+        db: &C,
+        user_settings: &[UserSettingsResult],
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        info!("setting auto category and auto classification to NULL");
+        Self::update_many()
+            .col_expr(
+                Self::auto_category_column(),
+                Expr::value(Option::<TransactionCategory>::None),
+            )
+            .col_expr(
+                Self::auto_classification_column(),
+                Expr::value(Option::<TransactionClassification>::None),
+            )
+            .exec(db)
+            .await?;
+
+        info!("updating the user settings one by one");
+        for setting in user_settings {
+            Self::update_many()
+                .col_expr(Self::auto_category_column(), Expr::value(setting.category))
+                .col_expr(
+                    Self::auto_classification_column(),
+                    Expr::value(setting.classification),
+                )
+                .filter(Self::auto_category_column().is_null())
+                .filter(Self::auto_classification_column().is_null())
+                .filter(Expr::cust_with_exprs(
+                    "$1 ~ $2",
+                    [
+                        Expr::col(Self::regex_rule_target_column()),
+                        Expr::value(setting.regex_rule.as_str()),
+                    ],
+                ))
+                .exec(db)
+                .await?;
+        }
+
+        Ok(())
     }
 }
