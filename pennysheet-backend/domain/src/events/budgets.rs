@@ -1,5 +1,6 @@
 //! Budgets-related event data.
 
+use chrono::NaiveDate;
 use core::fmt;
 use serde::{
     Deserialize,
@@ -23,6 +24,7 @@ impl fmt::Display for BudgetType {
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BudgetData {
+    pub start_date: NaiveDate,
     pub budget_type: BudgetType,
     pub amount: f64,
     /// The threshold below which transactions are counted towards the budget.

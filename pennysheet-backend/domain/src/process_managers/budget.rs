@@ -1,5 +1,7 @@
 //! Budget Process Manager
 
+use chrono::NaiveDate;
+
 use crate::{
     commands::GatewayCommand,
     errors::DomainError,
@@ -11,6 +13,7 @@ use crate::{
 
 #[derive(Default, Debug)]
 struct Budget {
+    start_date: NaiveDate,
     amount: f64,
     threshold: f64,
 }
@@ -63,13 +66,19 @@ impl BudgetProcessManager {
         match event {
             Event::TransactionRecorded(data) => {
                 if let Some(budget) = &self.weekly_budget
-                    && budget.threshold >= data.amount
+                    && data.amount <= budget.threshold
+                    && data
+                        .booking_date
+                        .is_some_and(|booking_date| booking_date >= budget.start_date)
                 {
                     self.weekly_remaining_amount -= data.amount
                 }
 
                 if let Some(budget) = &self.monthly_budget
-                    && budget.threshold >= data.amount
+                    && data.amount <= budget.threshold
+                    && data
+                        .booking_date
+                        .is_some_and(|booking_date| booking_date >= budget.start_date)
                 {
                     self.monthly_remaining_amount -= data.amount
                 }
@@ -90,6 +99,7 @@ impl BudgetProcessManager {
             Event::BudgetCreated(data) | Event::BudgetUpdated(data) => match data.budget_type {
                 BudgetType::Weekly => {
                     self.weekly_budget = Some(Budget {
+                        start_date: data.start_date,
                         amount: data.amount,
                         threshold: data.threshold,
                     });
@@ -97,6 +107,7 @@ impl BudgetProcessManager {
                 },
                 BudgetType::Monthly => {
                     self.monthly_budget = Some(Budget {
+                        start_date: data.start_date,
                         amount: data.amount,
                         threshold: data.threshold,
                     });

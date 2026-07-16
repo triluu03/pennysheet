@@ -137,6 +137,7 @@ impl CoreAggregate {
                         ))
                     } else {
                         Ok(Event::BudgetCreated(BudgetData {
+                            start_date: data.start_date,
                             budget_type: data.budget_type,
                             amount: data.amount,
                             threshold: data.threshold,
@@ -150,6 +151,7 @@ impl CoreAggregate {
                         ))
                     } else {
                         Ok(Event::BudgetCreated(BudgetData {
+                            start_date: data.start_date,
                             budget_type: data.budget_type,
                             amount: data.amount,
                             threshold: data.threshold,
@@ -181,6 +183,7 @@ impl CoreAggregate {
                 BudgetType::Weekly => {
                     if self.active_weekly_budget {
                         Ok(Event::BudgetUpdated(BudgetData {
+                            start_date: data.start_date,
                             budget_type: data.budget_type,
                             amount: data.amount,
                             threshold: data.threshold,
@@ -194,6 +197,7 @@ impl CoreAggregate {
                 BudgetType::Monthly => {
                     if self.active_monthly_budget {
                         Ok(Event::BudgetUpdated(BudgetData {
+                            start_date: data.start_date,
                             budget_type: data.budget_type,
                             amount: data.amount,
                             threshold: data.threshold,
