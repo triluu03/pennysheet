@@ -840,24 +840,30 @@ mod tests {
         get_all_events(db).await.unwrap()
     }
 
+    /// Build a minimal [`TransactionData`] for handler tests.
+    fn minimal_transaction_data(txn_id: Uuid) -> domain::events::transactions::TransactionData {
+        domain::events::transactions::TransactionData {
+            transaction_id: txn_id,
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: None,
+        }
+    }
+
     /// Categorize succeeds when the transaction has already been recorded.
     #[tokio::test]
     async fn categorize_transaction_handler_succeeds_for_recorded_transaction() {
         let state = in_memory_state().await;
-        // Seed a recorded transaction.
         let txn_id = Uuid::new_v4();
-        let recorded = Event::TransactionRecorded(
-            domain::events::transactions::TransactionData {
-                transaction_id: txn_id,
-                booking_date: None,
-                transaction_date: None,
-                amount: 10.0,
-                currency: "EUR".into(),
-                creditor_name: None,
-                debtor_name: None,
-            },
-        );
-        append_event_to_db(&state.db, recorded).await.unwrap();
+        append_event_to_db(
+            &state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
 
         let (status, body) = categorize_transaction_handler(
             State(state.clone()),
@@ -885,9 +891,7 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        // No events should have been appended.
-        let events = get_all_events(&state.db).await.unwrap();
-        assert!(events.is_empty());
+        assert!(get_all_events(&state.db).await.unwrap().is_empty());
     }
 
     /// Categorize rejects invalid transaction ids at command creation.
@@ -925,18 +929,12 @@ mod tests {
     async fn classify_transaction_handler_succeeds_for_recorded_transaction() {
         let state = in_memory_state().await;
         let txn_id = Uuid::new_v4();
-        let recorded = Event::TransactionRecorded(
-            domain::events::transactions::TransactionData {
-                transaction_id: txn_id,
-                booking_date: None,
-                transaction_date: None,
-                amount: 10.0,
-                currency: "EUR".into(),
-                creditor_name: None,
-                debtor_name: None,
-            },
-        );
-        append_event_to_db(&state.db, recorded).await.unwrap();
+        append_event_to_db(
+            &state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
 
         let (status, body) = classify_transaction_handler(
             State(state.clone()),
@@ -964,8 +962,7 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        let events = get_all_events(&state.db).await.unwrap();
-        assert!(events.is_empty());
+        assert!(get_all_events(&state.db).await.unwrap().is_empty());
     }
 
     /// Classify rejects invalid transaction ids at command creation.
@@ -1003,18 +1000,12 @@ mod tests {
     async fn update_transaction_note_handler_succeeds_for_recorded_transaction() {
         let state = in_memory_state().await;
         let txn_id = Uuid::new_v4();
-        let recorded = Event::TransactionRecorded(
-            domain::events::transactions::TransactionData {
-                transaction_id: txn_id,
-                booking_date: None,
-                transaction_date: None,
-                amount: 10.0,
-                currency: "EUR".into(),
-                creditor_name: None,
-                debtor_name: None,
-            },
-        );
-        append_event_to_db(&state.db, recorded).await.unwrap();
+        append_event_to_db(
+            &state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
 
         let (status, body) = update_transaction_note_handler(
             State(state.clone()),
@@ -1042,8 +1033,7 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        let events = get_all_events(&state.db).await.unwrap();
-        assert!(events.is_empty());
+        assert!(get_all_events(&state.db).await.unwrap().is_empty());
     }
 
     /// Updating a note rejects invalid transaction ids at command creation.
@@ -1065,52 +1055,49 @@ mod tests {
     #[tokio::test]
     async fn get_transactions_pivot_handler_rejects_income_kind() {
         let state = in_memory_state().await;
-        let query = GetTransactionsQuery {
-            start_date: None,
-            end_date: None,
-            kind: Some(TransactionKind::Income),
-            categories: vec![],
-            classifications: vec![],
-        };
-        let result = get_transactions_pivot_handler(
-            State(state),
-            axum_extra::extract::Query(query),
-        )
-        .await;
-        assert!(result.is_err());
+        assert!(
+            pivot_for_kind(state, Some(TransactionKind::Income))
+                .await
+                .is_err()
+        );
     }
 
     /// Pivot queries without a kind are not implemented.
     #[tokio::test]
     async fn get_transactions_pivot_handler_rejects_missing_kind() {
         let state = in_memory_state().await;
-        let query = GetTransactionsQuery {
-            start_date: None,
-            end_date: None,
-            kind: None,
-            categories: vec![],
-            classifications: vec![],
-        };
-        let result = get_transactions_pivot_handler(
+        assert!(pivot_for_kind(state, None).await.is_err());
+    }
+
+    /// Helper: call the pivot handler with the given kind.
+    async fn pivot_for_kind(
+        state: Arc<AppState>,
+        kind: Option<TransactionKind>,
+    ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
+        get_transactions_pivot_handler(
             State(state),
-            axum_extra::extract::Query(query),
+            axum_extra::extract::Query(GetTransactionsQuery {
+                start_date: None,
+                end_date: None,
+                kind,
+                categories: vec![],
+                classifications: vec![],
+            }),
         )
-        .await;
-        assert!(result.is_err());
+        .await
     }
 
     /// Looking up a missing transaction id returns an empty list.
     #[tokio::test]
     async fn get_one_transaction_handler_returns_empty_for_unknown_id() {
         let state = in_memory_state().await;
-        let result = get_one_transaction_handler(
-            State(state),
-            axum::extract::Path(Uuid::new_v4()),
-        )
-        .await
-        .unwrap();
+        let result = get_one_transaction_handler(State(state), axum::extract::Path(Uuid::new_v4()))
+            .await
+            .unwrap();
         assert!(result.is_empty());
     }
 
-    // TODO: add get_transactions_handler, get_transactions_time_aggregated_handler, and expenses pivot success tests once projection query fixtures work under sqlite without new dependencies.
+    // TODO: add get_transactions_handler, get_transactions_time_aggregated_handler, and expenses
+    // pivot success tests once projection query fixtures work under sqlite without new
+    // dependencies.
 }

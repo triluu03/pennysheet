@@ -254,10 +254,8 @@ mod tests {
         assert_eq!(commands.len(), 3);
         for (i, cmd) in commands.iter().enumerate() {
             assert!(matches!(cmd, Command::ImportTransactions(_)));
-            // Each session id (1, 2, 3) should appear.
-            let expected_id = (i + 1) as i64;
             if let Command::ImportTransactions(data) = cmd {
-                assert_eq!(data.session_id, expected_id);
+                assert_eq!(data.session_id, (i + 1) as i64);
             }
         }
     }
@@ -265,7 +263,6 @@ mod tests {
     /// A valid transaction id and category produce a categorize command.
     #[test]
     fn create_categorize_transaction_succeeds_with_valid_inputs() {
-        use uuid::Uuid;
         let txn_id = Uuid::new_v4();
         let result = Command::create_categorize_transaction(&txn_id.to_string(), "groceries");
         match result {
@@ -280,14 +277,15 @@ mod tests {
     /// An invalid transaction id rejects categorize-command creation.
     #[test]
     fn create_categorize_transaction_rejects_invalid_transaction_id() {
-        let result = Command::create_categorize_transaction("not-a-uuid", "groceries");
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+        assert!(matches!(
+            Command::create_categorize_transaction("not-a-uuid", "groceries"),
+            Err(DomainError::CommandCreation(_))
+        ));
     }
 
     /// An unknown category rejects categorize-command creation.
     #[test]
     fn create_categorize_transaction_rejects_unknown_category() {
-        use uuid::Uuid;
         let result =
             Command::create_categorize_transaction(&Uuid::new_v4().to_string(), "not-a-category");
         assert!(matches!(result, Err(DomainError::Parsing(_))));
@@ -296,7 +294,6 @@ mod tests {
     /// A valid transaction id and classification produce a classify command.
     #[test]
     fn create_classify_transaction_succeeds_with_valid_inputs() {
-        use uuid::Uuid;
         let txn_id = Uuid::new_v4();
         let result = Command::create_classify_transaction(&txn_id.to_string(), "must-have");
         match result {
@@ -314,14 +311,15 @@ mod tests {
     /// An invalid transaction id rejects classify-command creation.
     #[test]
     fn create_classify_transaction_rejects_invalid_transaction_id() {
-        let result = Command::create_classify_transaction("not-a-uuid", "must-have");
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+        assert!(matches!(
+            Command::create_classify_transaction("not-a-uuid", "must-have"),
+            Err(DomainError::CommandCreation(_))
+        ));
     }
 
     /// An unknown classification rejects classify-command creation.
     #[test]
     fn create_classify_transaction_rejects_unknown_classification() {
-        use uuid::Uuid;
         let result = Command::create_classify_transaction(
             &Uuid::new_v4().to_string(),
             "not-a-classification",
@@ -332,7 +330,6 @@ mod tests {
     /// A valid transaction id and note produce an update-note command.
     #[test]
     fn create_update_transaction_note_succeeds_with_valid_inputs() {
-        use uuid::Uuid;
         let txn_id = Uuid::new_v4();
         let result =
             Command::create_update_transaction_note(&txn_id.to_string(), "my note");
@@ -348,7 +345,9 @@ mod tests {
     /// An invalid transaction id rejects update-note command creation.
     #[test]
     fn create_update_transaction_note_rejects_invalid_transaction_id() {
-        let result = Command::create_update_transaction_note("not-a-uuid", "my note");
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+        assert!(matches!(
+            Command::create_update_transaction_note("not-a-uuid", "my note"),
+            Err(DomainError::CommandCreation(_))
+        ));
     }
 }
