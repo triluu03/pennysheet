@@ -141,7 +141,6 @@ pub async fn apply_user_settings_all<C>(
 where
     C: ConnectionTrait,
 {
-    info!("setting auto category and auto classification to NULL");
     Entity::update_many()
         .col_expr(
             Column::AutoCategory,
@@ -154,7 +153,6 @@ where
         .exec(db)
         .await?;
 
-    info!("updating the user settings one by one");
     for setting in user_settings {
         Entity::update_many()
             .col_expr(Column::AutoCategory, Expr::value(setting.category))
@@ -175,6 +173,10 @@ where
             .await?;
     }
 
+    info!(
+        n_settings = user_settings.len(),
+        "applied user settings to expenses projection"
+    );
     Ok(())
 }
 

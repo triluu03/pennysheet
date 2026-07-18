@@ -13,7 +13,10 @@ use sea_orm::{
 };
 use serde::Serialize;
 use std::str::FromStr;
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -81,6 +84,7 @@ where
 /// # Errors
 ///
 /// Returns [`DbErr`] if the operation fails.
+#[instrument(skip(db, regex_rule))]
 pub async fn create_user_setting<C>(
     db: &C,
     regex_rule: String,
@@ -131,6 +135,7 @@ where
 ///
 /// Returns [`DbErr`] if the operation fails or the provided setting ID is
 /// not found in the database.
+#[instrument(skip(db, regex_rule))]
 pub async fn update_user_setting<C>(
     db: &C,
     setting_id: i64,
@@ -173,6 +178,7 @@ where
     }
 
     new_setting.update(db).await?;
+    info!("updated user setting");
     Ok(())
 }
 
@@ -182,6 +188,7 @@ where
 ///
 /// Returns [`DbErr`] if the operation fails or the provided setting ID is
 /// not found in the database.
+#[instrument(skip(db))]
 pub async fn delete_user_setting<C>(db: &C, setting_id: i64) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
@@ -189,6 +196,7 @@ where
     match Entity::find_by_id(setting_id).one(db).await? {
         Some(setting) => {
             setting.delete(db).await?;
+            info!("deleted user setting");
             Ok(())
         },
         None => Err(DbErr::RecordNotFound(format!(

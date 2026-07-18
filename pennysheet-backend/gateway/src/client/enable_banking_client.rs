@@ -173,11 +173,17 @@ impl EnableBankingClient {
 
         match response.status().as_u16() {
             200 => {
-                info!(%account_uid, "fetched transactions");
-                response
+                let parsed: TransactionResponse = response
                     .json()
                     .await
-                    .map_err(|err| GatewayError::Parsing(err.to_string()))
+                    .map_err(|err| GatewayError::Parsing(err.to_string()))?;
+                info!(
+                    %account_uid,
+                    n_transactions = parsed.transactions.len(),
+                    has_continuation = parsed.continuation_key.is_some(),
+                    "fetched transactions"
+                );
+                Ok(parsed)
             },
             code => {
                 let message = response.text().await.unwrap_or("No message!".to_string());
