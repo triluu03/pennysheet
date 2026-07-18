@@ -100,3 +100,63 @@ impl From<GatewayError> for AppError {
         Self::Gateway(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Each [`AppError`] variant formats with its documented prefix or message.
+    #[test]
+    fn display_formats_each_variant_with_expected_message() {
+        use super::AppError;
+        assert_eq!(
+            AppError::Domain(domain::errors::DomainError::CommandRejected(
+                "bad".into()
+            ))
+            .to_string(),
+            "Domain error: Command rejected: bad"
+        );
+        assert_eq!(
+            AppError::Database("conn failed".into()).to_string(),
+            "Database error: conn failed"
+        );
+        assert_eq!(
+            AppError::Gateway(gateway::errors::GatewayError::Api("500".into()))
+                .to_string(),
+            "Gateway error: API returned an error: 500"
+        );
+        assert_eq!(
+            AppError::NotImplemented("not ready".into()).to_string(),
+            "Requested resource is not supported: not ready"
+        );
+        assert_eq!(
+            AppError::ExpiredSession.to_string(),
+            "One or more sessions is expired!"
+        );
+    }
+
+    /// Domain errors convert into the domain app-error variant.
+    #[test]
+    fn from_domain_error_wraps_as_domain_variant() {
+        use super::AppError;
+        let domain_err = domain::errors::DomainError::CommandRejected("test".into());
+        let app_err: AppError = domain_err.into();
+        assert!(matches!(app_err, AppError::Domain(_)));
+    }
+
+    /// Database errors convert into the database app-error variant.
+    #[test]
+    fn from_database_error_wraps_as_database_variant() {
+        use super::AppError;
+        let db_err = infra::DatabaseError::Custom("oops".into());
+        let app_err: AppError = db_err.into();
+        assert!(matches!(app_err, AppError::Database(_)));
+    }
+
+    /// Gateway errors convert into the gateway app-error variant.
+    #[test]
+    fn from_gateway_error_wraps_as_gateway_variant() {
+        use super::AppError;
+        let gw_err = gateway::errors::GatewayError::Request("timeout".into());
+        let app_err: AppError = gw_err.into();
+        assert!(matches!(app_err, AppError::Gateway(_)));
+    }
+}

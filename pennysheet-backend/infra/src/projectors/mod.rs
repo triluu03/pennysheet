@@ -209,3 +209,5 @@ pub trait ProjectorTrait {
         Ok(())
     }
 }
+
+// TODO: add tests for ProjectorTrait::new, run_projections, multi_project, and listen_to_new_events once Postgres/PgListener fixtures are available without new dependencies.

@@ -323,3 +323,142 @@ where
 
     Ok(rows)
 }
+
+// TODO: add integration tests for apply_user_settings_all and get_expenses_pivot_table once
+// Postgres-backed fixtures are available without new dependencies.
+
+#[cfg(test)]
+mod tests {
+    use domain::events::{
+        TransactionCategory,
+        TransactionClassification,
+        transactions::TransactionData,
+    };
+    use sea_orm::ActiveValue;
+    use uuid::Uuid;
+
+    use crate::user_settings::UserSettingsResult;
+
+    /// Build a [`TransactionData`] with the given creditor (or no creditor if `None`).
+    fn sample_transaction_data(creditor: Option<&str>) -> TransactionData {
+        TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: creditor.map(|c| c.to_string()),
+            debtor_name: None,
+        }
+    }
+
+    /// User setting that matches "Netflix" with Leisure/NiceToHave.
+    fn netflix_setting(id: i64, priority: i64) -> UserSettingsResult {
+        UserSettingsResult {
+            setting_id: id,
+            priority,
+            regex_rule: "Netflix".into(),
+            category: TransactionCategory::Leisure,
+            classification: TransactionClassification::NiceToHave,
+        }
+    }
+
+    /// User setting that matches everything with Groceries/MustHave.
+    fn catchall_setting(id: i64, priority: i64) -> UserSettingsResult {
+        UserSettingsResult {
+            setting_id: id,
+            priority,
+            regex_rule: ".*".into(),
+            category: TransactionCategory::Groceries,
+            classification: TransactionClassification::MustHave,
+        }
+    }
+
+    /// Expense models are built only when a creditor name is present.
+    #[test]
+    fn from_recorded_transaction_returns_some_when_creditor_present() {
+        let model =
+            super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some("Shop")));
+        assert!(model.is_some());
+    }
+
+    /// Missing creditor names are treated as non-expenses.
+    #[test]
+    fn from_recorded_transaction_returns_none_when_creditor_absent() {
+        let model = super::ActiveModel::from_recorded_transaction(sample_transaction_data(None));
+        assert!(model.is_none());
+    }
+
+    /// A matching regex rule sets auto category and classification.
+    #[test]
+    fn apply_user_settings_sets_auto_fields_on_first_match() {
+        let model =
+            super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some("Netflix")))
+                .unwrap()
+                .apply_user_settings(&[netflix_setting(1, 1)]);
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Leisure)
+        );
+        assert_eq!(
+            model.auto_classification.as_ref(),
+            &Some(TransactionClassification::NiceToHave)
+        );
+    }
+
+    /// Non-matching rules leave auto fields untouched.
+    #[test]
+    fn apply_user_settings_leaves_auto_fields_when_no_rule_matches() {
+        let not_netflix = UserSettingsResult {
+            setting_id: 1,
+            priority: 1,
+            regex_rule: "Spotify".into(),
+            category: TransactionCategory::Services,
+            classification: TransactionClassification::Wasted,
+        };
+        let model =
+            super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some("Netflix")))
+                .unwrap()
+                .apply_user_settings(&[not_netflix]);
+        assert!(matches!(model.auto_category, ActiveValue::NotSet));
+        assert!(matches!(model.auto_classification, ActiveValue::NotSet));
+    }
+
+    /// Invalid regex rules are skipped rather than failing construction.
+    #[test]
+    fn apply_user_settings_skips_invalid_regex_rules() {
+        let invalid = UserSettingsResult {
+            setting_id: 1,
+            priority: 1,
+            regex_rule: "[invalid".into(),
+            category: TransactionCategory::Excluded,
+            classification: TransactionClassification::Excluded,
+        };
+        let model =
+            super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some("Netflix")))
+                .unwrap()
+                .apply_user_settings(&[invalid, netflix_setting(2, 2)]);
+        // Second rule matched because first (invalid) was skipped.
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Leisure)
+        );
+    }
+
+    /// The first matching rule wins when multiple rules could apply.
+    #[test]
+    fn apply_user_settings_uses_first_matching_rule() {
+        let model =
+            super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some("Netflix")))
+                .unwrap()
+                .apply_user_settings(&[catchall_setting(1, 1), netflix_setting(2, 2)]);
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Groceries)
+        );
+        assert_eq!(
+            model.auto_classification.as_ref(),
+            &Some(TransactionClassification::MustHave)
+        );
+    }
+}

@@ -111,4 +111,6 @@ mod tests {
         );
         assert_eq!(body.exp, body.iat + 3600);
     }
+
+    // TODO: add tests for generate_jwt_token once APP_ID/PRIVATE_KEY fixtures can be supplied without new dependencies.
 }

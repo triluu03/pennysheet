@@ -410,4 +410,6 @@ mod tests {
             "error should mention expiry: {err}"
         );
     }
+
+    // TODO: add tests for EnableBankingClient::new once JWT generation can be exercised without private-key env fixtures.
 }

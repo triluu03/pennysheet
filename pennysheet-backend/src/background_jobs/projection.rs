@@ -110,3 +110,5 @@ pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
         .await
         .expect("apply user settings to the expenses projection should succeed");
 }
+
+// TODO: add tests for spawn_and_subscribe_core_projector, spawn_and_subscribe_import_request_projector, and apply_user_settings_to_expenses once Postgres projector fixtures are available without new dependencies.

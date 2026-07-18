@@ -81,3 +81,38 @@ impl TransactionProjectionTrait for Entity {
         self::Column::Note
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use domain::events::transactions::TransactionData;
+    use uuid::Uuid;
+
+    /// Build a [`TransactionData`] with the given debtor (or none).
+    fn sample_transaction_data(debtor: Option<&str>) -> TransactionData {
+        TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 100.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: debtor.map(|d| d.to_string()),
+        }
+    }
+
+    /// Income models are built only when a debtor name is present.
+    #[test]
+    fn from_recorded_transaction_returns_some_when_debtor_present() {
+        let model = super::ActiveModel::from_recorded_transaction(sample_transaction_data(Some(
+            "Employer",
+        )));
+        assert!(model.is_some());
+    }
+
+    /// Missing debtor names are treated as non-income.
+    #[test]
+    fn from_recorded_transaction_returns_none_when_debtor_absent() {
+        let model = super::ActiveModel::from_recorded_transaction(sample_transaction_data(None));
+        assert!(model.is_none());
+    }
+}
