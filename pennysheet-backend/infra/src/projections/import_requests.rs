@@ -2,6 +2,7 @@
 
 use sea_orm::{
     ActiveValue::Set,
+    QueryOrder,
     entity::prelude::*,
 };
 use serde::Serialize;
@@ -46,7 +47,11 @@ pub async fn get_import_requests<C>(db: &C) -> Result<Vec<Model>, DbErr>
 where
     C: ConnectionTrait,
 {
-    Entity::find().all(db).await
+    Entity::find()
+        .order_by_desc(Column::EndDate)
+        .order_by_asc(Column::SessionId)
+        .all(db)
+        .await
 }
 
 /// Create a new import request into the projection.
