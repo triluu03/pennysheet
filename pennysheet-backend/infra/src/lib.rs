@@ -15,6 +15,7 @@ pub use crate::{
         append_event_to_db,
         append_multi_events_to_db,
         get_all_events,
+        get_events_with_limit,
         get_events_with_offset,
     },
     sessions::{
@@ -212,4 +213,5 @@ pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(),
     Ok(())
 }
 
-// TODO: add tests for get_database_url, connect_to_database, ensure_append_only_eventstore, and setup_new_event_notification once Postgres/env fixtures are available without new dependencies.
+// TODO: add tests for get_database_url, connect_to_database, ensure_append_only_eventstore, and
+// setup_new_event_notification once Postgres/env fixtures are available without new dependencies.
