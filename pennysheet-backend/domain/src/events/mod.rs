@@ -6,13 +6,20 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use std::fmt;
+use strum::{
+    Display as StrumDisplay,
+    EnumDiscriminants,
+};
 
 pub mod transactions;
 
 pub use crate::shared_schema::*;
 use transactions::*;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Domain events.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, EnumDiscriminants)]
+#[strum_discriminants(name(EventType), derive(StrumDisplay))]
 #[cfg_attr(feature = "sea-orm-support", derive(FromJsonQueryResult))]
 pub enum Event {
     /// A new transaction import is requested.
@@ -34,4 +41,11 @@ pub enum Event {
     TransactionClassified(TransactionClassificationData),
     /// A transaction's note is updated.
     TransactionNoteUpdated(TransactionNoteData),
+}
+
+impl fmt::Display for Event {
+    /// Formats the event as its variant name (for example `TransactionRecorded`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", EventType::from(self))
+    }
 }

@@ -1,6 +1,10 @@
 //! Aggregates
 
 use std::collections::HashSet;
+use tracing::{
+    info,
+    warn,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -42,7 +46,7 @@ impl CoreAggregate {
     /// # Errors
     /// Return [`DomainError::CommandRejected`] if the command is rejected.
     pub fn execute(&self, command: Command) -> Result<Event, DomainError> {
-        match command {
+        let result = match command {
             Command::ImportTransactions(c) => {
                 if self.having_pending_requests
                     & self.sessions_being_used_set.contains(&c.session_id)
@@ -121,7 +125,14 @@ impl CoreAggregate {
                     ))
                 }
             },
+        };
+
+        match &result {
+            Ok(event) => info!(event = %event, "command accepted"),
+            Err(error) => warn!(%error, "command rejected by aggregate"),
         }
+
+        result
     }
 
     /// Construct the state from one event.

@@ -6,6 +6,7 @@ use std::collections::{
     HashMap,
     HashSet,
 };
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -79,6 +80,7 @@ impl EventInjector {
             .map(TransactionData::new)
             .collect::<Result<Vec<TransactionData>, DomainError>>()?;
 
+        let incoming_count = new_data_records.len();
         let mut new_events: Vec<Event> = new_data_records
             .into_iter()
             .filter_map(|data| {
@@ -92,8 +94,10 @@ impl EventInjector {
                 }
             })
             .collect();
+        let recorded_count = new_events.len();
+        let skipped_duplicates = incoming_count.saturating_sub(recorded_count);
 
-        if let Some(continuation_key) = response.continuation_key {
+        let terminal = if let Some(continuation_key) = response.continuation_key {
             let request_id = self.pending_request_id.ok_or_else(|| {
                 DomainError::EventCreation(
                     "corrupted state of event injector: pending_request_id".to_string(),
@@ -105,23 +109,33 @@ impl EventInjector {
                 )
             })?;
 
-            new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
+            Event::ImportTransactionsContinued(ImportContinueData {
                 request_id,
                 session_id: self.session_id,
                 start_date: request_data.start_date,
                 end_date: request_data.end_date,
                 continuation_key,
-            }));
+            })
         } else {
-            new_events.push(Event::ImportTransactionsCompleted(ImportStatusData {
+            Event::ImportTransactionsCompleted(ImportStatusData {
                 request_id: self.pending_request_id.ok_or_else(|| {
                     DomainError::EventCreation(
                         "corrupted state of event injector: request_id".to_string(),
                     )
                 })?,
                 session_id: self.session_id,
-            }));
-        }
+            })
+        };
+
+        info!(
+            session_id = self.session_id,
+            request_id = ?self.pending_request_id,
+            recorded_count,
+            skipped_duplicates,
+            terminal = %terminal,
+            "injected transaction batch"
+        );
+        new_events.push(terminal);
 
         Ok(new_events)
     }

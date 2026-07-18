@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionQueryParameters;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -61,13 +62,23 @@ impl TransactionProcessManager {
     /// current state of [`TransactionProcessManager`].
     pub fn create_gateway_command(&self) -> Result<GatewayCommand, DomainError> {
         match (&self.pending_request_id, &self.pending_request_data) {
-            (Some(_), Some(data)) => Ok(GatewayCommand::ImportTransactions(
-                TransactionQueryParameters {
-                    date_from: Some(data.start_date.to_string()),
-                    date_to: Some(data.end_date.to_string()),
-                    continuation_key: data.continuation_key.clone(),
-                },
-            )),
+            (Some(request_id), Some(data)) => {
+                debug!(
+                    session_id = self.session_id,
+                    %request_id,
+                    start_date = %data.start_date,
+                    end_date = %data.end_date,
+                    has_continuation = data.continuation_key.is_some(),
+                    "issuing gateway import command"
+                );
+                Ok(GatewayCommand::ImportTransactions(
+                    TransactionQueryParameters {
+                        date_from: Some(data.start_date.to_string()),
+                        date_to: Some(data.end_date.to_string()),
+                        continuation_key: data.continuation_key.clone(),
+                    },
+                ))
+            },
             _ => Err(DomainError::CommandCreation(
                 "No pending request found in the transaction process manager!".to_string(),
             )),
