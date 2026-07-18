@@ -196,6 +196,7 @@ pub async fn delete_session(db: &DatabaseConnection, session_id: i64) -> Result<
     match Entity::find_by_id(session_id).one(db).await? {
         Some(session) => {
             session.delete(db).await?;
+            info!(session_id, "deleted session");
             Ok(())
         },
         None => Err(DbErr::RecordNotFound(format!(

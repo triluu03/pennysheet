@@ -6,10 +6,7 @@ use axum::{
 };
 use infra::projections::import_requests;
 use std::sync::Arc;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     AppState,
@@ -26,7 +23,6 @@ use crate::{
 pub async fn get_import_requests_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<import_requests::Model>>, AppError> {
-    info!("getting user settings");
     import_requests::get_import_requests(&state.db)
         .await
         .map(Json)

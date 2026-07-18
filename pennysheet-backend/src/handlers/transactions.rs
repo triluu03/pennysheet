@@ -36,7 +36,6 @@ use serde::Deserialize;
 use std::sync::Arc;
 use strum::IntoEnumIterator;
 use tracing::{
-    debug,
     info,
     instrument,
 };
@@ -84,7 +83,6 @@ pub async fn get_transactions_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    info!("fetching transactions");
     let result = match params.kind {
         Some(TransactionKind::Income) => {
             let data = projections::income::Entity::get_transactions(
@@ -149,7 +147,6 @@ pub async fn get_transactions_time_aggregated_handler(
     Path(aggregated_level): Path<TimeAggregation>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    info!("fetching transactions");
     let result = match params.kind {
         Some(TransactionKind::Income) => {
             let data = projections::income::Entity::get_transactions_time_aggregated(
@@ -209,7 +206,6 @@ pub async fn get_transactions_pivot_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    info!("fetching transactions pivot table");
     let result = match params.kind {
         Some(TransactionKind::Income) => {
             return Err(AppError::NotImplemented(
@@ -250,7 +246,6 @@ pub async fn get_one_transaction_handler(
     State(state): State<Arc<AppState>>,
     Path(transaction_id): Path<Uuid>,
 ) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
-    info!("fetching one transaction");
     projections::transactions::Entity::get_transactions(
         &state.db,
         None,
@@ -305,7 +300,6 @@ pub async fn import_transactions_handler(
             .map(|session_data| session_data.session_id)
             .collect(),
     )?;
-    debug!("import transactions command built");
 
     let all_events = get_all_events(&state.db).await?;
     let aggregate = CoreAggregate::new(&all_events);
@@ -321,7 +315,8 @@ pub async fn import_transactions_handler(
     let _res = append_multi_events_to_db(&state.db, events.clone()).await?;
     info!(
         n_requests = events.len(),
-        "import transactions events appended"
+        n_sessions = valid_sessions.len(),
+        "import transactions requested"
     );
 
     // Spawn background jobs running transaction process managers.
@@ -381,7 +376,11 @@ pub async fn transaction_import_retry_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction import retry event appended");
+    info!(
+        event_id = %res.last_insert_id,
+        session_id = payload.session_id,
+        "transaction import retry requested"
+    );
 
     // Spawn a background job running transaction process manager.
     if let Event::TransactionImportRetryRequested(data) = &event {
@@ -430,7 +429,7 @@ pub async fn categorize_transaction_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "categorize transaction event appended");
+    info!(event_id = %res.last_insert_id, "transaction categorized");
 
     Ok((StatusCode::CREATED, "Transaction categorized!".to_string()))
 }
@@ -467,7 +466,7 @@ pub async fn classify_transaction_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "classify transaction event appended");
+    info!(event_id = %res.last_insert_id, "transaction classified");
 
     Ok((StatusCode::CREATED, "Transaction classified!".to_string()))
 }
@@ -503,7 +502,7 @@ pub async fn update_transaction_note_handler(
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "update transaction note event appended");
+    info!(event_id = %res.last_insert_id, "transaction note updated");
 
     Ok((StatusCode::CREATED, "Transaction note updated!".to_string()))
 }

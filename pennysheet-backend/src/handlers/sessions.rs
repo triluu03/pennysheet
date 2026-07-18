@@ -20,10 +20,7 @@ use serde::{
     Serialize,
 };
 use std::sync::Arc;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     AppState,
@@ -53,7 +50,6 @@ pub struct GetSessionResponse {
 pub async fn get_sessions_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<GetSessionResponse>, AppError> {
-    info!("getting all sessions");
     let (valid_sessions, expired_sessions) = get_all_sessions_metadata(&state.db).await?;
 
     Ok(Json(GetSessionResponse {
@@ -76,7 +72,6 @@ pub async fn create_sessions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportSessionPayload>,
 ) -> axum::response::Result<Json<SessionMetadata>, AppError> {
-    info!("creating new sessions");
     let session = EnableBankingSession::from_json(&payload.session)?;
     create_new_session(&state.db, payload.name, session)
         .await
@@ -97,7 +92,6 @@ pub async fn delete_sessions_handler(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<i64>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    info!("deleting Enable Banking sessions");
     delete_session(&state.db, session_id)
         .await
         .map(|_| StatusCode::NO_CONTENT)

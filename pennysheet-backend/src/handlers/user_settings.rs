@@ -21,10 +21,7 @@ use infra::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     AppState,
@@ -42,7 +39,6 @@ use crate::{
 pub async fn get_user_settings_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<UserSettingsResult>>, AppError> {
-    info!("getting user settings");
     get_user_settings(&state.db)
         .await
         .map(Json)
@@ -67,7 +63,6 @@ pub async fn create_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateUserSettingsPayload>,
 ) -> axum::response::Result<Json<UserSettingsResult>, AppError> {
-    info!("creating a new user setting");
     create_user_setting(
         &state.db,
         payload.regex_rule,
@@ -102,7 +97,6 @@ pub async fn update_user_settings_handler(
     Path(setting_id): Path<i64>,
     Json(payload): Json<UpdateUserSettingsPayload>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    info!("updating a user setting");
     update_user_setting(
         &state.db,
         setting_id,
@@ -130,7 +124,6 @@ pub async fn delete_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Path(setting_id): Path<i64>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    info!("deleting a user setting");
     delete_user_setting(&state.db, setting_id)
         .await
         .map(|_| {

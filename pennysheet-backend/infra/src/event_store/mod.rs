@@ -87,13 +87,18 @@ pub async fn append_event_to_db(
     db: &DatabaseConnection,
     event: Event,
 ) -> Result<InsertResult<ActiveModel>, DbErr> {
+    let event_name = event.to_string();
     let new_event_row = ActiveModel {
         event_data: Set(event),
         ..Default::default()
     };
 
     let result = Entity::insert(new_event_row).exec(db).await?;
-    info!(n_new_events = 1, "appended new events");
+    info!(
+        event = %event_name,
+        event_id = result.last_insert_id,
+        "appended event"
+    );
     Ok(result)
 }
 
@@ -107,13 +112,13 @@ pub async fn append_multi_events_to_db(
     db: &DatabaseConnection,
     events: Vec<Event>,
 ) -> Result<InsertManyResult<ActiveModel>, DbErr> {
+    let n_new_events = events.len();
     let new_event_rows = events.into_iter().map(|event| ActiveModel {
         event_data: Set(event),
         ..Default::default()
     });
-    let n_new_events = new_event_rows.len();
 
     let result = Entity::insert_many(new_event_rows).exec(db).await?;
-    info!(n_new_events, "appended new events");
+    info!(n_new_events, "appended event batch");
     Ok(result)
 }
