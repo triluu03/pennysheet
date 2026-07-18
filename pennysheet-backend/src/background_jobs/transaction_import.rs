@@ -75,11 +75,8 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
         tokio::time::sleep(duration_until).await;
 
         match run_scheduled_polling_job(&db).await {
-            Ok(()) => continue,
-            Err(error) => error!(
-                error = error.to_string(),
-                "error occurred when running the scheduled import"
-            ),
+            Ok(()) => info!("scheduled transactions import completed"),
+            Err(error) => error!(%error, "scheduled transactions import failed"),
         }
     }
 }
@@ -93,7 +90,10 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
 async fn run_scheduled_polling_job(db: &DatabaseConnection) -> Result<(), AppError> {
     let (valid_sessions, expired_sessions) = get_all_sessions(db).await?;
     if !expired_sessions.is_empty() {
-        error!("Some expired sessions found! Skipping this scheduled import!");
+        error!(
+            n_expired = expired_sessions.len(),
+            "skipping scheduled import due to expired sessions"
+        );
         return Err(AppError::ExpiredSession);
     };
 
@@ -123,7 +123,8 @@ async fn run_scheduled_polling_job(db: &DatabaseConnection) -> Result<(), AppErr
     let _res = append_multi_events_to_db(db, events.clone()).await?;
     info!(
         n_requests = events.len(),
-        "import transactions events appended"
+        n_sessions = valid_sessions.len(),
+        "scheduled import transactions requested"
     );
 
     // Spawn background jobs running transaction process managers.
@@ -267,7 +268,7 @@ pub async fn run_transaction_import(
             .find(|event| matches!(event, Event::ImportTransactionsFailed(_)))
             .cloned();
 
-        info!("injecting {} new events", new_events.len());
+        info!(n_events = new_events.len(), "appending imported events");
         if let Err(error) = append_multi_events_to_db(&db, new_events).await {
             return fail_import(
                 &db,
@@ -284,7 +285,7 @@ pub async fn run_transaction_import(
             return;
         }
         if failed_event.is_some() {
-            error!("transaction import failed");
+            error!("transaction import ended with failure event");
             return;
         }
     }
@@ -315,3 +316,5 @@ async fn fail_import(
         );
     }
 }
+
+// TODO: add tests for fail_import, run_transaction_import, and run_scheduled_polling_job once Enable Banking/JWT fixtures are available without new dependencies.

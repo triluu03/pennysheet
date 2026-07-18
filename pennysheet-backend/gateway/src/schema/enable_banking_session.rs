@@ -141,4 +141,85 @@ mod tests {
     fn from_json_rejects_invalid_payload() {
         assert!(EnableBankingSession::from_json("{ not valid json ").is_err());
     }
+
+    /// `psu_type` deserializes the `business` wire value.
+    #[test]
+    fn from_json_parses_business_psu_type() {
+        let payload = r#"{
+            "session_id": "sess-123",
+            "accounts": [{"name": "Biz", "currency": "EUR", "uid": "acc-1"}],
+            "aspsp": {"name": "Mock", "country": "FI"},
+            "psu_type": "business",
+            "access": {"valid_until": "2026-12-31T23:59:59Z"}
+        }"#;
+        let session = super::EnableBankingSession::from_json(payload)
+            .expect("business payload should parse");
+        assert!(matches!(session.psu_type, super::PSUType::Business));
+    }
+
+    /// A session whose valid_until is far in the future is not expired.
+    #[test]
+    fn is_expired_false_when_valid_until_is_far_in_future() {
+        use chrono::Utc;
+        use chrono::Duration;
+
+        let valid_until = Utc::now() + Duration::hours(24);
+        let payload = format!(
+            r#"{{
+                "session_id": "sess",
+                "accounts": [],
+                "aspsp": {{"name": "B", "country": "FI"}},
+                "psu_type": "personal",
+                "access": {{"valid_until": "{}"}}
+            }}"#,
+            valid_until.to_rfc3339()
+        );
+        let session = super::EnableBankingSession::from_json(&payload)
+            .expect("valid session payload should parse");
+        assert!(!session.is_expired());
+    }
+
+    /// A session whose valid_until is already past is expired.
+    #[test]
+    fn is_expired_true_when_valid_until_is_in_the_past() {
+        use chrono::Utc;
+        use chrono::Duration;
+
+        let valid_until = Utc::now() - Duration::hours(1);
+        let payload = format!(
+            r#"{{
+                "session_id": "sess",
+                "accounts": [],
+                "aspsp": {{"name": "B", "country": "FI"}},
+                "psu_type": "personal",
+                "access": {{"valid_until": "{}"}}
+            }}"#,
+            valid_until.to_rfc3339()
+        );
+        let session = super::EnableBankingSession::from_json(&payload)
+            .expect("valid session payload should parse");
+        assert!(session.is_expired());
+    }
+
+    /// A session within the five-minute safety skew is treated as expired.
+    #[test]
+    fn is_expired_true_when_valid_until_is_within_five_minute_skew() {
+        use chrono::Utc;
+        use chrono::Duration;
+
+        let valid_until = Utc::now() + Duration::minutes(2);
+        let payload = format!(
+            r#"{{
+                "session_id": "sess",
+                "accounts": [],
+                "aspsp": {{"name": "B", "country": "FI"}},
+                "psu_type": "personal",
+                "access": {{"valid_until": "{}"}}
+            }}"#,
+            valid_until.to_rfc3339()
+        );
+        let session = super::EnableBankingSession::from_json(&payload)
+            .expect("valid session payload should parse");
+        assert!(session.is_expired());
+    }
 }

@@ -307,7 +307,7 @@ pub trait AutoUserSettingTrait: EntityTrait {
     /// # Errors
     ///
     /// Returns [`DbErr`] if any step of the operation fails.
-    #[instrument(skip(db))]
+    #[instrument(skip(db, user_settings))]
     async fn apply_user_settings_all<C>(
         db: &C,
         user_settings: &[UserSettingsResult],
@@ -315,7 +315,6 @@ pub trait AutoUserSettingTrait: EntityTrait {
     where
         C: ConnectionTrait,
     {
-        info!("setting auto category and auto classification to NULL");
         Self::update_many()
             .col_expr(
                 Self::auto_category_column(),
@@ -328,7 +327,6 @@ pub trait AutoUserSettingTrait: EntityTrait {
             .exec(db)
             .await?;
 
-        info!("updating the user settings one by one");
         for setting in user_settings {
             Self::update_many()
                 .col_expr(Self::auto_category_column(), Expr::value(setting.category))
@@ -348,6 +346,11 @@ pub trait AutoUserSettingTrait: EntityTrait {
                 .exec(db)
                 .await?;
         }
+
+        info!(
+            n_settings = user_settings.len(),
+            "applied user settings to expenses projection"
+        );
 
         Ok(())
     }

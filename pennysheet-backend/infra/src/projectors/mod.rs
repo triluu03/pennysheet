@@ -10,8 +10,10 @@ use sea_orm::{
 };
 use sqlx::postgres::PgListener;
 use tracing::{
+    debug,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -82,7 +84,7 @@ pub trait ProjectorTrait {
     /// # Errors
     ///
     /// Returns [`DbErr`] if the initialization fails.
-    #[instrument(skip(db))]
+    #[instrument(skip(db), fields(projector = Self::projector_name()))]
     async fn new(db: DatabaseConnection) -> Result<Self, DbErr>
     where
         Self: Sized,
@@ -92,7 +94,7 @@ pub trait ProjectorTrait {
             .unwrap_or(0);
         let user_settings = get_user_settings(&db).await?;
 
-        info!("projector initialized");
+        info!(last_seen_event_number, "projector initialized");
         Ok(Self::init(db, last_seen_event_number, user_settings))
     }
 
@@ -101,7 +103,7 @@ pub trait ProjectorTrait {
     /// # Errors
     ///
     /// Returns [`DbErr`] if the listener crashes or the projection fails.
-    #[instrument(skip(self))]
+    #[instrument(skip(self), fields(projector = Self::projector_name()))]
     async fn listen_to_new_events(&mut self) -> Result<(), DbErr> {
         let (database_url, db_name) = get_database_url()?;
 
@@ -114,7 +116,7 @@ pub trait ProjectorTrait {
         })?;
 
         // Refresh any unseen events appended while the project was not online.
-        info!("trigger a projection run to clear the backlog");
+        info!("clearing projection backlog before listening");
         self.run_projections().await?;
 
         // Subscribe to notifications from the event table.
@@ -126,6 +128,10 @@ pub trait ProjectorTrait {
                     }
                 },
                 Err(e) => {
+                    warn!(
+                        error = %e,
+                        "event listener crashed"
+                    );
                     return Err(DbErr::Custom(format!("Listener crashed: {}", e)));
                 },
             }
@@ -137,6 +143,7 @@ pub trait ProjectorTrait {
     /// # Errors
     ///
     /// Returns [`DbErr`] if the projection fails.
+    #[instrument(skip(self), fields(projector = Self::projector_name()))]
     async fn run_projections(&mut self) -> Result<(), DbErr> {
         let unseen_events =
             get_events_with_offset(self.database_connection(), self.last_seen_event_number())
@@ -146,7 +153,16 @@ pub trait ProjectorTrait {
             .try_into()
             .map_err(|err| DbErr::Custom(format!("Failed to parse usize into i64: {}", err)))?;
 
-        info!(n_unseen_events, "projecting unseen events in a transaction");
+        if n_unseen_events == 0 {
+            debug!("no unseen events to project");
+            return Ok(());
+        }
+
+        info!(
+            n_unseen_events,
+            from_event = self.last_seen_event_number() + 1,
+            "projecting unseen events"
+        );
         let txn = self.database_connection().begin().await?;
         Self::multi_project(&txn, &unseen_events, self.user_settings()).await?;
         update_projector_state(
@@ -159,7 +175,10 @@ pub trait ProjectorTrait {
 
         // Update the state of the current spawned projector.
         *self.last_seen_event_number_mut() += n_unseen_events;
-        info!("projection transaction committed");
+        info!(
+            last_seen_event_number = self.last_seen_event_number(),
+            "projection committed"
+        );
         Ok(())
     }
 
@@ -190,3 +209,5 @@ pub trait ProjectorTrait {
         Ok(())
     }
 }
+
+// TODO: add tests for ProjectorTrait::new, run_projections, multi_project, and listen_to_new_events once Postgres/PgListener fixtures are available without new dependencies.

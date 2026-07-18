@@ -44,3 +44,60 @@ impl From<uuid::Error> for DomainError {
         Self::CommandCreation(value.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::DomainError;
+
+    /// Each [`DomainError`] variant formats with its documented prefix.
+    #[test]
+    fn display_formats_each_variant_with_expected_prefix() {
+        assert_eq!(
+            DomainError::CommandCreation("test".into()).to_string(),
+            "Failed to create command: test"
+        );
+        assert_eq!(
+            DomainError::CommandRejected("reason".into()).to_string(),
+            "Command rejected: reason"
+        );
+        assert_eq!(
+            DomainError::EventCreation("err".into()).to_string(),
+            "Failed to create event: err"
+        );
+        assert_eq!(
+            DomainError::ComponentInit("init".into()).to_string(),
+            "Failed to initialize domain component: init"
+        );
+        assert_eq!(
+            DomainError::Parsing("parse".into()).to_string(),
+            "Error occur when parsing values: parse"
+        );
+    }
+
+    /// Chrono parse failures map into [`DomainError::CommandCreation`].
+    #[test]
+    fn from_chrono_parse_error_maps_to_command_creation() {
+        use chrono::NaiveDate;
+        let err = NaiveDate::parse_from_str("not-a-date", "%Y-%m-%d").unwrap_err();
+        let domain_err: DomainError = err.into();
+        assert!(matches!(domain_err, DomainError::CommandCreation(_)));
+    }
+
+    /// Float parse failures map into [`DomainError::EventCreation`].
+    #[test]
+    fn from_parse_float_error_maps_to_event_creation() {
+        let err = "abc".parse::<f64>().unwrap_err();
+        let domain_err: DomainError = err.into();
+        assert!(matches!(domain_err, DomainError::EventCreation(_)));
+    }
+
+    /// UUID parse failures map into [`DomainError::CommandCreation`].
+    #[test]
+    fn from_uuid_error_maps_to_command_creation() {
+        use std::str::FromStr;
+        use uuid::Uuid;
+        let err = Uuid::from_str("not-a-uuid").unwrap_err();
+        let domain_err: DomainError = err.into();
+        assert!(matches!(domain_err, DomainError::CommandCreation(_)));
+    }
+}

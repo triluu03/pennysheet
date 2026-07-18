@@ -258,4 +258,109 @@ mod tests {
         let result = Command::create_retry_failed_import_request("", 1);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
+
+    /// One import command is created per provided session id.
+    #[test]
+    fn create_import_transactions_emits_one_command_per_session_id() {
+        let commands =
+            Command::create_import_transactions(None, None, vec![1, 2, 3]).unwrap();
+        assert_eq!(commands.len(), 3);
+        for (i, cmd) in commands.iter().enumerate() {
+            assert!(matches!(cmd, Command::ImportTransactions(_)));
+            if let Command::ImportTransactions(data) = cmd {
+                assert_eq!(data.session_id, (i + 1) as i64);
+            }
+        }
+    }
+
+    /// A valid transaction id and category produce a categorize command.
+    #[test]
+    fn create_categorize_transaction_succeeds_with_valid_inputs() {
+        let txn_id = Uuid::new_v4();
+        let result = Command::create_categorize_transaction(&txn_id.to_string(), "groceries");
+        match result {
+            Ok(Command::CategorizeTransaction(data)) => {
+                assert_eq!(data.transaction_id, txn_id);
+                assert_eq!(data.category, crate::shared_schema::TransactionCategory::Groceries);
+            },
+            other => panic!("expected CategorizeTransaction, got {other:?}"),
+        }
+    }
+
+    /// An invalid transaction id rejects categorize-command creation.
+    #[test]
+    fn create_categorize_transaction_rejects_invalid_transaction_id() {
+        assert!(matches!(
+            Command::create_categorize_transaction("not-a-uuid", "groceries"),
+            Err(DomainError::CommandCreation(_))
+        ));
+    }
+
+    /// An unknown category rejects categorize-command creation.
+    #[test]
+    fn create_categorize_transaction_rejects_unknown_category() {
+        let result =
+            Command::create_categorize_transaction(&Uuid::new_v4().to_string(), "not-a-category");
+        assert!(matches!(result, Err(DomainError::Parsing(_))));
+    }
+
+    /// A valid transaction id and classification produce a classify command.
+    #[test]
+    fn create_classify_transaction_succeeds_with_valid_inputs() {
+        let txn_id = Uuid::new_v4();
+        let result = Command::create_classify_transaction(&txn_id.to_string(), "must-have");
+        match result {
+            Ok(Command::ClassifyTransaction(data)) => {
+                assert_eq!(data.transaction_id, txn_id);
+                assert_eq!(
+                    data.classification,
+                    crate::shared_schema::TransactionClassification::MustHave
+                );
+            },
+            other => panic!("expected ClassifyTransaction, got {other:?}"),
+        }
+    }
+
+    /// An invalid transaction id rejects classify-command creation.
+    #[test]
+    fn create_classify_transaction_rejects_invalid_transaction_id() {
+        assert!(matches!(
+            Command::create_classify_transaction("not-a-uuid", "must-have"),
+            Err(DomainError::CommandCreation(_))
+        ));
+    }
+
+    /// An unknown classification rejects classify-command creation.
+    #[test]
+    fn create_classify_transaction_rejects_unknown_classification() {
+        let result = Command::create_classify_transaction(
+            &Uuid::new_v4().to_string(),
+            "not-a-classification",
+        );
+        assert!(matches!(result, Err(DomainError::Parsing(_))));
+    }
+
+    /// A valid transaction id and note produce an update-note command.
+    #[test]
+    fn create_update_transaction_note_succeeds_with_valid_inputs() {
+        let txn_id = Uuid::new_v4();
+        let result =
+            Command::create_update_transaction_note(&txn_id.to_string(), "my note");
+        match result {
+            Ok(Command::UpdateTransactionNote(data)) => {
+                assert_eq!(data.transaction_id, txn_id);
+                assert_eq!(data.note, "my note");
+            },
+            other => panic!("expected UpdateTransactionNote, got {other:?}"),
+        }
+    }
+
+    /// An invalid transaction id rejects update-note command creation.
+    #[test]
+    fn create_update_transaction_note_rejects_invalid_transaction_id() {
+        assert!(matches!(
+            Command::create_update_transaction_note("not-a-uuid", "my note"),
+            Err(DomainError::CommandCreation(_))
+        ));
+    }
 }

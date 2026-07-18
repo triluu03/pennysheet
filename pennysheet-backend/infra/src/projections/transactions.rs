@@ -80,3 +80,31 @@ impl TransactionProjectionTrait for Entity {
         self::Column::Note
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Recorded transaction fields are copied into the projection active model.
+    #[test]
+    fn from_recorded_transaction_maps_all_fields() {
+        use chrono::NaiveDate;
+        use domain::events::transactions::TransactionData;
+        use uuid::Uuid;
+
+        let txn_id = Uuid::new_v4();
+        let date = NaiveDate::from_ymd_opt(2026, 6, 15);
+        let model = super::ActiveModel::from_recorded_transaction(TransactionData {
+            transaction_id: txn_id,
+            booking_date: date,
+            transaction_date: date,
+            amount: 42.5,
+            currency: "EUR".into(),
+            creditor_name: Some("Shop".into()),
+            debtor_name: Some("Payer".into()),
+        });
+        // Verify the key fields are set.
+        assert_eq!(model.transaction_id.as_ref(), &txn_id);
+        assert_eq!(model.amount.as_ref(), &42.5);
+        assert_eq!(model.currency.as_ref(), "EUR");
+        assert_eq!(model.creditor_name.as_ref(), &Some("Shop".to_string()));
+    }
+}

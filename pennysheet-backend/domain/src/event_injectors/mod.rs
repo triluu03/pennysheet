@@ -6,6 +6,7 @@ use std::collections::{
     HashMap,
     HashSet,
 };
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -79,6 +80,7 @@ impl EventInjector {
             .map(TransactionData::new)
             .collect::<Result<Vec<TransactionData>, DomainError>>()?;
 
+        let incoming_count = new_data_records.len();
         let mut new_events: Vec<Event> = new_data_records
             .into_iter()
             .filter_map(|data| {
@@ -92,8 +94,10 @@ impl EventInjector {
                 }
             })
             .collect();
+        let recorded_count = new_events.len();
+        let skipped_duplicates = incoming_count.saturating_sub(recorded_count);
 
-        if let Some(continuation_key) = response.continuation_key {
+        let terminal = if let Some(continuation_key) = response.continuation_key {
             let request_id = self.pending_request_id.ok_or_else(|| {
                 DomainError::EventCreation(
                     "corrupted state of event injector: pending_request_id".to_string(),
@@ -105,23 +109,33 @@ impl EventInjector {
                 )
             })?;
 
-            new_events.push(Event::ImportTransactionsContinued(ImportContinueData {
+            Event::ImportTransactionsContinued(ImportContinueData {
                 request_id,
                 session_id: self.session_id,
                 start_date: request_data.start_date,
                 end_date: request_data.end_date,
                 continuation_key,
-            }));
+            })
         } else {
-            new_events.push(Event::ImportTransactionsCompleted(ImportStatusData {
+            Event::ImportTransactionsCompleted(ImportStatusData {
                 request_id: self.pending_request_id.ok_or_else(|| {
                     DomainError::EventCreation(
                         "corrupted state of event injector: request_id".to_string(),
                     )
                 })?,
                 session_id: self.session_id,
-            }));
-        }
+            })
+        };
+
+        info!(
+            session_id = self.session_id,
+            request_id = ?self.pending_request_id,
+            recorded_count,
+            skipped_duplicates,
+            terminal = %terminal,
+            "injected transaction batch"
+        );
+        new_events.push(terminal);
 
         Ok(new_events)
     }
@@ -230,6 +244,7 @@ mod tests {
         events::{
             Event,
             transactions::{
+                ImportContinueData,
                 ImportRequestData,
                 ImportStatusData,
                 TransactionData,
@@ -614,5 +629,159 @@ mod tests {
         };
 
         assert!(injector.inject_transaction_events(response).is_err());
+    }
+
+    /// A matching failure clears the pending request so the injector cannot re-init.
+    #[test]
+    fn new_fails_after_request_failed() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+        ];
+        assert!(matches!(
+            EventInjector::new(session_id, &events),
+            Err(DomainError::ComponentInit(_))
+        ));
+    }
+
+    /// Failures for a different request or session leave the pending request intact.
+    #[test]
+    fn new_ignores_failure_for_a_different_request_or_session() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        // Failure of an unrelated request (different id, same session) keeps ours pending.
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id: Uuid::new_v4(),
+                session_id,
+            }),
+        ];
+        assert!(EventInjector::new(session_id, &events).is_ok());
+        // Failure of our request on a different session keeps ours pending.
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id: 2,
+            }),
+        ];
+        assert!(EventInjector::new(session_id, &events).is_ok());
+    }
+
+    /// A matching continuation updates the request date window used for later injects.
+    #[test]
+    fn continuation_updates_request_date_window() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let new_start = NaiveDate::from_ymd_opt(2026, 6, 10).expect("valid date");
+        let new_end = NaiveDate::from_ymd_opt(2026, 6, 20).expect("valid date");
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsContinued(ImportContinueData {
+                    request_id,
+                    session_id,
+                    start_date: new_start,
+                    end_date: new_end,
+                    continuation_key: "next".to_string(),
+                }),
+            ],
+        )
+        .expect("continuation should not clear the pending request");
+        // Inject with a continuation key — dates should come from the continuation.
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("10.00")],
+            continuation_key: Some("next-page".to_string()),
+        };
+        let events = injector.inject_transaction_events(response).unwrap();
+        match events.last() {
+            Some(Event::ImportTransactionsContinued(data)) => {
+                assert_eq!(data.start_date, new_start);
+                assert_eq!(data.end_date, new_end);
+            },
+            other => panic!("expected ImportTransactionsContinued, got {other:?}"),
+        }
+    }
+
+    /// Continuations for a different request or session leave the original window unchanged.
+    #[test]
+    fn continuation_for_a_different_request_or_session_is_ignored() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        // A continuation for a different request (same session) must not alter our window.
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::ImportTransactionsContinued(ImportContinueData {
+                    request_id: Uuid::new_v4(),
+                    session_id,
+                    start_date: NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid date"),
+                    end_date: NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid date"),
+                    continuation_key: "unrelated".to_string(),
+                }),
+            ],
+        )
+        .expect("unrelated continuation should not clear our request");
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("10.00")],
+            continuation_key: Some("next-page".to_string()),
+        };
+        let events = injector.inject_transaction_events(response).unwrap();
+        match events.last() {
+            Some(Event::ImportTransactionsContinued(data)) => {
+                assert_eq!(data.start_date, start_date());
+                assert_eq!(data.end_date, end_date());
+            },
+            other => panic!("expected ImportTransactionsContinued, got {other:?}"),
+        }
+    }
+
+    /// Annotation events do not affect the injector's pending request or recorded set.
+    #[test]
+    fn annotation_events_do_not_affect_pending_or_recorded_state() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let injector = EventInjector::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::TransactionCategorized(
+                    crate::shared_schema::TransactionCategoryData {
+                        transaction_id: Uuid::new_v4(),
+                        category: crate::shared_schema::TransactionCategory::Groceries,
+                    },
+                ),
+                Event::TransactionClassified(
+                    crate::shared_schema::TransactionClassificationData {
+                        transaction_id: Uuid::new_v4(),
+                        classification:
+                            crate::shared_schema::TransactionClassification::MustHave,
+                    },
+                ),
+                Event::TransactionNoteUpdated(crate::shared_schema::TransactionNoteData {
+                    transaction_id: Uuid::new_v4(),
+                    note: "hello".into(),
+                }),
+            ],
+        )
+        .expect("annotation events should not clear the pending request");
+        // Inject should still complete successfully.
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("10.00")],
+            continuation_key: None,
+        };
+        let events = injector.inject_transaction_events(response).unwrap();
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
+        ));
     }
 }

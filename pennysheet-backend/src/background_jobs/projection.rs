@@ -28,7 +28,7 @@ use tracing::{
 /// Panic in any of the following scenarios:
 /// - Cannot initialize the projector.
 /// - Running the projections fails.
-#[instrument(skip(db))]
+#[instrument(skip(db), fields(projector = "CoreProjector"))]
 pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
     let closure_run_helper = async |db: &DatabaseConnection| {
         let mut projector = CoreProjector::new(db.to_owned()).await?;
@@ -39,11 +39,15 @@ pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
     loop {
         match closure_run_helper(&db).await {
             Ok(()) => {
-                info!("projector exited!");
+                info!("projector exited");
                 return;
             },
             Err(error) => {
-                error!(%error, retry_in = retry_wait_time, "projector crashed, restarting...");
+                error!(
+                    %error,
+                    retry_in = retry_wait_time,
+                    "projector crashed, restarting"
+                );
                 tokio::time::sleep(Duration::from_secs(retry_wait_time)).await;
                 retry_wait_time *= 2;
             },
@@ -58,7 +62,7 @@ pub async fn spawn_and_subscribe_core_projector(db: DatabaseConnection) {
 /// Panic in any of the following scenarios:
 /// - Cannot initialize the projector.
 /// - Running the projections fails.
-#[instrument(skip(db))]
+#[instrument(skip(db), fields(projector = "ImportRequestProjector"))]
 // NOTE: this function all overlapping code (except the projector struct) with the above function.
 // TODO: how not to repeat yourself here?
 pub async fn spawn_and_subscribe_import_request_projector(db: DatabaseConnection) {
@@ -71,11 +75,15 @@ pub async fn spawn_and_subscribe_import_request_projector(db: DatabaseConnection
     loop {
         match closure_run_helper(&db).await {
             Ok(()) => {
-                info!("projector exited!");
+                info!("projector exited");
                 return;
             },
             Err(error) => {
-                error!(%error, retry_in = retry_wait_time, "projector crashed, restarting...");
+                error!(
+                    %error,
+                    retry_in = retry_wait_time,
+                    "projector crashed, restarting"
+                );
                 tokio::time::sleep(Duration::from_secs(retry_wait_time)).await;
                 retry_wait_time *= 2;
             },
@@ -92,16 +100,20 @@ pub async fn spawn_and_subscribe_import_request_projector(db: DatabaseConnection
 /// - Applying the user settings fails.
 #[instrument(skip(db))]
 pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
-    info!("getting all user settings");
     let user_settings = get_user_settings(&db)
         .await
         .expect("querying user settings from the database should succeed!");
 
     // TODO: make this go through a transaction.
-    info!("applying user settings to the expenses projection");
+    info!(
+        n_settings = user_settings.len(),
+        "re-applying user settings to expenses projection"
+    );
     projections::expenses::Entity::apply_user_settings_all(&db, &user_settings)
         .await
         .expect("apply user settings to the expenses projection should succeed");
-
-    info!("expenses projection updated!");
 }
+
+// TODO: add tests for spawn_and_subscribe_core_projector,
+// spawn_and_subscribe_import_request_projector, and apply_user_settings_to_expenses once Postgres
+// projector fixtures are available without new dependencies.

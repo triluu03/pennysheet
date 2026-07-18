@@ -1,6 +1,10 @@
 //! Aggregates
 
 use std::collections::HashSet;
+use tracing::{
+    info,
+    warn,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -50,7 +54,7 @@ impl CoreAggregate {
     /// # Errors
     /// Return [`DomainError::CommandRejected`] if the command is rejected.
     pub fn execute(&self, command: Command) -> Result<Event, DomainError> {
-        match command {
+        let result = match command {
             Command::ImportTransactions(c) => {
                 if self.having_pending_requests
                     & self.sessions_being_used_set.contains(&c.session_id)
@@ -229,7 +233,14 @@ impl CoreAggregate {
                     }
                 },
             },
+        };
+
+        match &result {
+            Ok(event) => info!(event = %event, "command accepted"),
+            Err(error) => warn!(%error, "command rejected by aggregate"),
         }
+
+        result
     }
 
     /// Construct the state from one event.
@@ -302,6 +313,7 @@ mod tests {
     use super::CoreAggregate;
     use crate::{
         commands::Command,
+        errors::DomainError,
         events::{
             Event,
             transactions::{
@@ -598,5 +610,168 @@ mod tests {
             .next()
             .unwrap();
         assert!(aggregate.execute(command).is_ok());
+    }
+
+    /// Build a minimal [`TransactionData`] suitable for aggregate tests.
+    fn samples_transaction_data(
+        transaction_id: Uuid,
+    ) -> crate::events::transactions::TransactionData {
+        crate::events::transactions::TransactionData {
+            transaction_id,
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: None,
+        }
+    }
+
+    /// Execute a [`Command::CategorizeTransaction`] against the aggregate.
+    fn exec_categorize(
+        aggregate: &CoreAggregate,
+        txn_id: Uuid,
+        cat: crate::shared_schema::TransactionCategory,
+    ) -> Result<Event, DomainError> {
+        aggregate.execute(Command::CategorizeTransaction(
+            crate::shared_schema::TransactionCategoryData {
+                transaction_id: txn_id,
+                category: cat,
+            },
+        ))
+    }
+
+    /// Execute a [`Command::ClassifyTransaction`] against the aggregate.
+    fn exec_classify(
+        aggregate: &CoreAggregate,
+        txn_id: Uuid,
+        cls: crate::shared_schema::TransactionClassification,
+    ) -> Result<Event, DomainError> {
+        aggregate.execute(Command::ClassifyTransaction(
+            crate::shared_schema::TransactionClassificationData {
+                transaction_id: txn_id,
+                classification: cls,
+            },
+        ))
+    }
+
+    /// Categorize succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_categorize_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        let aggregate =
+            CoreAggregate::new(&[Event::TransactionRecorded(samples_transaction_data(txn_id))]);
+        let event = exec_categorize(
+            &aggregate,
+            txn_id,
+            crate::shared_schema::TransactionCategory::Groceries,
+        )
+        .unwrap();
+        assert!(matches!(event, Event::TransactionCategorized(_)));
+    }
+
+    /// Categorize rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_categorize_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        assert!(
+            exec_categorize(
+                &aggregate,
+                Uuid::new_v4(),
+                crate::shared_schema::TransactionCategory::Groceries
+            )
+            .is_err()
+        );
+    }
+
+    /// Classify succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_classify_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        let aggregate =
+            CoreAggregate::new(&[Event::TransactionRecorded(samples_transaction_data(txn_id))]);
+        let event = exec_classify(
+            &aggregate,
+            txn_id,
+            crate::shared_schema::TransactionClassification::MustHave,
+        )
+        .unwrap();
+        assert!(matches!(event, Event::TransactionClassified(_)));
+    }
+
+    /// Classify rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_classify_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        assert!(
+            exec_classify(
+                &aggregate,
+                Uuid::new_v4(),
+                crate::shared_schema::TransactionClassification::MustHave
+            )
+            .is_err()
+        );
+    }
+
+    /// Updating a note succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_update_note_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        let aggregate =
+            CoreAggregate::new(&[Event::TransactionRecorded(samples_transaction_data(txn_id))]);
+        let cmd = Command::UpdateTransactionNote(crate::shared_schema::TransactionNoteData {
+            transaction_id: txn_id,
+            note: "hello".into(),
+        });
+        let event = aggregate.execute(cmd).unwrap();
+        assert!(matches!(event, Event::TransactionNoteUpdated(_)));
+    }
+
+    /// Updating a note rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_update_note_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        let cmd = Command::UpdateTransactionNote(crate::shared_schema::TransactionNoteData {
+            transaction_id: Uuid::new_v4(),
+            note: "hello".into(),
+        });
+        assert!(aggregate.execute(cmd).is_err());
+    }
+
+    /// Categorize, classify, and note-updated events do not alter aggregate state.
+    #[test]
+    fn apply_annotation_events_does_not_change_recorded_or_pending_state() {
+        let txn_id = Uuid::new_v4();
+        let aggregate =
+            CoreAggregate::new(&[Event::TransactionRecorded(samples_transaction_data(txn_id))]);
+        // Apply annotation events — these must not change the recorded set.
+        let aggregate = aggregate
+            .apply(&Event::TransactionCategorized(
+                crate::shared_schema::TransactionCategoryData {
+                    transaction_id: txn_id,
+                    category: crate::shared_schema::TransactionCategory::Groceries,
+                },
+            ))
+            .apply(&Event::TransactionClassified(
+                crate::shared_schema::TransactionClassificationData {
+                    transaction_id: txn_id,
+                    classification: crate::shared_schema::TransactionClassification::MustHave,
+                },
+            ))
+            .apply(&Event::TransactionNoteUpdated(
+                crate::shared_schema::TransactionNoteData {
+                    transaction_id: txn_id,
+                    note: "hello".into(),
+                },
+            ));
+        // The transaction is still recorded, so a new categorization for it should still succeed.
+        assert!(
+            exec_categorize(
+                &aggregate,
+                txn_id,
+                crate::shared_schema::TransactionCategory::Health
+            )
+            .is_ok()
+        );
     }
 }

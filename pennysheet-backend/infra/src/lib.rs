@@ -211,3 +211,5 @@ pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(),
 
     Ok(())
 }
+
+// TODO: add tests for get_database_url, connect_to_database, ensure_append_only_eventstore, and setup_new_event_notification once Postgres/env fixtures are available without new dependencies.
