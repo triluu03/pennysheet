@@ -55,3 +55,36 @@ impl From<jsonwebtoken::errors::Error> for GatewayError {
         Self::Authorization(value.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Each [`GatewayError`] variant formats with its documented prefix.
+    #[test]
+    fn display_formats_each_variant_with_expected_prefix() {
+        use super::GatewayError;
+        assert_eq!(
+            GatewayError::Authorization("bad".into()).to_string(),
+            "Authorization failed: bad"
+        );
+        assert_eq!(
+            GatewayError::Session("expired".into()).to_string(),
+            "Invalid session: expired"
+        );
+        assert_eq!(
+            GatewayError::Request("timeout".into()).to_string(),
+            "Request failed: timeout"
+        );
+        assert_eq!(
+            GatewayError::Api("500".into()).to_string(),
+            "API returned an error: 500"
+        );
+        assert_eq!(
+            GatewayError::Parsing("json".into()).to_string(),
+            "Failed to parse response: json"
+        );
+        assert_eq!(
+            GatewayError::Environment("missing".into()).to_string(),
+            "Runtime environment error: missing"
+        );
+    }
+}

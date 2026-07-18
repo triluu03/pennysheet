@@ -111,3 +111,78 @@ pub struct TransactionNoteData {
     pub transaction_id: Uuid,
     pub note: String,
 }
+
+#[cfg(test)]
+mod tests {
+    /// `TransactionCategory::from_str` accepts every known variant, case-insensitively.
+    #[test]
+    fn category_from_str_accepts_all_known_variants_case_insensitively() {
+        use std::str::FromStr;
+        use super::TransactionCategory;
+
+        let cases = [
+            ("groceries", TransactionCategory::Groceries),
+            ("Groceries", TransactionCategory::Groceries),
+            ("GROCERIES", TransactionCategory::Groceries),
+            ("health", TransactionCategory::Health),
+            ("transport", TransactionCategory::Transport),
+            ("services", TransactionCategory::Services),
+            ("leisure", TransactionCategory::Leisure),
+            ("others", TransactionCategory::Others),
+            ("investments", TransactionCategory::Investments),
+            ("excluded", TransactionCategory::Excluded),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                TransactionCategory::from_str(input).unwrap(),
+                expected,
+                "failed for input: {input}"
+            );
+        }
+    }
+
+    /// Unknown category strings surface a parsing error rather than panicking.
+    #[test]
+    fn category_from_str_rejects_unknown_value() {
+        use std::str::FromStr;
+        use crate::errors::DomainError;
+        use super::TransactionCategory;
+
+        let result = TransactionCategory::from_str("not-a-category");
+        assert!(matches!(result, Err(DomainError::Parsing(_))));
+    }
+
+    /// `TransactionClassification::from_str` accepts every known variant, case-insensitively.
+    #[test]
+    fn classification_from_str_accepts_all_known_variants_case_insensitively() {
+        use std::str::FromStr;
+        use super::TransactionClassification;
+
+        let cases = [
+            ("must-have", TransactionClassification::MustHave),
+            ("MUST-HAVE", TransactionClassification::MustHave),
+            ("Must-Have", TransactionClassification::MustHave),
+            ("nice-to-have", TransactionClassification::NiceToHave),
+            ("wasted", TransactionClassification::Wasted),
+            ("excluded", TransactionClassification::Excluded),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                TransactionClassification::from_str(input).unwrap(),
+                expected,
+                "failed for input: {input}"
+            );
+        }
+    }
+
+    /// Unknown classification strings surface a parsing error rather than panicking.
+    #[test]
+    fn classification_from_str_rejects_unknown_value() {
+        use std::str::FromStr;
+        use crate::errors::DomainError;
+        use super::TransactionClassification;
+
+        let result = TransactionClassification::from_str("not-a-classification");
+        assert!(matches!(result, Err(DomainError::Parsing(_))));
+    }
+}

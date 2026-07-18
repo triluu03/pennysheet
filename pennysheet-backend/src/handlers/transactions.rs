@@ -839,4 +839,278 @@ mod tests {
 
         get_all_events(db).await.unwrap()
     }
+
+    /// Categorize succeeds when the transaction has already been recorded.
+    #[tokio::test]
+    async fn categorize_transaction_handler_succeeds_for_recorded_transaction() {
+        let state = in_memory_state().await;
+        // Seed a recorded transaction.
+        let txn_id = Uuid::new_v4();
+        let recorded = Event::TransactionRecorded(
+            domain::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        );
+        append_event_to_db(&state.db, recorded).await.unwrap();
+
+        let (status, body) = categorize_transaction_handler(
+            State(state.clone()),
+            Json(CategorizeTransactionPayload {
+                transaction_id: txn_id.to_string(),
+                category: "groceries".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(body, "Transaction categorized!");
+    }
+
+    /// Categorize rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn categorize_transaction_handler_rejects_unknown_transaction() {
+        let state = in_memory_state().await;
+        let result = categorize_transaction_handler(
+            State(state.clone()),
+            Json(CategorizeTransactionPayload {
+                transaction_id: Uuid::new_v4().to_string(),
+                category: "groceries".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+        // No events should have been appended.
+        let events = get_all_events(&state.db).await.unwrap();
+        assert!(events.is_empty());
+    }
+
+    /// Categorize rejects invalid transaction ids at command creation.
+    #[tokio::test]
+    async fn categorize_transaction_handler_rejects_invalid_transaction_id() {
+        let state = in_memory_state().await;
+        let result = categorize_transaction_handler(
+            State(state.clone()),
+            Json(CategorizeTransactionPayload {
+                transaction_id: "not-a-uuid".to_string(),
+                category: "groceries".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Categorize rejects unknown category strings at command creation.
+    #[tokio::test]
+    async fn categorize_transaction_handler_rejects_unknown_category() {
+        let state = in_memory_state().await;
+        let result = categorize_transaction_handler(
+            State(state.clone()),
+            Json(CategorizeTransactionPayload {
+                transaction_id: Uuid::new_v4().to_string(),
+                category: "not-a-category".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Classify succeeds when the transaction has already been recorded.
+    #[tokio::test]
+    async fn classify_transaction_handler_succeeds_for_recorded_transaction() {
+        let state = in_memory_state().await;
+        let txn_id = Uuid::new_v4();
+        let recorded = Event::TransactionRecorded(
+            domain::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        );
+        append_event_to_db(&state.db, recorded).await.unwrap();
+
+        let (status, body) = classify_transaction_handler(
+            State(state.clone()),
+            Json(ClassifyTransactionPayload {
+                transaction_id: txn_id.to_string(),
+                classification: "must-have".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(body, "Transaction classified!");
+    }
+
+    /// Classify rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn classify_transaction_handler_rejects_unknown_transaction() {
+        let state = in_memory_state().await;
+        let result = classify_transaction_handler(
+            State(state.clone()),
+            Json(ClassifyTransactionPayload {
+                transaction_id: Uuid::new_v4().to_string(),
+                classification: "must-have".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+        let events = get_all_events(&state.db).await.unwrap();
+        assert!(events.is_empty());
+    }
+
+    /// Classify rejects invalid transaction ids at command creation.
+    #[tokio::test]
+    async fn classify_transaction_handler_rejects_invalid_transaction_id() {
+        let state = in_memory_state().await;
+        let result = classify_transaction_handler(
+            State(state.clone()),
+            Json(ClassifyTransactionPayload {
+                transaction_id: "not-a-uuid".to_string(),
+                classification: "must-have".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Classify rejects unknown classification strings at command creation.
+    #[tokio::test]
+    async fn classify_transaction_handler_rejects_unknown_classification() {
+        let state = in_memory_state().await;
+        let result = classify_transaction_handler(
+            State(state.clone()),
+            Json(ClassifyTransactionPayload {
+                transaction_id: Uuid::new_v4().to_string(),
+                classification: "not-a-classification".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Updating a note succeeds when the transaction has already been recorded.
+    #[tokio::test]
+    async fn update_transaction_note_handler_succeeds_for_recorded_transaction() {
+        let state = in_memory_state().await;
+        let txn_id = Uuid::new_v4();
+        let recorded = Event::TransactionRecorded(
+            domain::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        );
+        append_event_to_db(&state.db, recorded).await.unwrap();
+
+        let (status, body) = update_transaction_note_handler(
+            State(state.clone()),
+            Json(UpdateTransactionNotePayload {
+                transaction_id: txn_id.to_string(),
+                note: "my note".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(body, "Transaction note updated!");
+    }
+
+    /// Updating a note rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn update_transaction_note_handler_rejects_unknown_transaction() {
+        let state = in_memory_state().await;
+        let result = update_transaction_note_handler(
+            State(state.clone()),
+            Json(UpdateTransactionNotePayload {
+                transaction_id: Uuid::new_v4().to_string(),
+                note: "my note".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+        let events = get_all_events(&state.db).await.unwrap();
+        assert!(events.is_empty());
+    }
+
+    /// Updating a note rejects invalid transaction ids at command creation.
+    #[tokio::test]
+    async fn update_transaction_note_handler_rejects_invalid_transaction_id() {
+        let state = in_memory_state().await;
+        let result = update_transaction_note_handler(
+            State(state.clone()),
+            Json(UpdateTransactionNotePayload {
+                transaction_id: "not-a-uuid".to_string(),
+                note: "my note".to_string(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Pivot queries for income are not implemented.
+    #[tokio::test]
+    async fn get_transactions_pivot_handler_rejects_income_kind() {
+        let state = in_memory_state().await;
+        let query = GetTransactionsQuery {
+            start_date: None,
+            end_date: None,
+            kind: Some(TransactionKind::Income),
+            categories: vec![],
+            classifications: vec![],
+        };
+        let result = get_transactions_pivot_handler(
+            State(state),
+            axum_extra::extract::Query(query),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Pivot queries without a kind are not implemented.
+    #[tokio::test]
+    async fn get_transactions_pivot_handler_rejects_missing_kind() {
+        let state = in_memory_state().await;
+        let query = GetTransactionsQuery {
+            start_date: None,
+            end_date: None,
+            kind: None,
+            categories: vec![],
+            classifications: vec![],
+        };
+        let result = get_transactions_pivot_handler(
+            State(state),
+            axum_extra::extract::Query(query),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// Looking up a missing transaction id returns an empty list.
+    #[tokio::test]
+    async fn get_one_transaction_handler_returns_empty_for_unknown_id() {
+        let state = in_memory_state().await;
+        let result = get_one_transaction_handler(
+            State(state),
+            axum::extract::Path(Uuid::new_v4()),
+        )
+        .await
+        .unwrap();
+        assert!(result.is_empty());
+    }
+
+    // TODO: add get_transactions_handler, get_transactions_time_aggregated_handler, and expenses pivot success tests once projection query fixtures work under sqlite without new dependencies.
 }

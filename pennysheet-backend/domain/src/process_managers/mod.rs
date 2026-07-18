@@ -457,4 +457,130 @@ mod tests {
         assert_eq!(params.date_from, Some(start_date().to_string()));
         assert_eq!(params.date_to, Some(end_date().to_string()));
     }
+
+    /// A matching failure clears the pending request so the manager cannot re-init.
+    #[test]
+    fn new_fails_after_request_failed() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+        ];
+        assert!(matches!(
+            TransactionProcessManager::new(session_id, &events),
+            Err(DomainError::ComponentInit(_))
+        ));
+    }
+
+    /// Failures for a different request or session leave the pending request intact.
+    #[test]
+    fn new_ignores_failure_for_a_different_request_or_session() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        // Failing an unrelated request (different id, same session) keeps our request pending.
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id: Uuid::new_v4(),
+                session_id: 1,
+            }),
+        ];
+        assert!(TransactionProcessManager::new(session_id, &events).is_ok());
+        // Failing our request but on a different session also keeps it pending.
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id: 2,
+            }),
+        ];
+        assert!(TransactionProcessManager::new(session_id, &events).is_ok());
+    }
+
+    /// Continuations for a different session are ignored.
+    #[test]
+    fn continuation_for_a_different_session_is_ignored() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                // Continuation on a different session must not update our state.
+                Event::ImportTransactionsContinued(ImportContinueData {
+                    request_id,
+                    session_id: 999,
+                    start_date: NaiveDate::from_ymd_opt(2020, 1, 1).expect("valid date"),
+                    end_date: NaiveDate::from_ymd_opt(2020, 1, 2).expect("valid date"),
+                    continuation_key: "ignored".to_string(),
+                }),
+            ],
+        )
+        .expect("continuation for a different session should be ignored");
+        let params = expect_query_params(&manager);
+        assert_eq!(params.date_from, Some(start_date().to_string()));
+        assert_eq!(params.date_to, Some(end_date().to_string()));
+        assert_eq!(params.continuation_key, None);
+    }
+
+    /// Retry events for a different session do not restore a pending request.
+    #[test]
+    fn retry_for_a_different_session_does_not_establish_pending() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        // Request fails, then a retry comes for a different session — the manager stays uninitialized.
+        let events = [
+            requested_event(request_id, session_id),
+            Event::ImportTransactionsFailed(ImportStatusData {
+                request_id,
+                session_id,
+            }),
+            Event::TransactionImportRetryRequested(ImportStatusData {
+                request_id,
+                session_id: 999,
+            }),
+        ];
+        assert!(matches!(
+            TransactionProcessManager::new(session_id, &events),
+            Err(DomainError::ComponentInit(_))
+        ));
+    }
+
+    /// Annotation events do not affect the manager's pending request.
+    #[test]
+    fn annotation_events_do_not_affect_pending_request() {
+        let request_id = Uuid::new_v4();
+        let session_id = 1;
+        let manager = TransactionProcessManager::new(
+            session_id,
+            &[
+                requested_event(request_id, session_id),
+                Event::TransactionCategorized(
+                    crate::shared_schema::TransactionCategoryData {
+                        transaction_id: Uuid::new_v4(),
+                        category: crate::shared_schema::TransactionCategory::Groceries,
+                    },
+                ),
+                Event::TransactionClassified(
+                    crate::shared_schema::TransactionClassificationData {
+                        transaction_id: Uuid::new_v4(),
+                        classification:
+                            crate::shared_schema::TransactionClassification::MustHave,
+                    },
+                ),
+                Event::TransactionNoteUpdated(crate::shared_schema::TransactionNoteData {
+                    transaction_id: Uuid::new_v4(),
+                    note: "hello".into(),
+                }),
+            ],
+        )
+        .expect("annotation events should not clear the pending request");
+        let params = expect_query_params(&manager);
+        assert_eq!(params.date_from, Some(start_date().to_string()));
+        assert_eq!(params.date_to, Some(end_date().to_string()));
+    }
 }

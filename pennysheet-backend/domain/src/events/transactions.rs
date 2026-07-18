@@ -228,4 +228,95 @@ mod tests {
         without_creditor.creditor = None;
         assert_ne!(base, id_of(without_creditor));
     }
+
+    /// Gateway transaction fields are mapped into the domain transaction data.
+    #[test]
+    fn transaction_data_new_maps_gateway_fields() {
+        use chrono::NaiveDate;
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+        let txn = Transaction {
+            transaction_amount: AmountType {
+                currency: "USD".to_string(),
+                amount: "99.95".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Coffee Shop".to_string()),
+            }),
+            debtor: Some(PartyIdentification {
+                name: Some("Employer".to_string()),
+            }),
+            booking_date: Some("2026-06-01".to_string()),
+            transaction_date: Some("2026-05-31".to_string()),
+        };
+        let data = TransactionData::new(txn).unwrap();
+        assert_eq!(format!("{:.2}", data.amount), "99.95");
+        assert_eq!(data.currency, "USD");
+        assert_eq!(data.creditor_name.as_deref(), Some("Coffee Shop"));
+        assert_eq!(data.debtor_name.as_deref(), Some("Employer"));
+        assert_eq!(
+            data.booking_date,
+            NaiveDate::from_ymd_opt(2026, 6, 1)
+        );
+        assert_eq!(
+            data.transaction_date,
+            NaiveDate::from_ymd_opt(2026, 5, 31)
+        );
+    }
+
+    /// Optional party and date fields may be absent without failing construction.
+    #[test]
+    fn transaction_data_new_allows_absent_optional_fields() {
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::Transaction,
+        };
+        let txn = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "5.00".to_string(),
+            },
+            creditor: None,
+            debtor: None,
+            booking_date: None,
+            transaction_date: None,
+        };
+        let data = TransactionData::new(txn).unwrap();
+        assert_eq!(data.creditor_name, None);
+        assert_eq!(data.debtor_name, None);
+        assert_eq!(data.booking_date, None);
+        assert_eq!(data.transaction_date, None);
+    }
+
+    /// An unparseable amount fails construction with an event-creation error.
+    #[test]
+    fn transaction_data_new_rejects_invalid_amount() {
+        let mut txn = sample_transaction();
+        txn.transaction_amount.amount = "not-a-number".to_string();
+        let result = TransactionData::new(txn);
+        assert!(matches!(result, Err(crate::errors::DomainError::EventCreation(_))));
+    }
+
+    /// An unparseable booking date fails construction.
+    #[test]
+    fn transaction_data_new_rejects_invalid_booking_date() {
+        let mut txn = sample_transaction();
+        txn.booking_date = Some("2026-13-40".to_string());
+        let result = TransactionData::new(txn);
+        assert!(result.is_err());
+    }
+
+    /// An unparseable transaction date fails construction.
+    #[test]
+    fn transaction_data_new_rejects_invalid_transaction_date() {
+        let mut txn = sample_transaction();
+        txn.transaction_date = Some("2026-13-40".to_string());
+        let result = TransactionData::new(txn);
+        assert!(result.is_err());
+    }
 }

@@ -321,3 +321,227 @@ where
 
     Ok(rows)
 }
+
+// TODO: add integration tests for apply_user_settings_all and get_expenses_pivot_table once Postgres-backed fixtures are available without new dependencies.
+
+#[cfg(test)]
+mod tests {
+    /// Expense models are built only when a creditor name is present.
+    #[test]
+    fn from_recorded_transaction_returns_some_when_creditor_present() {
+        use domain::events::transactions::TransactionData;
+        use uuid::Uuid;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 42.0,
+            currency: "EUR".into(),
+            creditor_name: Some("Shop".into()),
+            debtor_name: None,
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data);
+        assert!(model.is_some());
+    }
+
+    /// Missing creditor names are treated as non-expenses.
+    #[test]
+    fn from_recorded_transaction_returns_none_when_creditor_absent() {
+        use domain::events::transactions::TransactionData;
+        use uuid::Uuid;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 42.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: Some("Payer".into()),
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data);
+        assert!(model.is_none());
+    }
+
+    /// A matching regex rule sets auto category and classification.
+    #[test]
+    fn apply_user_settings_sets_auto_fields_on_first_match() {
+        use domain::events::{
+            TransactionCategory,
+            TransactionClassification,
+            transactions::TransactionData,
+        };
+        use uuid::Uuid;
+
+        use crate::user_settings::UserSettingsResult;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: Some("Netflix".into()),
+            debtor_name: None,
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data).unwrap();
+
+        let settings = vec![UserSettingsResult {
+            setting_id: 1,
+            priority: 1,
+            regex_rule: "Netflix".into(),
+            category: TransactionCategory::Leisure,
+            classification: TransactionClassification::NiceToHave,
+        }];
+
+        let model = model.apply_user_settings(&settings);
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Leisure)
+        );
+        assert_eq!(
+            model.auto_classification.as_ref(),
+            &Some(TransactionClassification::NiceToHave)
+        );
+    }
+
+    /// Non-matching rules leave auto fields untouched.
+    #[test]
+    fn apply_user_settings_leaves_auto_fields_when_no_rule_matches() {
+        use domain::events::{
+            TransactionCategory,
+            TransactionClassification,
+            transactions::TransactionData,
+        };
+        use sea_orm::ActiveValue;
+        use uuid::Uuid;
+
+        use crate::user_settings::UserSettingsResult;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: Some("Netflix".into()),
+            debtor_name: None,
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data).unwrap();
+
+        let settings = vec![UserSettingsResult {
+            setting_id: 1,
+            priority: 1,
+            regex_rule: "Spotify".into(),
+            category: TransactionCategory::Leisure,
+            classification: TransactionClassification::NiceToHave,
+        }];
+
+        let model = model.apply_user_settings(&settings);
+        // No match => auto fields stay NotSet.
+        assert!(matches!(model.auto_category, ActiveValue::NotSet));
+        assert!(matches!(model.auto_classification, ActiveValue::NotSet));
+    }
+
+    /// Invalid regex rules are skipped rather than failing construction.
+    #[test]
+    fn apply_user_settings_skips_invalid_regex_rules() {
+        use domain::events::{
+            TransactionCategory,
+            TransactionClassification,
+            transactions::TransactionData,
+        };
+        use uuid::Uuid;
+
+        use crate::user_settings::UserSettingsResult;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: Some("Netflix".into()),
+            debtor_name: None,
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data).unwrap();
+
+        // First rule is an invalid regex — it should be skipped.
+        let settings = vec![
+            UserSettingsResult {
+                setting_id: 1,
+                priority: 1,
+                regex_rule: "[invalid".into(),
+                category: TransactionCategory::Excluded,
+                classification: TransactionClassification::Excluded,
+            },
+            UserSettingsResult {
+                setting_id: 2,
+                priority: 2,
+                regex_rule: "Netflix".into(),
+                category: TransactionCategory::Leisure,
+                classification: TransactionClassification::NiceToHave,
+            },
+        ];
+
+        let model = model.apply_user_settings(&settings);
+        // Second rule matched because first (invalid) was skipped.
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Leisure)
+        );
+    }
+
+    /// The first matching rule wins when multiple rules could apply.
+    #[test]
+    fn apply_user_settings_uses_first_matching_rule() {
+        use domain::events::{
+            TransactionCategory,
+            TransactionClassification,
+            transactions::TransactionData,
+        };
+        use uuid::Uuid;
+
+        use crate::user_settings::UserSettingsResult;
+
+        let data = TransactionData {
+            transaction_id: Uuid::new_v4(),
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: Some("Netflix".into()),
+            debtor_name: None,
+        };
+        let model = super::ActiveModel::from_recorded_transaction(data).unwrap();
+
+        let settings = vec![
+            UserSettingsResult {
+                setting_id: 1,
+                priority: 1,
+                regex_rule: ".*".into(),
+                category: TransactionCategory::Groceries,
+                classification: TransactionClassification::MustHave,
+            },
+            UserSettingsResult {
+                setting_id: 2,
+                priority: 2,
+                regex_rule: "Netflix".into(),
+                category: TransactionCategory::Leisure,
+                classification: TransactionClassification::NiceToHave,
+            },
+        ];
+
+        let model = model.apply_user_settings(&settings);
+        // First rule matches and wins.
+        assert_eq!(
+            model.auto_category.as_ref(),
+            &Some(TransactionCategory::Groceries)
+        );
+        assert_eq!(
+            model.auto_classification.as_ref(),
+            &Some(TransactionClassification::MustHave)
+        );
+    }
+}

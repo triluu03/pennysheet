@@ -480,4 +480,161 @@ mod tests {
             .unwrap();
         assert!(aggregate.execute(command).is_ok());
     }
+
+    /// Categorize succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_categorize_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        // Seed a transaction, then categorize should succeed.
+        let aggregate = CoreAggregate::new(&[Event::TransactionRecorded(
+            crate::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        )]);
+        let cmd = Command::CategorizeTransaction(
+            crate::shared_schema::TransactionCategoryData {
+                transaction_id: txn_id,
+                category: crate::shared_schema::TransactionCategory::Groceries,
+            },
+        );
+        let event = aggregate.execute(cmd).unwrap();
+        assert!(matches!(event, Event::TransactionCategorized(_)));
+    }
+
+    /// Categorize rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_categorize_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        let cmd = Command::CategorizeTransaction(
+            crate::shared_schema::TransactionCategoryData {
+                transaction_id: Uuid::new_v4(),
+                category: crate::shared_schema::TransactionCategory::Groceries,
+            },
+        );
+        assert!(aggregate.execute(cmd).is_err());
+    }
+
+    /// Classify succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_classify_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        let aggregate = CoreAggregate::new(&[Event::TransactionRecorded(
+            crate::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        )]);
+        let cmd = Command::ClassifyTransaction(
+            crate::shared_schema::TransactionClassificationData {
+                transaction_id: txn_id,
+                classification: crate::shared_schema::TransactionClassification::MustHave,
+            },
+        );
+        let event = aggregate.execute(cmd).unwrap();
+        assert!(matches!(event, Event::TransactionClassified(_)));
+    }
+
+    /// Classify rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_classify_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        let cmd = Command::ClassifyTransaction(
+            crate::shared_schema::TransactionClassificationData {
+                transaction_id: Uuid::new_v4(),
+                classification: crate::shared_schema::TransactionClassification::MustHave,
+            },
+        );
+        assert!(aggregate.execute(cmd).is_err());
+    }
+
+    /// Updating a note succeeds only after the transaction has been recorded.
+    #[test]
+    fn execute_update_note_succeeds_for_recorded_transaction() {
+        let txn_id = Uuid::new_v4();
+        let aggregate = CoreAggregate::new(&[Event::TransactionRecorded(
+            crate::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        )]);
+        let cmd = Command::UpdateTransactionNote(crate::shared_schema::TransactionNoteData {
+            transaction_id: txn_id,
+            note: "hello".into(),
+        });
+        let event = aggregate.execute(cmd).unwrap();
+        assert!(matches!(event, Event::TransactionNoteUpdated(_)));
+    }
+
+    /// Updating a note rejects transaction ids that are not in the recorded set.
+    #[test]
+    fn execute_update_note_rejects_unknown_transaction() {
+        let aggregate = CoreAggregate::new(&[]);
+        let cmd =
+            Command::UpdateTransactionNote(crate::shared_schema::TransactionNoteData {
+                transaction_id: Uuid::new_v4(),
+                note: "hello".into(),
+            });
+        assert!(aggregate.execute(cmd).is_err());
+    }
+
+    /// Categorize, classify, and note-updated events do not alter aggregate state.
+    #[test]
+    fn apply_annotation_events_does_not_change_recorded_or_pending_state() {
+        let txn_id = Uuid::new_v4();
+        // Build an aggregate with one recorded transaction and a pending request.
+        let aggregate = CoreAggregate::new(&[Event::TransactionRecorded(
+            crate::events::transactions::TransactionData {
+                transaction_id: txn_id,
+                booking_date: None,
+                transaction_date: None,
+                amount: 10.0,
+                currency: "EUR".into(),
+                creditor_name: None,
+                debtor_name: None,
+            },
+        )]);
+        // Apply annotation events — these must not change the recorded set.
+        let aggregate = aggregate.apply(&Event::TransactionCategorized(
+            crate::shared_schema::TransactionCategoryData {
+                transaction_id: txn_id,
+                category: crate::shared_schema::TransactionCategory::Groceries,
+            },
+        ));
+        let aggregate = aggregate.apply(&Event::TransactionClassified(
+            crate::shared_schema::TransactionClassificationData {
+                transaction_id: txn_id,
+                classification: crate::shared_schema::TransactionClassification::MustHave,
+            },
+        ));
+        let aggregate = aggregate.apply(&Event::TransactionNoteUpdated(
+            crate::shared_schema::TransactionNoteData {
+                transaction_id: txn_id,
+                note: "hello".into(),
+            },
+        ));
+        // The transaction is still recorded, so a new categorization for it should still succeed.
+        let cmd = Command::CategorizeTransaction(
+            crate::shared_schema::TransactionCategoryData {
+                transaction_id: txn_id,
+                category: crate::shared_schema::TransactionCategory::Health,
+            },
+        );
+        assert!(aggregate.execute(cmd).is_ok());
+    }
 }
