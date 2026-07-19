@@ -3,8 +3,8 @@
 use chrono::{
     Duration,
     Local,
+    NaiveDate,
     NaiveTime,
-    TimeZone,
 };
 use domain::{
     aggregates::CoreAggregate,
@@ -46,37 +46,28 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
     let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
     let evening = NaiveTime::from_hms_opt(20, 0, 0).unwrap();
 
+    let mut last_run: Option<(NaiveDate, NaiveTime)> = None;
+
     loop {
+        // Check against wall-clock every 1 minute.
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
         let now = Local::now();
         let today = now.date_naive();
+        let current_time = now.time();
 
-        let upcoming_schedules = [
-            Local.from_local_datetime(&today.and_time(noon)).unwrap(),
-            Local.from_local_datetime(&today.and_time(evening)).unwrap(),
-            Local
-                .from_local_datetime(&(today + Duration::days(1)).and_time(noon))
-                .unwrap(),
-            Local
-                .from_local_datetime(&(today + Duration::days(1)).and_time(evening))
-                .unwrap(),
-        ];
-
-        let next_run = upcoming_schedules
+        let scheduled_times = [noon, evening];
+        let next_run: Option<NaiveTime> = scheduled_times
             .into_iter()
-            .filter(|dt| *dt > now)
-            .min()
-            .unwrap();
+            .find(|target| current_time >= *target && last_run != Some((today, *target)));
 
-        let duration_until = (next_run - now).to_std().unwrap();
-        info!(
-            next_run = next_run.to_string(),
-            "waiting until the next scheduled import"
-        );
-        tokio::time::sleep(duration_until).await;
-
-        match run_scheduled_polling_job(&db).await {
-            Ok(()) => info!("scheduled transactions import completed"),
-            Err(error) => error!(%error, "scheduled transactions import failed"),
+        if let Some(target) = next_run {
+            info!(time = target.to_string(), "running the scheduled import");
+            last_run = Some((today, target));
+            match run_scheduled_polling_job(&db).await {
+                Ok(()) => info!("scheduled transactions import completed"),
+                Err(error) => error!(%error, "scheduled transactions import failed"),
+            }
         }
     }
 }
@@ -317,4 +308,5 @@ async fn fail_import(
     }
 }
 
-// TODO: add tests for fail_import, run_transaction_import, and run_scheduled_polling_job once Enable Banking/JWT fixtures are available without new dependencies.
+// TODO: add tests for fail_import, run_transaction_import, and run_scheduled_polling_job once
+// Enable Banking/JWT fixtures are available without new dependencies.
