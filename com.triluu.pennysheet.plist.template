@@ -6,6 +6,8 @@
     <string>com.triluu.pennysheet</string>
     <key>ProgramArguments</key>
     <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-s</string>
         <string>__PROJECT_DIR__/builds/pennysheet-backend</string>
     </array>
     <key>WorkingDirectory</key>
