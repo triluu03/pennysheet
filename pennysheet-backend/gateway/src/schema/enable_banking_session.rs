@@ -152,16 +152,18 @@ mod tests {
             "psu_type": "business",
             "access": {"valid_until": "2026-12-31T23:59:59Z"}
         }"#;
-        let session = super::EnableBankingSession::from_json(payload)
-            .expect("business payload should parse");
+        let session =
+            super::EnableBankingSession::from_json(payload).expect("business payload should parse");
         assert!(matches!(session.psu_type, super::PSUType::Business));
     }
 
     /// A session whose valid_until is far in the future is not expired.
     #[test]
     fn is_expired_false_when_valid_until_is_far_in_future() {
-        use chrono::Utc;
-        use chrono::Duration;
+        use chrono::{
+            Duration,
+            Utc,
+        };
 
         let valid_until = Utc::now() + Duration::hours(24);
         let payload = format!(
@@ -182,8 +184,10 @@ mod tests {
     /// A session whose valid_until is already past is expired.
     #[test]
     fn is_expired_true_when_valid_until_is_in_the_past() {
-        use chrono::Utc;
-        use chrono::Duration;
+        use chrono::{
+            Duration,
+            Utc,
+        };
 
         let valid_until = Utc::now() - Duration::hours(1);
         let payload = format!(
@@ -204,8 +208,10 @@ mod tests {
     /// A session within the five-minute safety skew is treated as expired.
     #[test]
     fn is_expired_true_when_valid_until_is_within_five_minute_skew() {
-        use chrono::Utc;
-        use chrono::Duration;
+        use chrono::{
+            Duration,
+            Utc,
+        };
 
         let valid_until = Utc::now() + Duration::minutes(2);
         let payload = format!(

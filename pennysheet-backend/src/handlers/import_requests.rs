@@ -31,12 +31,12 @@ pub async fn get_import_requests_handler(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use axum::extract::State;
     use sea_orm::Database;
+    use std::sync::Arc;
 
-    use crate::AppState;
     use super::get_import_requests_handler;
+    use crate::AppState;
 
     /// Build an empty in-memory app state with schema synced.
     async fn in_memory_state() -> Arc<AppState> {

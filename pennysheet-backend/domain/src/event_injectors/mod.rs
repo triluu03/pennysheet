@@ -753,19 +753,14 @@ mod tests {
             session_id,
             &[
                 requested_event(request_id, session_id),
-                Event::TransactionCategorized(
-                    crate::shared_schema::TransactionCategoryData {
-                        transaction_id: Uuid::new_v4(),
-                        category: crate::shared_schema::TransactionCategory::Groceries,
-                    },
-                ),
-                Event::TransactionClassified(
-                    crate::shared_schema::TransactionClassificationData {
-                        transaction_id: Uuid::new_v4(),
-                        classification:
-                            crate::shared_schema::TransactionClassification::MustHave,
-                    },
-                ),
+                Event::TransactionCategorized(crate::shared_schema::TransactionCategoryData {
+                    transaction_id: Uuid::new_v4(),
+                    category: crate::shared_schema::TransactionCategory::Groceries,
+                }),
+                Event::TransactionClassified(crate::shared_schema::TransactionClassificationData {
+                    transaction_id: Uuid::new_v4(),
+                    classification: crate::shared_schema::TransactionClassification::MustHave,
+                }),
                 Event::TransactionNoteUpdated(crate::shared_schema::TransactionNoteData {
                     transaction_id: Uuid::new_v4(),
                     note: "hello".into(),
