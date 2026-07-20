@@ -85,7 +85,7 @@ pub trait ProjectorTrait {
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if loading projector state, user settings, or events fails.
+    /// Returns [`DbErr`] if the initialization fails.
     #[instrument(skip(db), fields(projector = Self::projector_name()))]
     async fn new(db: DatabaseConnection) -> Result<Self, DbErr>
     where
@@ -96,10 +96,8 @@ pub trait ProjectorTrait {
             .unwrap_or(0);
         let user_settings = get_user_settings(&db).await?;
 
-        let projector = Self::init(db, last_seen_event_number, user_settings);
-
         info!(last_seen_event_number, "projector initialized");
-        Ok(projector)
+        Ok(Self::init(db, last_seen_event_number, user_settings))
     }
 
     /// Listen to new events appended and run the projections.
