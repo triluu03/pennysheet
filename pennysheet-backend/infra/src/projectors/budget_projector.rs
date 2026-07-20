@@ -2,12 +2,10 @@
 
 use domain::events::{
     Event,
-    budgets::{
-        BudgetData,
-        BudgetType,
-    },
+    budgets::BudgetType,
 };
 use sea_orm::{
+    ActiveModelTrait,
     DatabaseConnection,
     DatabaseTransaction,
     DbErr,
@@ -17,7 +15,11 @@ use tracing::instrument;
 
 use crate::{
     UserSettingsResult,
-    projections::weekly_budgets,
+    projections::{
+        BudgetProjectionTrait,
+        monthly_budgets,
+        weekly_budgets,
+    },
     projectors::{
         ProjectorState,
         ProjectorTrait,
@@ -27,8 +29,6 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct BudgetProjector {
     state: ProjectorState,
-    weekly_budget: Option<BudgetData>,
-    monthly_budget: Option<BudgetData>,
 }
 
 #[async_trait::async_trait]
@@ -58,8 +58,6 @@ impl ProjectorTrait for BudgetProjector {
                 last_seen_event_number,
                 user_settings,
             },
-            weekly_budget: None,
-            monthly_budget: None,
         }
     }
 
@@ -79,7 +77,6 @@ impl ProjectorTrait for BudgetProjector {
             | Event::ImportTransactionsCompleted(_)
             | Event::ImportTransactionsFailed(_)
             | Event::TransactionImportRetryRequested(_)
-            | Event::TransactionRecorded(_)
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_)
@@ -87,46 +84,58 @@ impl ProjectorTrait for BudgetProjector {
                 // Skip these transaction events.
                 Ok(())
             },
-            Event::BudgetCreated(data) => match data.budget_type {
+            Event::TransactionRecorded(data) => {
+                // Check against the active weekly budget threshold.
+                if let Some(budget) = weekly_budgets::Entity::get_active_budget(txn).await?
+                    && data.amount <= budget.threshold
+                    && let Some(row) =
+                        weekly_budgets::ActiveModel::from_recorded_transaction(data.clone())
+                {
+                    row.apply_user_settings(user_settings).insert(txn).await?;
+                }
+                // Check against the active monthly budget threshold.
+                if let Some(budget) = monthly_budgets::Entity::get_active_budget(txn).await?
+                    && data.amount <= budget.threshold
+                    && let Some(row) =
+                        monthly_budgets::ActiveModel::from_recorded_transaction(data.clone())
+                {
+                    row.apply_user_settings(user_settings).insert(txn).await?;
+                }
+                Ok(())
+            },
+            Event::BudgetCreated(data) | Event::BudgetUpdated(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    weekly_budgets::start_tracking_new_budget(txn).await?;
+                    weekly_budgets::Entity::start_tracking_new_budget(txn, data).await?;
                     Ok(())
                 },
                 BudgetType::Monthly => {
-                    todo!()
+                    monthly_budgets::Entity::start_tracking_new_budget(txn, data).await?;
+                    Ok(())
                 },
             },
-            Event::BudgetUpdated(_)
-            | Event::BudgetDeleted(_)
-            | Event::BudgetExceeded(_)
-            | Event::BudgetReset(_) => {
-                // Skip these budget events
+            Event::BudgetDeleted(budget_type) => match budget_type {
+                BudgetType::Weekly => {
+                    weekly_budgets::Entity::delete_budget_tracking(txn).await?;
+                    Ok(())
+                },
+                BudgetType::Monthly => {
+                    monthly_budgets::Entity::delete_budget_tracking(txn).await?;
+                    Ok(())
+                },
+            },
+            Event::BudgetExceeded(_) => {
+                // No projection change needed.
                 Ok(())
             },
-        }
-    }
-
-    /// Construct projector's state based on a single event.
-    #[instrument(skip(self))]
-    fn apply(&mut self, event: &Event) {
-        match event {
-            Event::ImportTransactionsRequested(_)
-            | Event::ImportTransactionsCompleted(_)
-            | Event::ImportTransactionsFailed(_)
-            | Event::TransactionImportRetryRequested(_)
-            | Event::TransactionRecorded(_)
-            | Event::TransactionCategorized(_)
-            | Event::TransactionClassified(_)
-            | Event::TransactionNoteUpdated(_)
-            | Event::ImportTransactionsContinued(_) => {
-                // Skip these transaction events.
-            },
-            Event::BudgetCreated(_)
-            | Event::BudgetUpdated(_)
-            | Event::BudgetDeleted(_)
-            | Event::BudgetExceeded(_)
-            | Event::BudgetReset(_) => {
-                // Skip these budget events
+            Event::BudgetReset(budget_type) => match budget_type {
+                BudgetType::Weekly => {
+                    weekly_budgets::Entity::reset_budget(txn).await?;
+                    Ok(())
+                },
+                BudgetType::Monthly => {
+                    monthly_budgets::Entity::reset_budget(txn).await?;
+                    Ok(())
+                },
             },
         }
     }
