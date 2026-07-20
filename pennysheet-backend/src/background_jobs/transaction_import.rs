@@ -45,6 +45,7 @@ use crate::errors::AppError;
 pub async fn scheduled_transaction_import(db: DatabaseConnection) {
     let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
     let evening = NaiveTime::from_hms_opt(20, 0, 0).unwrap();
+    let scheduled_times = [noon, evening];
 
     let mut last_run: Option<(NaiveDate, NaiveTime)> = None;
 
@@ -56,10 +57,15 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
         let today = now.date_naive();
         let current_time = now.time();
 
-        let scheduled_times = [noon, evening];
         let next_run: Option<NaiveTime> = scheduled_times
-            .into_iter()
-            .find(|target| current_time >= *target && last_run != Some((today, *target)));
+            .iter()
+            .find(|target| {
+                current_time >= **target
+                    //  Run request within 5-minute window
+                    && current_time < **target + Duration::minutes(5)
+                    && last_run != Some((today, **target))
+            })
+            .copied();
 
         if let Some(target) = next_run {
             info!(time = target.to_string(), "running the scheduled import");
