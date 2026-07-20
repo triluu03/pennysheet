@@ -41,7 +41,7 @@ impl ProjectorTrait for BudgetProjector {
     fn state(&self) -> &ProjectorState {
         &self.state
     }
-    /// Projector state mutatble reference.
+    /// Projector state mutable reference.
     fn state_mut(&mut self) -> &mut ProjectorState {
         &mut self.state
     }
