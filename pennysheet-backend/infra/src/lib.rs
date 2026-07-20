@@ -15,7 +15,6 @@ pub use crate::{
         append_event_to_db,
         append_multi_events_to_db,
         get_all_events,
-        get_events_with_limit,
         get_events_with_offset,
     },
     sessions::{

@@ -17,9 +17,7 @@ use tracing::{
 };
 
 use crate::{
-    get_all_events,
     get_database_url,
-    get_events_with_limit,
     get_events_with_offset,
     get_user_settings,
     projections::projector_states::{
@@ -96,12 +94,9 @@ pub trait ProjectorTrait {
         let last_seen_event_number = get_projector_state(&db, Self::projector_name())
             .await?
             .unwrap_or(0);
-        let seen_events = get_events_with_limit(&db, last_seen_event_number).await?;
-
         let user_settings = get_user_settings(&db).await?;
 
-        let mut projector = Self::init(db, last_seen_event_number, user_settings);
-        projector.multi_apply(&seen_events);
+        let projector = Self::init(db, last_seen_event_number, user_settings);
 
         info!(last_seen_event_number, "projector initialized");
         Ok(projector)
@@ -184,22 +179,11 @@ pub trait ProjectorTrait {
 
         // Update the state of the current spawned projector.
         *self.last_seen_event_number_mut() += n_unseen_events;
-        self.multi_apply(&unseen_events);
         info!(
             last_seen_event_number = self.last_seen_event_number(),
             "projection committed"
         );
         Ok(())
-    }
-
-    /// Update the projector's in-memory state from a single event.
-    fn apply(&mut self, _event: &Event) {
-        // Default: ignore all events.
-    }
-
-    /// Update the projector's in-memory state from multiple events in order.
-    fn multi_apply(&mut self, events: &[Event]) {
-        events.iter().for_each(|event| self.apply(event));
     }
 
     /// Project records based on a single event.
