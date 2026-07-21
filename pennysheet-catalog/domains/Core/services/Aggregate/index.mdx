@@ -18,13 +18,13 @@ receives:
     version: 0.0.1
   - id: DeleteBudget
     version: 0.0.1
+  - id: ResetBudget
+    version: 0.0.1
   - id: ImportTransactions
     version: 0.0.1
   - id: RetryFailedTransactionsImport
     version: 0.0.1
 sends:
-  - id: TransactionRecorded
-    version: 0.0.1
   - id: TransactionCategorized
     version: 0.0.1
   - id: TransactionTagged
@@ -37,9 +37,7 @@ sends:
     version: 0.0.1
   - id: BudgetDeleted
     version: 0.0.1
-  - id: BudgetReached
-    version: 0.0.1
-  - id: BudgetExceeded
+  - id: BudgetReset
     version: 0.0.1
   - id: ImportTransactionsRequested
     version: 0.0.1

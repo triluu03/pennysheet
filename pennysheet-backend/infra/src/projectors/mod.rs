@@ -27,9 +27,11 @@ use crate::{
     user_settings::UserSettingsResult,
 };
 
+mod budget_projector;
 mod core_projector;
 mod import_request_projector;
 
+pub use budget_projector::BudgetProjector;
 pub use core_projector::CoreProjector;
 pub use import_request_projector::ImportRequestProjector;
 
@@ -210,4 +212,5 @@ pub trait ProjectorTrait {
     }
 }
 
-// TODO: add tests for ProjectorTrait::new, run_projections, multi_project, and listen_to_new_events once Postgres/PgListener fixtures are available without new dependencies.
+// TODO: add tests for ProjectorTrait::new, run_projections, multi_project, and listen_to_new_events
+// once Postgres/PgListener fixtures are available without new dependencies.

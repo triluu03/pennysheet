@@ -12,6 +12,10 @@ use crate::{
     errors::DomainError,
     events::{
         Event,
+        budgets::{
+            BudgetData,
+            BudgetType,
+        },
         transactions::{
             ImportRequestData,
             ImportStatusData,
@@ -30,6 +34,10 @@ pub struct CoreAggregate {
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
+    /// Whether there is an active weekly budget.
+    active_weekly_budget: bool,
+    /// Whether there is an active monthly budget.
+    active_monthly_budget: bool,
 }
 
 impl CoreAggregate {
@@ -125,6 +133,106 @@ impl CoreAggregate {
                     ))
                 }
             },
+            Command::CreateBudget(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Err(DomainError::CommandRejected(
+                            "A weekly budget has already existed!".to_string(),
+                        ))
+                    } else {
+                        Ok(Event::BudgetCreated(BudgetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Err(DomainError::CommandRejected(
+                            "A monthly budget has already existed!".to_string(),
+                        ))
+                    } else {
+                        Ok(Event::BudgetCreated(BudgetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    }
+                },
+            },
+            Command::DeleteBudget(budget_type) => match budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetDeleted(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budget is active!".to_string(),
+                        ))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetDeleted(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budget is active!".to_string(),
+                        ))
+                    }
+                },
+            },
+            Command::UpdateBudget(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetUpdated(BudgetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budget is active!".to_string(),
+                        ))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetUpdated(BudgetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                            amount: data.amount,
+                            threshold: data.threshold,
+                        }))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budget is active!".to_string(),
+                        ))
+                    }
+                },
+            },
+            Command::ResetBudget(budget_type) => match budget_type {
+                BudgetType::Weekly => {
+                    if self.active_weekly_budget {
+                        Ok(Event::BudgetReset(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No weekly budgets are active!".to_string(),
+                        ))
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.active_monthly_budget {
+                        Ok(Event::BudgetReset(budget_type))
+                    } else {
+                        Err(DomainError::CommandRejected(
+                            "No monthly budgets are active!".to_string(),
+                        ))
+                    }
+                },
+            },
         };
 
         match &result {
@@ -171,7 +279,18 @@ impl CoreAggregate {
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_) => {
-                // Ignore these events
+                // Ignore these transactions events
+            },
+            Event::BudgetCreated(data) => match data.budget_type {
+                BudgetType::Weekly => self.active_weekly_budget = true,
+                BudgetType::Monthly => self.active_monthly_budget = true,
+            },
+            Event::BudgetDeleted(budget_type) => match budget_type {
+                BudgetType::Weekly => self.active_weekly_budget = false,
+                BudgetType::Monthly => self.active_monthly_budget = false,
+            },
+            Event::BudgetUpdated(_) | Event::BudgetExceeded(_) | Event::BudgetReset(_) => {
+                // Ignore these budget events
             },
         }
         self

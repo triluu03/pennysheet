@@ -108,10 +108,8 @@ mod tests {
     fn display_formats_each_variant_with_expected_message() {
         use super::AppError;
         assert_eq!(
-            AppError::Domain(domain::errors::DomainError::CommandRejected(
-                "bad".into()
-            ))
-            .to_string(),
+            AppError::Domain(domain::errors::DomainError::CommandRejected("bad".into()))
+                .to_string(),
             "Domain error: Command rejected: bad"
         );
         assert_eq!(
@@ -119,8 +117,7 @@ mod tests {
             "Database error: conn failed"
         );
         assert_eq!(
-            AppError::Gateway(gateway::errors::GatewayError::Api("500".into()))
-                .to_string(),
+            AppError::Gateway(gateway::errors::GatewayError::Api("500".into())).to_string(),
             "Gateway error: API returned an error: 500"
         );
         assert_eq!(

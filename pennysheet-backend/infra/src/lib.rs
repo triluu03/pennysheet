@@ -117,6 +117,8 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(projections::expenses::Entity)
         .register(projections::income::Entity)
         .register(projections::import_requests::Entity)
+        .register(projections::weekly_budgets::Entity)
+        .register(projections::monthly_budgets::Entity)
         // Sessions
         .register(sessions::Entity)
         // User settings
@@ -212,4 +214,5 @@ pub async fn setup_new_event_notification(db: &DatabaseConnection) -> Result<(),
     Ok(())
 }
 
-// TODO: add tests for get_database_url, connect_to_database, ensure_append_only_eventstore, and setup_new_event_notification once Postgres/env fixtures are available without new dependencies.
+// TODO: add tests for get_database_url, connect_to_database, ensure_append_only_eventstore, and
+// setup_new_event_notification once Postgres/env fixtures are available without new dependencies.

@@ -100,20 +100,20 @@ pub async fn delete_sessions_handler(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use axum::{
         Json,
         extract::State,
     };
     use sea_orm::Database;
+    use std::sync::Arc;
 
-    use crate::AppState;
     use super::{
         ImportSessionPayload,
         create_sessions_handler,
         delete_sessions_handler,
         get_sessions_handler,
     };
+    use crate::AppState;
 
     const MOCK_SESSION: &str = r#"{
         "session_id": "sess-123",
@@ -181,10 +181,9 @@ mod tests {
             .await
             .unwrap();
         // Then delete it.
-        let status =
-            delete_sessions_handler(State(state), axum::extract::Path(created.session_id))
-                .await
-                .unwrap();
+        let status = delete_sessions_handler(State(state), axum::extract::Path(created.session_id))
+            .await
+            .unwrap();
         assert_eq!(status, axum::http::StatusCode::NO_CONTENT);
     }
 

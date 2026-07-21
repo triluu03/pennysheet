@@ -18,7 +18,7 @@ use domain::{
         Event,
         transactions::ImportStatusData,
     },
-    process_managers::TransactionProcessManager,
+    process_managers::transaction::TransactionProcessManager,
 };
 use gateway::client::enable_banking_client::EnableBankingClient;
 use infra::{
@@ -60,8 +60,8 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
         let next_run: Option<NaiveTime> = scheduled_times
             .iter()
             .find(|target| {
+                //  Run request within 5-minute window
                 current_time >= **target
-                    //  Run request within 5-minute window
                     && current_time < **target + Duration::minutes(5)
                     && last_run != Some((today, **target))
             })

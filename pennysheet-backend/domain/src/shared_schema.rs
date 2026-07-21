@@ -117,8 +117,8 @@ mod tests {
     /// `TransactionCategory::from_str` accepts every known variant, case-insensitively.
     #[test]
     fn category_from_str_accepts_all_known_variants_case_insensitively() {
-        use std::str::FromStr;
         use super::TransactionCategory;
+        use std::str::FromStr;
 
         let cases = [
             ("groceries", TransactionCategory::Groceries),
@@ -144,9 +144,9 @@ mod tests {
     /// Unknown category strings surface a parsing error rather than panicking.
     #[test]
     fn category_from_str_rejects_unknown_value() {
-        use std::str::FromStr;
-        use crate::errors::DomainError;
         use super::TransactionCategory;
+        use crate::errors::DomainError;
+        use std::str::FromStr;
 
         let result = TransactionCategory::from_str("not-a-category");
         assert!(matches!(result, Err(DomainError::Parsing(_))));
@@ -155,8 +155,8 @@ mod tests {
     /// `TransactionClassification::from_str` accepts every known variant, case-insensitively.
     #[test]
     fn classification_from_str_accepts_all_known_variants_case_insensitively() {
-        use std::str::FromStr;
         use super::TransactionClassification;
+        use std::str::FromStr;
 
         let cases = [
             ("must-have", TransactionClassification::MustHave),
@@ -178,9 +178,9 @@ mod tests {
     /// Unknown classification strings surface a parsing error rather than panicking.
     #[test]
     fn classification_from_str_rejects_unknown_value() {
-        use std::str::FromStr;
-        use crate::errors::DomainError;
         use super::TransactionClassification;
+        use crate::errors::DomainError;
+        use std::str::FromStr;
 
         let result = TransactionClassification::from_str("not-a-classification");
         assert!(matches!(result, Err(DomainError::Parsing(_))));

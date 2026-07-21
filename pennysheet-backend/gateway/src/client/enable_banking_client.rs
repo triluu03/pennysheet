@@ -411,5 +411,6 @@ mod tests {
         );
     }
 
-    // TODO: add tests for EnableBankingClient::new once JWT generation can be exercised without private-key env fixtures.
+    // TODO: add tests for EnableBankingClient::new once JWT generation can be exercised without
+    // private-key env fixtures.
 }

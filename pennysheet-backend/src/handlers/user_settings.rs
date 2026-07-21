@@ -25,7 +25,7 @@ use tracing::instrument;
 
 use crate::{
     AppState,
-    background_jobs::apply_user_settings_to_expenses,
+    background_jobs::apply_user_settings_to_projections,
     errors::AppError,
 };
 
@@ -71,7 +71,7 @@ pub async fn create_user_settings_handler(
     )
     .await
     .map(|result| {
-        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
         Json(result)
     })
     .map_err(AppError::from)
@@ -107,7 +107,7 @@ pub async fn update_user_settings_handler(
     )
     .await
     .map(|_| {
-        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
         StatusCode::NO_CONTENT
     })
     .map_err(AppError::from)
@@ -127,7 +127,7 @@ pub async fn delete_user_settings_handler(
     delete_user_setting(&state.db, setting_id)
         .await
         .map(|_| {
-            tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+            tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
             StatusCode::NO_CONTENT
         })
         .map_err(AppError::from)
@@ -135,7 +135,6 @@ pub async fn delete_user_settings_handler(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use axum::{
         Json,
         extract::{
@@ -148,8 +147,8 @@ mod tests {
         TransactionClassification,
     };
     use sea_orm::Database;
+    use std::sync::Arc;
 
-    use crate::AppState;
     use super::{
         CreateUserSettingsPayload,
         UpdateUserSettingsPayload,
@@ -158,6 +157,7 @@ mod tests {
         get_user_settings_handler,
         update_user_settings_handler,
     };
+    use crate::AppState;
 
     /// Build an empty in-memory app state with schema synced.
     async fn in_memory_state() -> Arc<AppState> {
@@ -183,10 +183,9 @@ mod tests {
             category: TransactionCategory::Leisure,
             classification: TransactionClassification::NiceToHave,
         };
-        let response =
-            create_user_settings_handler(State(state), Json(payload))
-                .await
-                .unwrap();
+        let response = create_user_settings_handler(State(state), Json(payload))
+            .await
+            .unwrap();
         assert_eq!(response.regex_rule, "Netflix");
         assert_eq!(response.category, TransactionCategory::Leisure);
         assert!(response.setting_id > 0);
@@ -298,10 +297,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let status =
-            delete_user_settings_handler(State(state), Path(created.setting_id))
-                .await
-                .unwrap();
+        let status = delete_user_settings_handler(State(state), Path(created.setting_id))
+            .await
+            .unwrap();
         assert_eq!(status, axum::http::StatusCode::NO_CONTENT);
     }
 

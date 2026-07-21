@@ -107,7 +107,15 @@ impl ProjectorTrait for ImportRequestProjector {
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_)
             | Event::ImportTransactionsContinued(_) => {
-                // Skip these events.
+                // Skip these transaction events.
+                Ok(())
+            },
+            Event::BudgetCreated(_)
+            | Event::BudgetUpdated(_)
+            | Event::BudgetDeleted(_)
+            | Event::BudgetExceeded(_)
+            | Event::BudgetReset(_) => {
+                // Skip these budget events
                 Ok(())
             },
         }

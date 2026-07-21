@@ -23,6 +23,14 @@ use tower_http::{
 use crate::{
     AppState,
     handlers::{
+        budgets::{
+            create_budget_handler,
+            delete_budget_handler,
+            get_budgets_handler,
+            get_one_budget_handler,
+            reset_budget_handler,
+            update_budget_handler,
+        },
         import_requests::get_import_requests_handler,
         sessions::{
             create_sessions_handler,
@@ -71,6 +79,18 @@ fn transactions_router() -> Router<Arc<AppState>> {
         .route("/note", post(update_transaction_note_handler))
 }
 
+fn budgets_router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(get_budgets_handler).post(create_budget_handler))
+        .route(
+            "/{budget_type}",
+            get(get_one_budget_handler)
+                .patch(update_budget_handler)
+                .delete(delete_budget_handler),
+        )
+        .route("/{budget_type}/reset", post(reset_budget_handler))
+}
+
 fn user_settings_router() -> Router<Arc<AppState>> {
     Router::new()
         .route(
@@ -89,6 +109,7 @@ fn api_router() -> Router<Arc<AppState>> {
         .nest("/sessions", sessions_router())
         .nest("/transactions", transactions_router())
         .nest("/settings", user_settings_router())
+        .nest("/budgets", budgets_router())
         .route("/import_requests", get(get_import_requests_handler))
 }
 

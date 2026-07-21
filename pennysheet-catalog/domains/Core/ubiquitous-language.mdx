@@ -18,7 +18,7 @@ dictionary:
     name: Budget
     summary: "A user-defined spending limit for a category over a time period."
     description: |
-      Lifecycle: BudgetCreated → (BudgetUpdated) → BudgetReached → BudgetExceeded → (BudgetDeleted). Budgets track cumulative spending and trigger threshold notifications when limits approach or are breached.
+      Lifecycle: BudgetCreated → (BudgetUpdated) → BudgetExceeded → (BudgetDeleted). Budgets track cumulative spending and trigger threshold notifications when limits approach or are breached.
     icon: Wallet
 
   - id: EventStore
@@ -46,7 +46,7 @@ dictionary:
     name: Notifier
     summary: "Reactive service that dispatches user notifications when budget thresholds are reached or exceeded."
     description: |
-      The Notifier subscribes to BudgetReached and BudgetExceeded events and sends out-of-band notifications (e.g. push notifications or in-app alerts). It does not write back to the event store.
+      The Notifier subscribes to TransactionRecorded and BudgetExceeded events and sends out-of-band notifications (e.g. push notifications or in-app alerts). It does not write back to the event store.
     icon: Bell
 
   - id: TransactionView

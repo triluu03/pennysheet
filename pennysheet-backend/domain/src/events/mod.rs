@@ -12,9 +12,11 @@ use strum::{
     EnumDiscriminants,
 };
 
+pub mod budgets;
 pub mod transactions;
 
 pub use crate::shared_schema::*;
+use budgets::*;
 use transactions::*;
 
 /// Domain events.
@@ -41,6 +43,16 @@ pub enum Event {
     TransactionClassified(TransactionClassificationData),
     /// A transaction's note is updated.
     TransactionNoteUpdated(TransactionNoteData),
+    /// A new budget is created.
+    BudgetCreated(BudgetData),
+    /// A budget is updated.
+    BudgetUpdated(BudgetData),
+    /// A budget is deleted.
+    BudgetDeleted(BudgetType),
+    /// A budget has been exceeded.
+    BudgetExceeded(BudgetType),
+    /// A budget is reset.
+    BudgetReset(BudgetType),
 }
 
 impl fmt::Display for Event {

@@ -3,6 +3,7 @@
 use domain::events::{
     TransactionCategory,
     TransactionClassification,
+    budgets::BudgetData,
 };
 use sea_orm::{
     entity::prelude::*,
@@ -20,13 +21,22 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tracing::{
+    info,
+    instrument,
+};
 use uuid::Uuid;
+
+use crate::UserSettingsResult;
+
+pub(crate) mod projector_states;
 
 pub mod expenses;
 pub mod import_requests;
 pub mod income;
-pub(crate) mod projector_states;
+pub mod monthly_budgets;
 pub mod transactions;
+pub mod weekly_budgets;
 
 /// Time aggregation for aggregating the transactions projections.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -278,5 +288,187 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .into_model()
             .all(db)
             .await
+    }
+}
+
+/// An abstract base class for a projection supporting user settings.
+#[async_trait::async_trait]
+pub trait AutoUserSettingTrait: EntityTrait {
+    /// Auto-category column
+    fn auto_category_column() -> Self::Column;
+
+    /// Auto-classification column
+    fn auto_classification_column() -> Self::Column;
+
+    /// Target column to apply regex rules on.
+    fn regex_rule_target_column() -> Self::Column;
+
+    /// Apply the regex rules from user settings to the whole table.
+    ///
+    /// First, set "auto_category" and "auto_classification" columns in the database to be NULL
+    /// and apply the user settings one by one over those two columns.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if any step of the operation fails.
+    #[instrument(skip(db, user_settings))]
+    async fn apply_user_settings_all<C>(
+        db: &C,
+        user_settings: &[UserSettingsResult],
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::update_many()
+            .col_expr(
+                Self::auto_category_column(),
+                Expr::value(Option::<TransactionCategory>::None),
+            )
+            .col_expr(
+                Self::auto_classification_column(),
+                Expr::value(Option::<TransactionClassification>::None),
+            )
+            .exec(db)
+            .await?;
+
+        for setting in user_settings {
+            Self::update_many()
+                .col_expr(Self::auto_category_column(), Expr::value(setting.category))
+                .col_expr(
+                    Self::auto_classification_column(),
+                    Expr::value(setting.classification),
+                )
+                .filter(Self::auto_category_column().is_null())
+                .filter(Self::auto_classification_column().is_null())
+                .filter(Expr::cust_with_exprs(
+                    "$1 ~ $2",
+                    [
+                        Expr::col(Self::regex_rule_target_column()),
+                        Expr::value(setting.regex_rule.as_str()),
+                    ],
+                ))
+                .exec(db)
+                .await?;
+        }
+
+        info!(
+            n_settings = user_settings.len(),
+            "applied user settings to expenses projection"
+        );
+
+        Ok(())
+    }
+}
+
+/// A trait for budget projection entities.
+///
+/// Provides shared operations for managing a budget projection table:
+/// starting a new budget, querying the active budget row, resetting
+/// (keeping only the budget row), and deleting all tracking rows.
+#[async_trait::async_trait]
+pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
+    /// Column that identifies the budget row (typically `transaction_id`).
+    fn budget_id_column() -> Self::Column;
+
+    /// Category column.
+    fn category_column() -> Self::Column;
+
+    /// Classification column.
+    fn classification_column() -> Self::Column;
+
+    /// Start tracking a new budget.
+    ///
+    /// Truncates the projection table and inserts a new budget row.
+    async fn start_tracking_new_budget<C>(db: &C, budget: &BudgetData) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait;
+
+    /// Get all rows from the budget projection table.
+    ///
+    /// Returns both the budget row and all tracked transaction rows. The
+    /// `category` and `classification` columns are coalesced with their
+    /// auto-counterparts so that user settings override manual annotations.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the query fails.
+    async fn get_all<C>(db: &C) -> Result<Vec<Self::Model>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::find()
+            .select_only()
+            .columns(Self::Column::iter())
+            .column_as(
+                Expr::cust_with_exprs(
+                    "COALESCE($1, $2)",
+                    [
+                        Expr::col(Self::category_column()),
+                        Expr::col(Self::auto_category_column()),
+                    ],
+                ),
+                Self::category_column(),
+            )
+            .column_as(
+                Expr::cust_with_exprs(
+                    "COALESCE($1, $2)",
+                    [
+                        Expr::col(Self::classification_column()),
+                        Expr::col(Self::auto_classification_column()),
+                    ],
+                ),
+                Self::classification_column(),
+            )
+            .all(db)
+            .await
+    }
+
+    /// Get the active budget row from the projection table.
+    ///
+    /// The budget row is identified by a nil-UUID `budget_id_column`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the query fails.
+    async fn get_active_budget<C>(db: &C) -> Result<Option<Self::Model>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::find()
+            .filter(Self::budget_id_column().eq(Uuid::nil()))
+            .one(db)
+            .await
+    }
+
+    /// Reset the projection table, keeping only the budget row.
+    ///
+    /// Deletes all transaction rows but preserves the budget tracking row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the query or deletion fails.
+    async fn reset_budget<C>(db: &C) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::delete_many()
+            .filter(Self::budget_id_column().ne(Uuid::nil()))
+            .exec(db)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Delete all rows from the projection table.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the deletion fails.
+    async fn delete_budget_tracking<C>(db: &C) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::delete_many().exec(db).await?;
+        Ok(())
     }
 }

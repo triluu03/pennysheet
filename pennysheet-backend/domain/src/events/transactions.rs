@@ -57,7 +57,7 @@ pub struct TransactionData {
 }
 
 /// UUID namespace for Transactions Data.
-pub const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
+const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
     0x6b, 0xa6, 0xb7, 0x14, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
 ]);
 
@@ -259,14 +259,8 @@ mod tests {
         assert_eq!(data.currency, "USD");
         assert_eq!(data.creditor_name.as_deref(), Some("Coffee Shop"));
         assert_eq!(data.debtor_name.as_deref(), Some("Employer"));
-        assert_eq!(
-            data.booking_date,
-            NaiveDate::from_ymd_opt(2026, 6, 1)
-        );
-        assert_eq!(
-            data.transaction_date,
-            NaiveDate::from_ymd_opt(2026, 5, 31)
-        );
+        assert_eq!(data.booking_date, NaiveDate::from_ymd_opt(2026, 6, 1));
+        assert_eq!(data.transaction_date, NaiveDate::from_ymd_opt(2026, 5, 31));
     }
 
     /// Optional party and date fields may be absent without failing construction.
@@ -299,7 +293,10 @@ mod tests {
         let mut txn = sample_transaction();
         txn.transaction_amount.amount = "not-a-number".to_string();
         let result = TransactionData::new(txn);
-        assert!(matches!(result, Err(crate::errors::DomainError::EventCreation(_))));
+        assert!(matches!(
+            result,
+            Err(crate::errors::DomainError::EventCreation(_))
+        ));
     }
 
     /// An unparseable booking date fails construction.
