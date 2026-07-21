@@ -1,7 +1,5 @@
 //! Run projections
 
-use std::time::Duration;
-
 use infra::{
     DatabaseConnection,
     get_user_settings,
@@ -16,6 +14,7 @@ use infra::{
         ProjectorTrait,
     },
 };
+use std::time::Duration;
 use tracing::{
     error,
     info,
@@ -136,7 +135,7 @@ pub async fn spawn_and_subscribe_budget_projector(db: DatabaseConnection) {
 /// - Cannot query the user settings from the table.
 /// - Applying the user settings fails.
 #[instrument(skip(db))]
-pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
+pub async fn apply_user_settings_to_projections(db: DatabaseConnection) {
     let user_settings = get_user_settings(&db)
         .await
         .expect("querying user settings from the database should succeed!");
@@ -144,11 +143,17 @@ pub async fn apply_user_settings_to_expenses(db: DatabaseConnection) {
     // TODO: make this go through a transaction.
     info!(
         n_settings = user_settings.len(),
-        "re-applying user settings to expenses projection"
+        "re-applying user settings to projections"
     );
     projections::expenses::Entity::apply_user_settings_all(&db, &user_settings)
         .await
         .expect("apply user settings to the expenses projection should succeed");
+    projections::weekly_budgets::Entity::apply_user_settings_all(&db, &user_settings)
+        .await
+        .expect("apply user settings to the weekly budget projection should succeed");
+    projections::monthly_budgets::Entity::apply_user_settings_all(&db, &user_settings)
+        .await
+        .expect("apply user settings to the monthly budget projection should succeed");
 }
 
 // TODO: add tests for spawn_and_subscribe_core_projector,

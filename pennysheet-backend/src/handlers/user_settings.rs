@@ -25,7 +25,7 @@ use tracing::instrument;
 
 use crate::{
     AppState,
-    background_jobs::apply_user_settings_to_expenses,
+    background_jobs::apply_user_settings_to_projections,
     errors::AppError,
 };
 
@@ -71,7 +71,7 @@ pub async fn create_user_settings_handler(
     )
     .await
     .map(|result| {
-        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
         Json(result)
     })
     .map_err(AppError::from)
@@ -107,7 +107,7 @@ pub async fn update_user_settings_handler(
     )
     .await
     .map(|_| {
-        tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
         StatusCode::NO_CONTENT
     })
     .map_err(AppError::from)
@@ -127,7 +127,7 @@ pub async fn delete_user_settings_handler(
     delete_user_setting(&state.db, setting_id)
         .await
         .map(|_| {
-            tokio::spawn(apply_user_settings_to_expenses(state.db.clone()));
+            tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
             StatusCode::NO_CONTENT
         })
         .map_err(AppError::from)
