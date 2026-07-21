@@ -377,6 +377,20 @@ pub trait BudgetProjectionTrait: EntityTrait {
     where
         C: ConnectionTrait;
 
+    /// Get all rows from the budget projection table.
+    ///
+    /// Returns both the budget row and all tracked transaction rows.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the query fails.
+    async fn get_all<C>(db: &C) -> Result<Vec<Self::Model>, DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::find().all(db).await
+    }
+
     /// Get the active budget row from the projection table.
     ///
     /// The budget row is identified by a nil-UUID `budget_id_column`.

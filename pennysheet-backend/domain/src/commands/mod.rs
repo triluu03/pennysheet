@@ -159,6 +159,70 @@ impl Command {
         });
         Ok(command)
     }
+
+    /// Create a new [`Command::CreateBudget`] command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::CommandCreation`] if `start_date` does not follow the
+    /// format `"%Y-%m-%d"` or `budget_type` is not a recognized variant.
+    pub fn create_budget(
+        start_date: &str,
+        budget_type: BudgetType,
+        amount: f64,
+        threshold: f64,
+    ) -> Result<Self, DomainError> {
+        let parsed_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?;
+
+        Ok(Command::CreateBudget(NewBudgetData {
+            start_date: parsed_start_date,
+            budget_type,
+            amount,
+            threshold,
+        }))
+    }
+
+    /// Create a new [`Command::UpdateBudget`] command.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::CommandCreation`] if `start_date` does not follow the
+    /// format `"%Y-%m-%d"` or `budget_type` is not a recognized variant.
+    pub fn create_update_budget(
+        start_date: &str,
+        budget_type: BudgetType,
+        amount: f64,
+        threshold: f64,
+    ) -> Result<Self, DomainError> {
+        let parsed_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?;
+
+        Ok(Command::UpdateBudget(BudgetUpdateData {
+            start_date: parsed_start_date,
+            budget_type,
+            amount,
+            threshold,
+        }))
+    }
+
+    /// Create a new [`Command::DeleteBudget`] command.
+    ///
+    /// # Errors
+    ///
+    /// This constructor is infallible; the `Result` return type is for
+    /// consistency with the other command factory methods.
+    pub fn create_delete_budget(budget_type: BudgetType) -> Result<Self, DomainError> {
+        Ok(Command::DeleteBudget(budget_type))
+    }
+
+    /// Create a new [`Command::ResetBudget`] command.
+    ///
+    /// # Errors
+    ///
+    /// This constructor is infallible; the `Result` return type is for
+    /// consistency with the other command factory methods.
+    pub fn create_reset_budget(budget_type: BudgetType) -> Result<Self, DomainError> {
+        Ok(Command::ResetBudget(budget_type))
+    }
 }
 
 #[cfg(test)]
@@ -167,7 +231,10 @@ mod tests {
     use uuid::Uuid;
 
     use super::Command;
-    use crate::errors::DomainError;
+    use crate::{
+        errors::DomainError,
+        events::budgets::BudgetType,
+    };
 
     /// Unwrap the result and assert it is an [`Command::ImportTransactions`],
     /// returning the inner data for further assertions.
@@ -262,8 +329,7 @@ mod tests {
     /// One import command is created per provided session id.
     #[test]
     fn create_import_transactions_emits_one_command_per_session_id() {
-        let commands =
-            Command::create_import_transactions(None, None, vec![1, 2, 3]).unwrap();
+        let commands = Command::create_import_transactions(None, None, vec![1, 2, 3]).unwrap();
         assert_eq!(commands.len(), 3);
         for (i, cmd) in commands.iter().enumerate() {
             assert!(matches!(cmd, Command::ImportTransactions(_)));
@@ -281,7 +347,10 @@ mod tests {
         match result {
             Ok(Command::CategorizeTransaction(data)) => {
                 assert_eq!(data.transaction_id, txn_id);
-                assert_eq!(data.category, crate::shared_schema::TransactionCategory::Groceries);
+                assert_eq!(
+                    data.category,
+                    crate::shared_schema::TransactionCategory::Groceries
+                );
             },
             other => panic!("expected CategorizeTransaction, got {other:?}"),
         }
@@ -344,8 +413,7 @@ mod tests {
     #[test]
     fn create_update_transaction_note_succeeds_with_valid_inputs() {
         let txn_id = Uuid::new_v4();
-        let result =
-            Command::create_update_transaction_note(&txn_id.to_string(), "my note");
+        let result = Command::create_update_transaction_note(&txn_id.to_string(), "my note");
         match result {
             Ok(Command::UpdateTransactionNote(data)) => {
                 assert_eq!(data.transaction_id, txn_id);
@@ -361,6 +429,101 @@ mod tests {
         assert!(matches!(
             Command::create_update_transaction_note("not-a-uuid", "my note"),
             Err(DomainError::CommandCreation(_))
+        ));
+    }
+
+    /// A valid start date and weekly budget type produce a create-budget command.
+    #[test]
+    fn create_budget_succeeds_with_valid_inputs() {
+        let result = Command::create_budget("2026-01-15", BudgetType::Weekly, 500.0, 50.0);
+        match result {
+            Ok(Command::CreateBudget(data)) => {
+                assert_eq!(
+                    data.start_date,
+                    NaiveDate::from_ymd_opt(2026, 1, 15).unwrap()
+                );
+                assert_eq!(data.budget_type, BudgetType::Weekly);
+                assert!((data.amount - 500.0).abs() < f64::EPSILON);
+                assert!((data.threshold - 50.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected CreateBudget, got {other:?}"),
+        }
+    }
+
+    /// An invalid start date rejects create-budget command creation.
+    #[test]
+    fn create_budget_rejects_invalid_start_date() {
+        let result = Command::create_budget("not-a-date", BudgetType::Weekly, 500.0, 50.0);
+        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+    }
+
+    /// A valid start date and monthly budget type produce a create-budget command.
+    #[test]
+    fn create_budget_succeeds_with_monthly_budget_type() {
+        let result = Command::create_budget("2026-06-01", BudgetType::Monthly, 300.0, 25.0);
+        match result {
+            Ok(Command::CreateBudget(data)) => {
+                assert_eq!(data.budget_type, BudgetType::Monthly);
+                assert!((data.amount - 300.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected CreateBudget, got {other:?}"),
+        }
+    }
+
+    /// A valid start date and updated amount produce an update-budget command.
+    #[test]
+    fn create_update_budget_succeeds_with_valid_inputs() {
+        let result = Command::create_update_budget("2026-01-15", BudgetType::Weekly, 500.0, 50.0);
+        match result {
+            Ok(Command::UpdateBudget(data)) => {
+                assert_eq!(
+                    data.start_date,
+                    NaiveDate::from_ymd_opt(2026, 1, 15).unwrap()
+                );
+                assert_eq!(data.budget_type, BudgetType::Weekly);
+                assert!((data.amount - 500.0).abs() < f64::EPSILON);
+                assert!((data.threshold - 50.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected UpdateBudget, got {other:?}"),
+        }
+    }
+
+    /// An invalid start date rejects update-budget command creation.
+    #[test]
+    fn create_update_budget_rejects_invalid_start_date() {
+        let result = Command::create_update_budget("not-a-date", BudgetType::Monthly, 300.0, 30.0);
+        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+    }
+
+    /// Creating a delete-budget command returns the correct budget type.
+    #[test]
+    fn create_delete_budget_succeeds_with_valid_budget_type() {
+        let result = Command::create_delete_budget(BudgetType::Weekly);
+        assert!(matches!(
+            result,
+            Ok(Command::DeleteBudget(BudgetType::Weekly))
+        ));
+
+        let result = Command::create_delete_budget(BudgetType::Monthly);
+        assert!(matches!(
+            result,
+            Ok(Command::DeleteBudget(BudgetType::Monthly))
+        ));
+    }
+
+    /// Creating a reset-budget command returns the correct budget type.
+    #[test]
+    fn create_reset_budget_succeeds_with_valid_budget_type() {
+        let result = Command::create_reset_budget(BudgetType::Monthly);
+        assert!(matches!(
+            result,
+            Ok(Command::ResetBudget(BudgetType::Monthly))
+        ));
+
+        let result = Command::create_reset_budget(BudgetType::Weekly);
+        assert!(matches!(
+            result,
+            Ok(Command::ResetBudget(BudgetType::Weekly))
         ));
     }
 }

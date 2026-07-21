@@ -117,6 +117,8 @@ pub async fn sync_database_schema(db: &DatabaseConnection) -> Result<(), DbErr> 
         .register(projections::expenses::Entity)
         .register(projections::income::Entity)
         .register(projections::import_requests::Entity)
+        .register(projections::monthly_budgets::Entity)
+        .register(projections::weekly_budgets::Entity)
         // Sessions
         .register(sessions::Entity)
         // User settings
