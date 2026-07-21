@@ -114,6 +114,14 @@ impl BudgetProjectionTrait for Entity {
         Column::TransactionId
     }
 
+    fn category_column() -> Self::Column {
+        Column::Category
+    }
+
+    fn classification_column() -> Self::Column {
+        Column::Classification
+    }
+
     /// Start tracking a new weekly budget.
     ///
     /// Truncates the projection table and inserts a new row representing the

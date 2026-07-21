@@ -366,9 +366,15 @@ pub trait AutoUserSettingTrait: EntityTrait {
 /// starting a new budget, querying the active budget row, resetting
 /// (keeping only the budget row), and deleting all tracking rows.
 #[async_trait::async_trait]
-pub trait BudgetProjectionTrait: EntityTrait {
+pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     /// Column that identifies the budget row (typically `transaction_id`).
     fn budget_id_column() -> Self::Column;
+
+    /// Category column.
+    fn category_column() -> Self::Column;
+
+    /// Classification column.
+    fn classification_column() -> Self::Column;
 
     /// Start tracking a new budget.
     ///
@@ -379,7 +385,9 @@ pub trait BudgetProjectionTrait: EntityTrait {
 
     /// Get all rows from the budget projection table.
     ///
-    /// Returns both the budget row and all tracked transaction rows.
+    /// Returns both the budget row and all tracked transaction rows. The
+    /// `category` and `classification` columns are coalesced with their
+    /// auto-counterparts so that user settings override manual annotations.
     ///
     /// # Errors
     ///
@@ -388,7 +396,31 @@ pub trait BudgetProjectionTrait: EntityTrait {
     where
         C: ConnectionTrait,
     {
-        Self::find().all(db).await
+        Self::find()
+            .select_only()
+            .columns(Self::Column::iter())
+            .column_as(
+                Expr::cust_with_exprs(
+                    "COALESCE($1, $2)",
+                    [
+                        Expr::col(Self::category_column()),
+                        Expr::col(Self::auto_category_column()),
+                    ],
+                ),
+                Self::category_column(),
+            )
+            .column_as(
+                Expr::cust_with_exprs(
+                    "COALESCE($1, $2)",
+                    [
+                        Expr::col(Self::classification_column()),
+                        Expr::col(Self::auto_classification_column()),
+                    ],
+                ),
+                Self::classification_column(),
+            )
+            .all(db)
+            .await
     }
 
     /// Get the active budget row from the projection table.
