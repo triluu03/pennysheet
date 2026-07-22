@@ -2,7 +2,8 @@ import {
   ArchiveBoxArrowDownIcon,
   ChartBarSquareIcon,
   HomeIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  WalletIcon
 } from "@heroicons/react/24/outline";
 import { useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
@@ -13,6 +14,7 @@ const COLLAPSE_DELAY_MS = 300;
 const navItems = [
   { to: "/", label: "Home", icon: HomeIcon },
   { to: "/details", label: "Details", icon: ChartBarSquareIcon },
+  { to: "/budgets", label: "Budgets", icon: WalletIcon },
   { to: "/requests", label: "Import Requests", icon: ArchiveBoxArrowDownIcon }
 ];
 

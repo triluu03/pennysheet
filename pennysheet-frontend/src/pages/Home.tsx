@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
+import BudgetSummary from "../components/BudgetSummary";
 import FilterSideBar from "../components/FilterSideBar";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/Toast";
+import { useBudgets } from "../hooks/useBudgets";
 import { useTransactionsPivot } from "../hooks/useTransactions";
 
 /**
@@ -23,6 +25,7 @@ export default function Home() {
   const { showToast } = useToast();
 
   const { data, error } = useTransactionsPivot(startDate, endDate, categories, classifications);
+  const { budgets: budgetsData } = useBudgets();
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
   }, [error]);
@@ -46,6 +49,7 @@ export default function Home() {
       <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
         <PageHeader title="Transactions Overview" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
+          <BudgetSummary budgets={budgetsData} />
           <BarPlot data={data} groupBy="category" />
           <BarPlot data={data} groupBy="classification" />
         </div>

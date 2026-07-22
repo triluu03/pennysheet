@@ -8,6 +8,7 @@ import {
 } from "./api/endpoints/transactions";
 import Layout from "./components/Layout";
 import ToastProvider from "./components/Toast";
+import BudgetsPage from "./pages/Budgets";
 import DetailsPage from "./pages/Details";
 import Home from "./pages/Home";
 import ImportRequestsPage from "./pages/ImportRequests";
@@ -83,6 +84,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Home />} />
               <Route path="/details" element={<DetailsPage />} />
+              <Route path="/budgets" element={<BudgetsPage />} />
               <Route path="/user" element={<UserPage />} />
               <Route path="/requests" element={<ImportRequestsPage />} />
             </Route>
