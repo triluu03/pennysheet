@@ -15,6 +15,31 @@ import { useToast } from "../components/Toast";
 import { useBudgets } from "../hooks/useBudgets";
 
 /**
+ * Compute the default start date for a new budget.
+ *
+ * Weekly budgets start on the next Monday; monthly budgets on the first day
+ * of next month.
+ *
+ * @param budgetType {BudgetType} - The budget type.
+ * @returns {string} - The default start date in `YYYY-MM-DD` format.
+ */
+function defaultStartDate(budgetType: BudgetType): string {
+  const today = new Date();
+
+  if (budgetType === "weekly") {
+    const daysUntilMonday = 1 - today.getDay() + 7;
+    const nextMonday = new Date(today);
+    nextMonday.setDate(today.getDate() + daysUntilMonday);
+    return nextMonday.toISOString().split("T")[0];
+  } else {
+    const firstOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    // NOTE: sometime, after this call, the value ends up being one day before the first day of next month.
+    // TODO: address this issue!
+    return firstOfNextMonth.toISOString().split("T")[0];
+  }
+}
+
+/**
  * Budgets page.
  *
  * Renders inline budget creation/editing forms and budget cards with
@@ -42,7 +67,10 @@ export default function BudgetsPage() {
       setFormState({
         mode: "create",
         budgetType,
-        initialData: { budget_type: budgetType }
+        initialData: {
+          budget_type: budgetType,
+          start_date: defaultStartDate(budgetType)
+        }
       });
     } else {
       setFormState({
