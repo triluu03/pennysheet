@@ -67,6 +67,8 @@ impl ActiveModel {
             amount: Set(-data.amount),
             currency: Set(data.currency),
             creditor_name: Set(creditor_name),
+            // Just some placeholder values
+            threshold: Set(0.0),
             ..ActiveModelTrait::default()
         })
     }
