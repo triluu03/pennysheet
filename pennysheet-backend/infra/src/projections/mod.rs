@@ -419,6 +419,31 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
                 ),
                 Self::classification_column(),
             )
+            .filter(
+                Self::budget_id_column()
+                    .eq(Uuid::nil())
+                    .or(Expr::cust_with_exprs(
+                        "COALESCE($1, $2) IS NULL OR COALESCE($1, $2) NOT IN ($3, $4)",
+                        [
+                            Expr::col(Self::category_column()),
+                            Expr::col(Self::auto_category_column()),
+                            Expr::value("Investments"),
+                            Expr::value("Excluded"),
+                        ],
+                    )),
+            )
+            .filter(
+                Self::budget_id_column()
+                    .eq(Uuid::nil())
+                    .or(Expr::cust_with_exprs(
+                        "COALESCE($1, $2) IS NULL OR COALESCE($1, $2) != $3",
+                        [
+                            Expr::col(Self::classification_column()),
+                            Expr::col(Self::auto_classification_column()),
+                            Expr::value("excluded"),
+                        ],
+                    )),
+            )
             .all(db)
             .await
     }
