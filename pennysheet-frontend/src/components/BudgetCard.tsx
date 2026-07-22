@@ -57,7 +57,7 @@ export default function BudgetCard({
       {/* Budget summary header */}
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium capitalize">{budgetType} Budget</h2>
+          <h2 className="text-xl font-medium capitalize">{budgetType} Budget</h2>
           <div className="flex gap-2">
             <button
               type="button"
@@ -90,20 +90,20 @@ export default function BudgetCard({
         <div className="grid grid-cols-4 gap-4">
           <div>
             <span className="text-xs text-gray-400 uppercase">Start Date</span>
-            <p className="text-sm font-medium">{budgetRow.date || "—"}</p>
+            <p className="text-base font-medium">{budgetRow.date || "—"}</p>
           </div>
           <div>
             <span className="text-xs text-gray-400 uppercase">Budget</span>
-            <p className="text-sm font-medium">€{budgetRow.amount.toFixed(2)}</p>
+            <p className="text-base font-medium">€{budgetRow.amount.toFixed(2)}</p>
           </div>
           <div>
             <span className="text-xs text-gray-400 uppercase">Threshold</span>
-            <p className="text-sm font-medium">€{budgetRow.threshold.toFixed(2)}</p>
+            <p className="text-base font-medium">€{budgetRow.threshold.toFixed(2)}</p>
           </div>
           <div>
             <span className="text-xs text-gray-400 uppercase">Remaining</span>
             <p
-              className={`text-sm font-medium ${
+              className={`text-base font-medium ${
                 remaining !== null && remaining < 0 ? "text-red-600" : "text-green-600"
               }`}
             >
@@ -134,22 +134,24 @@ export default function BudgetCard({
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-gray-400 uppercase">
-                    <th className="py-2 font-medium">Date</th>
-                    <th className="py-2 font-medium">Creditor</th>
-                    <th className="py-2 font-medium">Amount</th>
-                    <th className="py-2 font-medium">Category</th>
+                  <tr className="text-left text-xs text-gray-500 uppercase">
+                    <th className="py-3 font-semibold">Date</th>
+                    <th className="py-3 font-semibold">Creditor</th>
+                    <th className="py-3 font-semibold">Amount</th>
+                    <th className="py-3 font-semibold">Category</th>
+                    <th className="py-3 font-semibold">Classification</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {transactionRows.map(row => (
                     <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="py-2">{row.date || "—"}</td>
-                      <td className="py-2">{row.creditor_name}</td>
-                      <td className={`py-2 ${row.amount < 0 ? "text-red-600" : ""}`}>
+                      <td className="py-3 text-gray-700">{row.date || "—"}</td>
+                      <td className="py-3 text-gray-700">{row.creditor_name}</td>
+                      <td className={`py-3 ${row.amount < 0 ? "text-red-600" : ""}`}>
                         €{row.amount.toFixed(2)}
                       </td>
-                      <td className="py-2">{row.category || "—"}</td>
+                      <td className="py-3 text-gray-700">{row.category || "—"}</td>
+                      <td className="py-3 text-gray-700">{row.classification || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

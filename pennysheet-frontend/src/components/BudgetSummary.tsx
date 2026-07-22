@@ -32,7 +32,11 @@ export default function BudgetSummary({ budgets }: BudgetSummaryProps) {
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
               {budgetType} Budget
             </h3>
-            <div className="text-2xl font-medium">
+            <div
+              className={`text-2xl font-medium ${
+                remaining !== null && remaining < 0 ? "text-red-600" : "text-green-600"
+              }`}
+            >
               €{remaining?.toFixed(2) ?? "—"}
               <span className="text-sm text-gray-400 font-normal"> remaining</span>
             </div>
