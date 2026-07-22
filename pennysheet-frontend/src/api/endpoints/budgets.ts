@@ -117,6 +117,4 @@ export async function deleteBudget(budgetType: BudgetType): Promise<number> {
  * @param budgetType {BudgetType} - The budget type to reset.
  * @returns {Promise<number>} - The HTTP status code of the response.
  */
-export async function resetBudget(budgetType: BudgetType): Promise<number> {
-  return await client.post(`/budgets/${budgetType}/reset`).then(response => response.status);
-}
+

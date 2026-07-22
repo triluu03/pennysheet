@@ -4,7 +4,6 @@ import {
   type CreateBudgetPayload,
   createBudget,
   deleteBudget,
-  resetBudget,
   type UpdateBudgetPayload,
   updateBudget
 } from "../api/endpoints/budgets";
@@ -77,16 +76,6 @@ export default function BudgetsPage() {
     }
   };
 
-  /** Reset a budget's tracked transactions after confirmation. */
-  const handleReset = async (budgetType: BudgetType) => {
-    await resetBudget(budgetType)
-      .then(_ => {
-        showToast("Budget reset!", "success");
-        refetch();
-      })
-      .catch(err => showToast(`Failed to reset budget: ${err}`, "error"));
-  };
-
   /** Delete a budget after confirmation. */
   const handleDelete = async (budgetType: BudgetType) => {
     await deleteBudget(budgetType)
@@ -128,7 +117,6 @@ export default function BudgetsPage() {
               budgetType={budgetType}
               rows={rows}
               onEdit={() => handleEdit(budgetType)}
-              onReset={handleReset}
               onDelete={handleDelete}
             />
           );

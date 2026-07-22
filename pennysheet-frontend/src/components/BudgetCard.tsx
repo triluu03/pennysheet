@@ -12,8 +12,6 @@ export interface BudgetCardProps {
   rows: BudgetRow[];
   /** Called when the user starts editing this budget. */
   onEdit: (budgetType: BudgetType) => void;
-  /** Called when the user resets this budget's tracked transactions. */
-  onReset: (budgetType: BudgetType) => void;
   /** Called when the user deletes this budget. */
   onDelete: (budgetType: BudgetType) => void;
 }
@@ -27,7 +25,6 @@ export default function BudgetCard({
   budgetType,
   rows,
   onEdit,
-  onReset,
   onDelete
 }: BudgetCardProps) {
   const [showTransactions, setShowTransactions] = useState(false);
@@ -65,15 +62,6 @@ export default function BudgetCard({
               onClick={() => onEdit(budgetType)}
             >
               Edit
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
-              onClick={() => {
-                onReset(budgetType);
-              }}
-            >
-              Reset
             </button>
             <button
               type="button"
