@@ -51,8 +51,8 @@ pub enum Event {
     BudgetDeleted(BudgetType),
     /// A budget has been exceeded.
     BudgetExceeded(BudgetType),
-    /// A budget is reset.
-    BudgetReset(BudgetType),
+    /// A budget is reset with a new start date.
+    BudgetReset(BudgetResetData),
 }
 
 impl fmt::Display for Event {

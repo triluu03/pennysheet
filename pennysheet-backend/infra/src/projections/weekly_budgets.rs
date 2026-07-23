@@ -67,6 +67,8 @@ impl ActiveModel {
             amount: Set(-data.amount),
             currency: Set(data.currency),
             creditor_name: Set(creditor_name),
+            // Just some placeholder values
+            threshold: Set(0.0),
             ..ActiveModelTrait::default()
         })
     }
@@ -120,6 +122,10 @@ impl BudgetProjectionTrait for Entity {
 
     fn classification_column() -> Self::Column {
         Column::Classification
+    }
+
+    fn date_column() -> Self::Column {
+        Column::Date
     }
 
     /// Start tracking a new weekly budget.

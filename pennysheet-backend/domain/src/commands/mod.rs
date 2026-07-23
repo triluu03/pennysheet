@@ -38,8 +38,8 @@ pub enum Command {
     UpdateBudget(BudgetUpdateData),
     /// Delete an existing budget based on ID.
     DeleteBudget(BudgetType),
-    /// Reset an enxisting budget.
-    ResetBudget(BudgetType),
+    /// Reset an existing budget with a new start date.
+    ResetBudget(ResetBudgetData),
 }
 
 /// Commands to be issued into [`gateway`].
@@ -218,10 +218,17 @@ impl Command {
     ///
     /// # Errors
     ///
-    /// This constructor is infallible; the `Result` return type is for
-    /// consistency with the other command factory methods.
-    pub fn create_reset_budget(budget_type: BudgetType) -> Result<Self, DomainError> {
-        Ok(Command::ResetBudget(budget_type))
+    /// Returns [`DomainError::CommandCreation`] if `start_date` does not follow the
+    /// format `"%Y-%m-%d"`.
+    pub fn create_reset_budget(
+        start_date: &str,
+        budget_type: BudgetType,
+    ) -> Result<Self, DomainError> {
+        let parsed_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?;
+        Ok(Command::ResetBudget(ResetBudgetData {
+            start_date: parsed_start_date,
+            budget_type,
+        }))
     }
 }
 
@@ -511,19 +518,39 @@ mod tests {
         ));
     }
 
-    /// Creating a reset-budget command returns the correct budget type.
+    /// Creating a reset-budget command with a valid start date returns the correct budget type and
+    /// date.
     #[test]
-    fn create_reset_budget_succeeds_with_valid_budget_type() {
-        let result = Command::create_reset_budget(BudgetType::Monthly);
-        assert!(matches!(
-            result,
-            Ok(Command::ResetBudget(BudgetType::Monthly))
-        ));
+    fn create_reset_budget_succeeds_with_valid_start_date_and_budget_type() {
+        let result = Command::create_reset_budget("2026-02-01", BudgetType::Monthly);
+        match result {
+            Ok(Command::ResetBudget(data)) => {
+                assert_eq!(
+                    data.start_date,
+                    NaiveDate::from_ymd_opt(2026, 2, 1).unwrap()
+                );
+                assert_eq!(data.budget_type, BudgetType::Monthly);
+            },
+            other => panic!("expected ResetBudget, got {other:?}"),
+        }
 
-        let result = Command::create_reset_budget(BudgetType::Weekly);
-        assert!(matches!(
-            result,
-            Ok(Command::ResetBudget(BudgetType::Weekly))
-        ));
+        let result = Command::create_reset_budget("2026-03-15", BudgetType::Weekly);
+        match result {
+            Ok(Command::ResetBudget(data)) => {
+                assert_eq!(
+                    data.start_date,
+                    NaiveDate::from_ymd_opt(2026, 3, 15).unwrap()
+                );
+                assert_eq!(data.budget_type, BudgetType::Weekly);
+            },
+            other => panic!("expected ResetBudget, got {other:?}"),
+        }
+    }
+
+    /// An invalid start date rejects reset-budget command creation.
+    #[test]
+    fn create_reset_budget_rejects_invalid_start_date() {
+        let result = Command::create_reset_budget("not-a-date", BudgetType::Weekly);
+        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 }
