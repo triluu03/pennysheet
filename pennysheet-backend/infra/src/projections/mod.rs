@@ -399,53 +399,38 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     where
         C: ConnectionTrait,
     {
+        let category_coalesce: Expr = Func::coalesce([
+            Expr::col(Self::category_column()),
+            Expr::col(Self::auto_category_column()),
+        ])
+        .into();
+        let classification_coalesce: Expr = Func::coalesce([
+            Expr::col(Self::classification_column()),
+            Expr::col(Self::auto_classification_column()),
+        ])
+        .into();
+
         Self::find()
             .select_only()
             .columns(Self::Column::iter())
+            .column_as(category_coalesce.clone(), Self::category_column())
             .column_as(
-                Expr::cust_with_exprs(
-                    "COALESCE($1, $2)",
-                    [
-                        Expr::col(Self::category_column()),
-                        Expr::col(Self::auto_category_column()),
-                    ],
-                ),
-                Self::category_column(),
-            )
-            .column_as(
-                Expr::cust_with_exprs(
-                    "COALESCE($1, $2)",
-                    [
-                        Expr::col(Self::classification_column()),
-                        Expr::col(Self::auto_classification_column()),
-                    ],
-                ),
+                classification_coalesce.clone(),
                 Self::classification_column(),
             )
             .filter(
                 Self::budget_id_column()
                     .eq(Uuid::nil())
-                    .or(Expr::cust_with_exprs(
-                        "COALESCE($1, $2) IS NULL OR COALESCE($1, $2) NOT IN ($3, $4)",
-                        [
-                            Expr::col(Self::category_column()),
-                            Expr::col(Self::auto_category_column()),
-                            Expr::value("Investments"),
-                            Expr::value("Excluded"),
-                        ],
-                    )),
+                    .or(category_coalesce.clone().is_null().or(category_coalesce
+                        .is_not_in([Expr::value("Investments"), Expr::value("Excluded")]))),
             )
             .filter(
                 Self::budget_id_column()
                     .eq(Uuid::nil())
-                    .or(Expr::cust_with_exprs(
-                        "COALESCE($1, $2) IS NULL OR COALESCE($1, $2) != $3",
-                        [
-                            Expr::col(Self::classification_column()),
-                            Expr::col(Self::auto_classification_column()),
-                            Expr::value("excluded"),
-                        ],
-                    )),
+                    .or(classification_coalesce
+                        .clone()
+                        .is_null()
+                        .or(classification_coalesce.ne(Expr::value("excluded")))),
             )
             .all(db)
             .await
