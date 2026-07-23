@@ -31,3 +31,10 @@ pub struct BudgetData {
     /// The threshold below which transactions are counted towards the budget.
     pub threshold: f64,
 }
+
+/// Data carried by a [`BudgetReset`](super::Event::BudgetReset) event.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BudgetResetData {
+    pub start_date: NaiveDate,
+    pub budget_type: BudgetType,
+}

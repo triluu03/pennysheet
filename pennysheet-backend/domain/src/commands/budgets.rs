@@ -19,3 +19,10 @@ pub struct BudgetUpdateData {
     pub amount: f64,
     pub threshold: f64,
 }
+
+/// Data for resetting an existing budget.
+#[derive(Debug, Clone)]
+pub struct ResetBudgetData {
+    pub start_date: NaiveDate,
+    pub budget_type: BudgetType,
+}

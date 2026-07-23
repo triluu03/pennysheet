@@ -14,6 +14,7 @@ use crate::{
         Event,
         budgets::{
             BudgetData,
+            BudgetResetData,
             BudgetType,
         },
         transactions::{
@@ -213,10 +214,13 @@ impl CoreAggregate {
                     }
                 },
             },
-            Command::ResetBudget(budget_type) => match budget_type {
+            Command::ResetBudget(data) => match data.budget_type {
                 BudgetType::Weekly => {
                     if self.active_weekly_budget {
-                        Ok(Event::BudgetReset(budget_type))
+                        Ok(Event::BudgetReset(BudgetResetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                        }))
                     } else {
                         Err(DomainError::CommandRejected(
                             "No weekly budgets are active!".to_string(),
@@ -225,7 +229,10 @@ impl CoreAggregate {
                 },
                 BudgetType::Monthly => {
                     if self.active_monthly_budget {
-                        Ok(Event::BudgetReset(budget_type))
+                        Ok(Event::BudgetReset(BudgetResetData {
+                            start_date: data.start_date,
+                            budget_type: data.budget_type,
+                        }))
                     } else {
                         Err(DomainError::CommandRejected(
                             "No monthly budgets are active!".to_string(),

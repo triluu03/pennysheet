@@ -118,14 +118,16 @@ impl BudgetProcessManager {
                 BudgetType::Weekly => self.weekly_budget = None,
                 BudgetType::Monthly => self.monthly_budget = None,
             },
-            Event::BudgetReset(budget_type) => match budget_type {
+            Event::BudgetReset(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    if let Some(budget) = &self.weekly_budget {
+                    if let Some(budget) = &mut self.weekly_budget {
+                        budget.start_date = data.start_date;
                         self.weekly_remaining_amount = budget.amount
                     }
                 },
                 BudgetType::Monthly => {
-                    if let Some(budget) = &self.monthly_budget {
+                    if let Some(budget) = &mut self.monthly_budget {
+                        budget.start_date = data.start_date;
                         self.monthly_remaining_amount = budget.amount
                     }
                 },

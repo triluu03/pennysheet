@@ -180,22 +180,38 @@ pub async fn delete_budget_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Payload for POST /budgets/{budget_type}/reset (ResetBudget).
+#[derive(Debug, Deserialize)]
+pub struct ResetBudgetPayload {
+    /// New start date in `YYYY-MM-DD` format to advance the budget to.
+    pub start_date: String,
+}
+
 /// Handler for POST /budgets/{budget_type}/reset — reset budget tracking.
 ///
-/// Resets the tracked transactions while keeping the budget row active.
+/// Resets the tracked transactions and advances the budget's start date to the
+/// provided value while keeping the amount and threshold unchanged.
 ///
 /// # Errors
 ///
 /// Returns [`AppError`] in the following scenarios:
 /// - The `budget_type` path parameter is not `"weekly"` or `"monthly"`.
+/// - The `start_date` is not in `YYYY-MM-DD` format.
 /// - The aggregate rejects the command (e.g. no active budget of that type).
 /// - The event cannot be appended to the store.
-#[instrument(skip(state), fields(budget_type = %budget_type))]
+#[instrument(
+    skip(state, payload),
+    fields(
+        budget_type = %budget_type,
+        start_date = %payload.start_date,
+    )
+)]
 pub async fn reset_budget_handler(
     State(state): State<Arc<AppState>>,
     Path(budget_type): Path<BudgetType>,
+    Json(payload): Json<ResetBudgetPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = Command::create_reset_budget(budget_type)?;
+    let command = Command::create_reset_budget(&payload.start_date, budget_type)?;
 
     let all_events = get_all_events(&state.db).await?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
@@ -277,6 +293,7 @@ mod tests {
 
     use super::{
         CreateBudgetPayload,
+        ResetBudgetPayload,
         UpdateBudgetPayload,
         create_budget_handler,
         delete_budget_handler,
@@ -559,7 +576,7 @@ mod tests {
     // POST /budgets/{budget_type}/reset
     // ------------------------------------------------------------------
 
-    /// Resetting an existing budget returns 202.
+    /// Resetting an existing budget returns 202 and appends a BudgetReset event.
     #[tokio::test]
     async fn reset_budget_handler_succeeds_for_existing_budget() {
         let state = in_memory_state().await;
@@ -576,11 +593,50 @@ mod tests {
         .await
         .unwrap();
 
-        let (status, body) = reset_budget_handler(State(state.clone()), Path(BudgetType::Weekly))
-            .await
-            .unwrap();
+        let (status, body) = reset_budget_handler(
+            State(state.clone()),
+            Path(BudgetType::Weekly),
+            Json(ResetBudgetPayload {
+                start_date: "2026-02-01".into(),
+            }),
+        )
+        .await
+        .unwrap();
         assert_eq!(status, StatusCode::ACCEPTED);
         assert!(body.contains("reset"));
+
+        let events = infra::get_all_events(&state.db).await.unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[1], domain::events::Event::BudgetReset(_)));
+    }
+
+    /// Resetting a monthly budget with a new start date emits the correct event.
+    #[tokio::test]
+    async fn reset_budget_handler_succeeds_for_monthly_budget() {
+        let state = in_memory_state().await;
+
+        create_budget_handler(
+            State(state.clone()),
+            Json(CreateBudgetPayload {
+                start_date: "2026-06-01".into(),
+                budget_type: BudgetType::Monthly,
+                amount: 300.0,
+                threshold: 25.0,
+            }),
+        )
+        .await
+        .unwrap();
+
+        let (status, _body) = reset_budget_handler(
+            State(state.clone()),
+            Path(BudgetType::Monthly),
+            Json(ResetBudgetPayload {
+                start_date: "2026-07-01".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::ACCEPTED);
 
         let events = infra::get_all_events(&state.db).await.unwrap();
         assert_eq!(events.len(), 2);
@@ -591,7 +647,42 @@ mod tests {
     #[tokio::test]
     async fn reset_budget_handler_rejects_missing_budget() {
         let state = in_memory_state().await;
-        let result = reset_budget_handler(State(state), Path(BudgetType::Monthly)).await;
+        let result = reset_budget_handler(
+            State(state),
+            Path(BudgetType::Monthly),
+            Json(ResetBudgetPayload {
+                start_date: "2026-01-01".into(),
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    /// An invalid start date is rejected on reset.
+    #[tokio::test]
+    async fn reset_budget_handler_rejects_invalid_start_date() {
+        let state = in_memory_state().await;
+
+        create_budget_handler(
+            State(state.clone()),
+            Json(CreateBudgetPayload {
+                start_date: "2026-01-15".into(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 50.0,
+            }),
+        )
+        .await
+        .unwrap();
+
+        let result = reset_budget_handler(
+            State(state),
+            Path(BudgetType::Weekly),
+            Json(ResetBudgetPayload {
+                start_date: "not-a-date".into(),
+            }),
+        )
+        .await;
         assert!(result.is_err());
     }
 

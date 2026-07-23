@@ -376,6 +376,9 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     /// Classification column.
     fn classification_column() -> Self::Column;
 
+    /// Date column for the budget row.
+    fn date_column() -> Self::Column;
+
     /// Start tracking a new budget.
     ///
     /// Truncates the projection table and inserts a new budget row.
@@ -465,19 +468,26 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
             .await
     }
 
-    /// Reset the projection table, keeping only the budget row.
+    /// Reset the projection table, keeping only the budget row with an updated start date.
     ///
-    /// Deletes all transaction rows but preserves the budget tracking row.
+    /// Deletes all transaction rows but preserves the budget tracking row and
+    /// updates its date column to `new_start_date`.
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if the query or deletion fails.
-    async fn reset_budget<C>(db: &C) -> Result<(), DbErr>
+    /// Returns [`DbErr`] if the query, update, or deletion fails.
+    async fn reset_budget<C>(db: &C, new_start_date: Date) -> Result<(), DbErr>
     where
         C: ConnectionTrait,
     {
         Self::delete_many()
             .filter(Self::budget_id_column().ne(Uuid::nil()))
+            .exec(db)
+            .await?;
+
+        Self::update_many()
+            .col_expr(Self::date_column(), Expr::value(new_start_date))
+            .filter(Self::budget_id_column().eq(Uuid::nil()))
             .exec(db)
             .await?;
 

@@ -127,13 +127,13 @@ impl ProjectorTrait for BudgetProjector {
                 // No projection change needed.
                 Ok(())
             },
-            Event::BudgetReset(budget_type) => match budget_type {
+            Event::BudgetReset(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    weekly_budgets::Entity::reset_budget(txn).await?;
+                    weekly_budgets::Entity::reset_budget(txn, data.start_date).await?;
                     Ok(())
                 },
                 BudgetType::Monthly => {
-                    monthly_budgets::Entity::reset_budget(txn).await?;
+                    monthly_budgets::Entity::reset_budget(txn, data.start_date).await?;
                     Ok(())
                 },
             },
