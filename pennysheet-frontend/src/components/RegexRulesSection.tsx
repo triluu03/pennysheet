@@ -54,7 +54,7 @@ export default function RegexRulesSection() {
   }
 
   async function addRule() {
-    let newRule = await freshRule();
+    const newRule = await freshRule();
     setUserSettings(prev => [...prev, newRule]);
   }
 

@@ -28,7 +28,7 @@ export function useTransactions(
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, categories, classifications]);
+  }, [startDate, endDate, kind, categories, classifications]);
 
   return { data, loading, error };
 }
@@ -48,7 +48,7 @@ export function useTransactionsAggregated(
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
-  }, [startDate, endDate]);
+  }, [startDate, endDate, kind, timeAggregation]);
 
   return { data, loading, error };
 }

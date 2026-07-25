@@ -51,7 +51,7 @@ export default function BudgetsPage() {
 
   useEffect(() => {
     if (error) showToast(`Failed to fetch budgets: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   const [formState, setFormState] = useState<{
     mode: BudgetFormMode;
@@ -127,8 +127,8 @@ export default function BudgetsPage() {
             return (
               <BudgetForm
                 key={budgetType}
-                mode={formState!.mode}
-                initialData={formState!.initialData}
+                mode={formState?.mode}
+                initialData={formState?.initialData}
                 onSubmit={handleFormSubmit}
                 onCancel={() => setFormState(null)}
               />

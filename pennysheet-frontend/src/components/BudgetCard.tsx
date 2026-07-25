@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type BudgetRow, type BudgetType } from "../api/endpoints/budgets";
+import type { BudgetRow, BudgetType } from "../api/endpoints/budgets";
 import { computeRemaining, findBudgetRow, getTransactionRows } from "../api/utils";
 
 /**
@@ -21,12 +21,7 @@ export interface BudgetCardProps {
  *
  * @param props {BudgetCardProps} - Budget data and action callbacks.
  */
-export default function BudgetCard({
-  budgetType,
-  rows,
-  onEdit,
-  onDelete
-}: BudgetCardProps) {
+export default function BudgetCard({ budgetType, rows, onEdit, onDelete }: BudgetCardProps) {
   const [showTransactions, setShowTransactions] = useState(false);
 
   const budgetRow = findBudgetRow(rows);
@@ -77,8 +72,14 @@ export default function BudgetCard({
 
         <div className="grid grid-cols-4 gap-4">
           <div>
-            <span className="text-xs text-gray-400 uppercase">Start Date</span>
-            <p className="text-base font-medium">{budgetRow.date || "—"}</p>
+            <span className="text-xs text-gray-400 uppercase">Remaining</span>
+            <p
+              className={`text-base font-medium ${
+                remaining !== null && remaining < 0 ? "text-red-600" : "text-green-600"
+              }`}
+            >
+              €{remaining?.toFixed(2) ?? "—"}
+            </p>
           </div>
           <div>
             <span className="text-xs text-gray-400 uppercase">Budget</span>
@@ -89,14 +90,8 @@ export default function BudgetCard({
             <p className="text-base font-medium">€{budgetRow.threshold.toFixed(2)}</p>
           </div>
           <div>
-            <span className="text-xs text-gray-400 uppercase">Remaining</span>
-            <p
-              className={`text-base font-medium ${
-                remaining !== null && remaining < 0 ? "text-red-600" : "text-green-600"
-              }`}
-            >
-              €{remaining?.toFixed(2) ?? "—"}
-            </p>
+            <span className="text-xs text-gray-400 uppercase">Start Date</span>
+            <p className="text-base font-medium">{budgetRow.date || "—"}</p>
           </div>
         </div>
       </div>

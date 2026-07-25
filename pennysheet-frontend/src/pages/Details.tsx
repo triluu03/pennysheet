@@ -86,7 +86,7 @@ export default function DetailsPage() {
   );
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -105,7 +105,7 @@ export default function DetailsPage() {
         }}
       />
       <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
-        <PageHeader title="Transactions Details" />
+        <PageHeader title="Details" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <Table
             data={data}

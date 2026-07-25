@@ -20,7 +20,7 @@ export default function SessionsSection() {
   useEffect(() => {
     if (!loading && !error) setSessions(data);
     if (error) showToast(`Error when fetching the Enable Banking sessions: ${error}`, "error");
-  }, [data, loading, error]);
+  }, [data, loading, error, showToast]);
 
   const [showImport, setShowImport] = useState(false);
   const [importName, setImportName] = useState("");
@@ -45,7 +45,7 @@ export default function SessionsSection() {
       return;
     }
 
-    let newSession = await createNewSession({ name: trimmedName, session: importJson });
+    const newSession = await createNewSession({ name: trimmedName, session: importJson });
     setSessions(prev => [...prev, newSession]);
 
     setImportName("");

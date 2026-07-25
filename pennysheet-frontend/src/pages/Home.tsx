@@ -28,7 +28,7 @@ export default function Home() {
   const { budgets: budgetsData } = useBudgets();
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -47,7 +47,7 @@ export default function Home() {
         }}
       />
       <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
-        <PageHeader title="Transactions Overview" />
+        <PageHeader title="Overview" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <BudgetSummary budgets={budgetsData} />
           <BarPlot data={data} groupBy="category" />

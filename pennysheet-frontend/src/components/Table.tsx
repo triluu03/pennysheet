@@ -13,7 +13,7 @@ export interface EditableColumn<K extends string> {
 
 interface TableProps<K extends string> {
   // TODO: have a better type interface for the data.
-  data: any[];
+  data: Record<string, unknown>[];
   rowIdColumn: string;
   tableColumns: TableColumn<K>[];
   editableColumns: EditableColumn<K>[];
@@ -56,6 +56,7 @@ function EditableCell<K extends string>({
     return (
       <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
         <button
+          type="button"
           className="px-3 py-1 rounded-lg hover:bg-gray-200"
           onClick={() => {
             setEditValue(editValue || value || "");

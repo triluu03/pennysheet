@@ -39,27 +39,18 @@ export interface BudgetFormProps {
  *
  * @param props {BudgetFormProps} - Form configuration and callbacks.
  */
-export default function BudgetForm({
-  mode,
-  initialData,
-  onSubmit,
-  onCancel
-}: BudgetFormProps) {
+export default function BudgetForm({ mode, initialData, onSubmit, onCancel }: BudgetFormProps) {
   const [startDate, setStartDate] = useState(initialData?.start_date || "");
-  const [budgetType, setBudgetType] = useState<BudgetType>(
-    initialData?.budget_type || "weekly"
-  );
+  const [budgetType, setBudgetType] = useState<BudgetType>(initialData?.budget_type || "weekly");
   const [amount, setAmount] = useState(initialData?.amount?.toString() || "");
-  const [threshold, setThreshold] = useState(
-    initialData?.threshold?.toString() || ""
-  );
+  const [threshold, setThreshold] = useState(initialData?.threshold?.toString() || "");
   const [submitting, setSubmitting] = useState(false);
 
   const isValid =
     startDate !== "" &&
-    !isNaN(parseFloat(amount)) &&
+    !Number.isNaN(parseFloat(amount)) &&
     parseFloat(amount) > 0 &&
-    !isNaN(parseFloat(threshold)) &&
+    !Number.isNaN(parseFloat(threshold)) &&
     parseFloat(threshold) > 0;
 
   const handleSubmitClick = async () => {

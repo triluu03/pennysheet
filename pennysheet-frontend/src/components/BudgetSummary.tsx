@@ -1,4 +1,4 @@
-import { type BudgetsResponse } from "../api/endpoints/budgets";
+import type { BudgetsResponse } from "../api/endpoints/budgets";
 import { computeRemaining, findBudgetRow } from "../api/utils";
 
 /**
@@ -25,10 +25,7 @@ export default function BudgetSummary({ budgets }: BudgetSummaryProps) {
         if (!budgetRow) return null;
         const remaining = computeRemaining(rows);
         return (
-          <div
-            key={budgetType}
-            className="flex-1 rounded-xl border border-gray-200 bg-white p-5"
-          >
+          <div key={budgetType} className="flex-1 rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
               {budgetType} Budget
             </h3>
@@ -40,9 +37,7 @@ export default function BudgetSummary({ budgets }: BudgetSummaryProps) {
               €{remaining?.toFixed(2) ?? "—"}
               <span className="text-sm text-gray-400 font-normal"> remaining</span>
             </div>
-            <div className="text-xs text-gray-400 mt-1">
-              of €{budgetRow.amount.toFixed(2)}
-            </div>
+            <div className="text-xs text-gray-400 mt-1">of €{budgetRow.amount.toFixed(2)}</div>
           </div>
         );
       })}
