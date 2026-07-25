@@ -16,6 +16,7 @@ use tracing::info;
 
 use crate::background_jobs::{
     scheduled_budget_reset,
+    scheduled_budget_status_notification,
     scheduled_transaction_import,
     spawn_and_subscribe_budget_projector,
     spawn_and_subscribe_core_projector,
@@ -66,6 +67,9 @@ async fn main() {
 
     tokio::spawn(scheduled_budget_reset(db.clone()));
     info!("scheduled budget reset in the background");
+
+    tokio::spawn(scheduled_budget_status_notification(db.clone()));
+    info!("scheduled daily budget status notification in the background");
 
     let app = routes::app_router()
         .with_state(Arc::new(AppState { db }))
