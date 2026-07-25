@@ -41,7 +41,7 @@ export default function SideNav() {
       onMouseLeave={() => {
         collapseTimer.current = setTimeout(() => setCollapsed(true), COLLAPSE_DELAY_MS);
       }}
-      className={`flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-300 ${collapsed ? "w-21" : "w-60"}`}
+      className={`flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-500 ${collapsed ? "w-21" : "w-60"}`}
     >
       {/* Logo */}
       <div
