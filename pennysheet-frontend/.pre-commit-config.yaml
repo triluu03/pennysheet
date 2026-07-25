@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: biome-format
+        name: Biome format
+        entry: mise exec biome -- biome format --staged
+        language: system
+        files: \.(js|jsx|ts|tsx|json|jsonc|css)$
+        pass_filenames: false
