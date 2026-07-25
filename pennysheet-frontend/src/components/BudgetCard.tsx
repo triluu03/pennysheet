@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type BudgetRow, type BudgetType } from "../api/endpoints/budgets";
+import type { BudgetRow, BudgetType } from "../api/endpoints/budgets";
 import { computeRemaining, findBudgetRow, getTransactionRows } from "../api/utils";
 
 /**

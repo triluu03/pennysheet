@@ -29,7 +29,7 @@ export default function ImportRequestsPage() {
   const { data, error } = useImportRequestsMetadata();
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">

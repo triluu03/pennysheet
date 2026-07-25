@@ -28,7 +28,7 @@ export default function Home() {
   const { budgets: budgetsData } = useBudgets();
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">

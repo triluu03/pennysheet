@@ -1,3 +1,2 @@
 [tools]
 biome = "latest"
-pre-commit = "latest"

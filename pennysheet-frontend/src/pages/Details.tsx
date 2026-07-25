@@ -86,7 +86,7 @@ export default function DetailsPage() {
   );
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error]);
+  }, [error, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">

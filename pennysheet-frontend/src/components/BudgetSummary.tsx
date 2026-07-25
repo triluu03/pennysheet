@@ -1,4 +1,4 @@
-import { type BudgetsResponse } from "../api/endpoints/budgets";
+import type { BudgetsResponse } from "../api/endpoints/budgets";
 import { computeRemaining, findBudgetRow } from "../api/utils";
 
 /**

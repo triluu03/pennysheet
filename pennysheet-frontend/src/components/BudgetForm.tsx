@@ -48,9 +48,9 @@ export default function BudgetForm({ mode, initialData, onSubmit, onCancel }: Bu
 
   const isValid =
     startDate !== "" &&
-    !isNaN(parseFloat(amount)) &&
+    !Number.isNaN(parseFloat(amount)) &&
     parseFloat(amount) > 0 &&
-    !isNaN(parseFloat(threshold)) &&
+    !Number.isNaN(parseFloat(threshold)) &&
     parseFloat(threshold) > 0;
 
   const handleSubmitClick = async () => {
