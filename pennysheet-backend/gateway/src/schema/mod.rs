@@ -2,3 +2,4 @@
 
 pub mod enable_banking_api;
 pub mod enable_banking_session;
+pub mod telegram;
