@@ -8,7 +8,7 @@ FRONTEND_DIST := $(FRONTEND_DIR)/dist
 PROJECT_DIR := $(shell pwd)
 PLIST := $(PROJECT_DIR)/com.triluu.pennysheet.plist
 
-.PHONY: all build-backend build-frontend clean test generate launch stop
+.PHONY: all build-backend build-frontend clean test generate launch stop relaunch
 
 all: build-backend build-frontend
 
@@ -38,3 +38,5 @@ launch: generate
 
 stop:
 	launchctl unload $(PLIST)
+
+relaunch: stop all launch
