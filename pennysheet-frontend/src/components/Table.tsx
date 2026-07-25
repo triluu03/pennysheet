@@ -13,7 +13,7 @@ export interface EditableColumn<K extends string> {
 
 interface TableProps<K extends string> {
   // TODO: have a better type interface for the data.
-  data: Record<string, unknown>[];
+  data: Record<string, any>[];
   rowIdColumn: string;
   tableColumns: TableColumn<K>[];
   editableColumns: EditableColumn<K>[];
