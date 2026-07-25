@@ -1,0 +1,64 @@
+---
+id: BudgetStatusNotificationFlow
+name: Budget Status Notification Flow
+version: 0.0.1
+summary: Daily Telegram notification showing remaining weekly and monthly budget amounts.
+steps:
+
+  - id: scheduler
+    title: Background Scheduler
+    summary: Triggers every morning at 8 AM local time.
+    actor:
+      name: System Scheduler
+    next_step:
+      id: budget_process_manager
+      label: fires daily notification job
+
+  - id: budget_process_manager
+    title: Budget Process Manager
+    summary: Replays the full event store, computes remaining weekly and monthly amounts, builds an HTML-formatted status message with color-coded indicators (🟢 ≥50%, 🟡 ≥25%, 🔴 otherwise), and issues a gateway command.
+    service:
+      id: BudgetProcessManager
+      version: 0.0.1
+    next_step:
+      id: send_telegram_cmd
+      label: issues gateway command
+
+  - id: send_telegram_cmd
+    title: Send Telegram Message
+    message:
+      id: SendTelegramMessage
+      version: 0.0.1
+    next_step:
+      id: telegram_gateway
+      label: handled by gateway
+
+  - id: telegram_gateway
+    title: Telegram Gateway
+    summary: Calls the Telegram Bot API /sendMessage endpoint with the formatted HTML message.
+    service:
+      id: TelegramGateway
+      version: 0.0.1
+    next_step:
+      id: telegram_bot_api
+      label: calls external API
+
+  - id: telegram_bot_api
+    title: Telegram Bot API
+    externalSystem:
+      name: Telegram Bot API
+      summary: Sends HTML-formatted messages to a configured Telegram chat via the bot's token.
+      url: https://core.telegram.org/bots/api
+    next_step:
+      id: user_receives
+      label: delivers message to the user's chat
+
+  - id: user_receives
+    title: User Receives Budget Status
+    summary: User sees a daily budget summary with remaining vs total amounts for weekly and monthly budgets.
+
+---
+
+Daily budget-status notification flow. Every morning at 8 AM a background scheduler triggers the [[service|BudgetProcessManager]], which replays the full event store to compute remaining budget amounts for the current week and month. A color-coded HTML message is formatted and wrapped in a [[command|SendTelegramMessage]] gateway command. The [[service|TelegramGateway]] receives the command, calls the Telegram Bot API `/sendMessage` endpoint, and delivers the status to the user.
+
+<NodeGraph />

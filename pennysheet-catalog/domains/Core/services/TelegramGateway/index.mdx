@@ -1,0 +1,26 @@
+---
+id: TelegramGateway
+name: Telegram Gateway
+version: 0.0.1
+summary: Sends HTML-formatted messages to users via the Telegram Bot API.
+receives:
+  - id: SendTelegramMessage
+    version: 0.0.1
+flows:
+  - id: BudgetStatusNotificationFlow
+    version: 0.0.1
+---
+
+## Overview
+
+The Telegram Gateway sits between the Core domain and the external [Telegram Bot API](https://core.telegram.org/bots/api). It subscribes to [[command|SendTelegramMessage]] from the [[service|BudgetProcessManager]] and calls the Telegram Bot API `/sendMessage` endpoint with the provided HTML-formatted message body.
+
+The gateway is configured via `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` environment variables and uses `parse_mode: "HTML"` for all messages.
+
+## External Systems
+
+| System | Role |
+|--------|------|
+| **Telegram Bot API** | External messaging API. Delivers HTML-formatted messages to the configured Telegram chat. |
+
+<NodeGraph />

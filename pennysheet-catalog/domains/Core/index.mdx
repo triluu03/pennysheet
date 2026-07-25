@@ -10,14 +10,18 @@ services:
     version: 0.0.1
   - id: TransactionProcessManager
     version: 0.0.1
-  - id: Notifier
+  - id: BudgetProcessManager
     version: 0.0.1
   - id: Projector
     version: 0.0.1
   - id: EnableBankingAPIGateway
     version: 0.0.1
+  - id: TelegramGateway
+    version: 0.0.1
 flows:
   - id: TransactionImportFlow
+    version: 0.0.1
+  - id: BudgetStatusNotificationFlow
     version: 0.0.1
 ---
 
