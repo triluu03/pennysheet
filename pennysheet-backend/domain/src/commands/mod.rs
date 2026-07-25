@@ -46,6 +46,8 @@ pub enum Command {
 #[derive(Debug)]
 pub enum GatewayCommand {
     ImportTransactions(TransactionQueryParameters),
+    /// Send a plain-text message via the Telegram bot.
+    SendTelegramMessage(String),
 }
 
 impl Command {

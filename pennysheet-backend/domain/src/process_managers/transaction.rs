@@ -201,6 +201,7 @@ mod tests {
     fn expect_query_params(manager: &TransactionProcessManager) -> TransactionQueryParameters {
         match manager.create_gateway_command() {
             Ok(GatewayCommand::ImportTransactions(params)) => params,
+            Ok(other) => panic!("expected ImportTransactions, got {other:?}"),
             Err(error) => panic!("expected a gateway command, got error: {error:?}"),
         }
     }

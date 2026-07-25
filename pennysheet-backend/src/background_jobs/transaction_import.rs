@@ -212,6 +212,16 @@ pub async fn run_transaction_import(
     loop {
         let gateway_query_params = match manager.create_gateway_command() {
             Ok(GatewayCommand::ImportTransactions(query_params)) => query_params,
+            Ok(other) => {
+                return fail_import(
+                    &db,
+                    request_id,
+                    session_data.session_id,
+                    "issue gateway command",
+                    &format!("unexpected gateway command variant: {other:?}"),
+                )
+                .await;
+            },
             Err(error) => {
                 return fail_import(
                     &db,

@@ -1,9 +1,14 @@
-//! Scheduled budget-reset background jobs.
+//! Scheduled budget-reset and daily budget-status background jobs.
 //!
+//! ## Budget reset
 //! Resets active budgets on a fixed schedule:
 //! - **Weekly** budget resets every Sunday evening; the new `start_date` is the following Monday.
 //! - **Monthly** budget resets on the last calendar day of the month; the new `start_date` is the
 //!   first day of the next month.
+//!
+//! ## Daily budget-status notification
+//! Every morning at 8 AM local time a summary of remaining weekly and
+//! monthly budget amounts is sent via Telegram.
 
 use chrono::{
     Datelike,
@@ -17,7 +22,9 @@ use domain::{
     aggregates::CoreAggregate,
     commands::Command,
     events::budgets::BudgetType,
+    process_managers::budget::BudgetProcessManager,
 };
+use gateway::client::telegram_bot_client::TelegramBotClient;
 use infra::{
     DatabaseConnection,
     append_event_to_db,
@@ -27,6 +34,7 @@ use tracing::{
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::errors::AppError;
@@ -35,8 +43,12 @@ use crate::errors::AppError;
 const SCHEDULED_TIME: NaiveTime =
     NaiveTime::from_hms_opt(20, 0, 0).expect("hard-coded 20:00:00 must be a valid time");
 
+/// Target wall-clock time for the daily budget-status notification (8 AM local).
+const STATUS_SCHEDULED_TIME: NaiveTime =
+    NaiveTime::from_hms_opt(8, 0, 0).expect("hard-coded 08:00:00 must be a valid time");
+
 /// Width of the window (in minutes) after `SCHEDULED_TIME` during which the
-/// job is eligible to fire.
+/// reset job is eligible to fire.
 const WINDOW_MINUTES: i64 = 5;
 
 /// Scheduled-polling loop that resets budgets on their cadence.
@@ -125,7 +137,7 @@ fn is_sunday_evening(now: chrono::DateTime<Local>) -> bool {
     if now.weekday() != Weekday::Sun {
         return false;
     }
-    time_in_window(now.time())
+    time_in_window(now.time(), SCHEDULED_TIME)
 }
 
 /// Determine whether `now` falls on the last calendar day of the month inside
@@ -136,14 +148,14 @@ fn is_last_day_of_month(now: chrono::DateTime<Local>) -> bool {
     if today != last_day {
         return false;
     }
-    time_in_window(now.time())
+    time_in_window(now.time(), SCHEDULED_TIME)
 }
 
-/// Return true when `t` is within [`SCHEDULED_TIME`, `SCHEDULED_TIME` +
-/// `WINDOW_MINUTES`).
-fn time_in_window(t: NaiveTime) -> bool {
-    let window_end = SCHEDULED_TIME + Duration::minutes(WINDOW_MINUTES);
-    t >= SCHEDULED_TIME && t < window_end
+/// Return true when `t` is within [`scheduled`, `scheduled` +
+/// [`WINDOW_MINUTES`]).
+fn time_in_window(t: NaiveTime, scheduled: NaiveTime) -> bool {
+    let window_end = scheduled + Duration::minutes(WINDOW_MINUTES);
+    t >= scheduled && t < window_end
 }
 
 /// Compute the date of the Monday immediately following `today`.
@@ -167,6 +179,74 @@ fn first_of_next_month(today: NaiveDate) -> NaiveDate {
         (today.year(), today.month() + 1)
     };
     NaiveDate::from_ymd_opt(y, m, 1).expect("computed first-of-month is always valid")
+}
+
+/// Scheduled-polling loop that sends a daily budget-status summary via Telegram
+/// every morning.
+///
+/// Checks once per minute whether the current wall-clock time triggers the
+/// daily notification. After a notification fires for a given date, that date
+/// is skipped until the next day.
+///
+/// This task is meant to be run in the background via `tokio::spawn`.
+#[instrument(skip(db))]
+pub async fn scheduled_budget_status_notification(db: DatabaseConnection) {
+    let mut last_run: Option<NaiveDate> = None;
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
+        let now = Local::now();
+        let today = now.date_naive();
+
+        if time_in_window(now.time(), STATUS_SCHEDULED_TIME) && last_run != Some(today) {
+            info!("triggering daily budget status notification");
+            match run_budget_status_job(&db).await {
+                Ok(()) => {
+                    info!("daily budget status notification sent");
+                    last_run = Some(today);
+                },
+                Err(error) => warn!(%error, "daily budget status notification failed"),
+            }
+        }
+    }
+}
+
+/// Execute a single budget-status notification.
+///
+/// Replays the full event table through
+/// [`BudgetProcessManager`], builds a status message via
+/// [`BudgetProcessManager::create_gateway_command`], and sends it
+/// through [`TelegramBotClient`].
+///
+/// # Errors
+///
+/// Returns [`AppError`] if:
+/// - The event table cannot be loaded.
+/// - The process manager cannot be initialised (no active budgets).
+/// - The gateway command cannot be created.
+/// - The Telegram client cannot send the message.
+#[instrument(skip(db))]
+async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> {
+    let all_events = get_all_events(db).await?;
+    let process_manager = BudgetProcessManager::new(&all_events)?;
+    let command = process_manager.create_gateway_command(Local::now().date_naive())?;
+
+    let body = match command {
+        domain::commands::GatewayCommand::SendTelegramMessage(body) => body,
+        _ => {
+            return Err(AppError::Domain(
+                domain::errors::DomainError::CommandCreation(
+                    "expected SendTelegramMessage command".to_string(),
+                ),
+            ));
+        },
+    };
+
+    let client = TelegramBotClient::new_from_env()?;
+    client.send_message(&body).await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -282,6 +362,43 @@ mod tests {
             first_of_next_month(date),
             NaiveDate::from_ymd_opt(2026, 4, 1).unwrap()
         );
+    }
+
+    // -- time_in_window (08:00 status) tests ----------------------------
+
+    /// Returns true at exactly 08:00:00.
+    #[test]
+    fn time_in_window_true_at_status_scheduled_time() {
+        let t = NaiveTime::from_hms_opt(8, 0, 0).unwrap();
+        assert!(time_in_window(t, STATUS_SCHEDULED_TIME));
+    }
+
+    /// Returns true at 08:04:59 (inside the 5-minute window).
+    #[test]
+    fn time_in_window_true_in_status_window() {
+        let t = NaiveTime::from_hms_opt(8, 4, 59).unwrap();
+        assert!(time_in_window(t, STATUS_SCHEDULED_TIME));
+    }
+
+    /// Returns false at 08:05:00 (exactly at the window boundary).
+    #[test]
+    fn time_in_window_false_at_status_boundary() {
+        let t = NaiveTime::from_hms_opt(8, 5, 0).unwrap();
+        assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
+    }
+
+    /// Returns false at 08:06:00 (outside the window).
+    #[test]
+    fn time_in_window_false_outside_status_window() {
+        let t = NaiveTime::from_hms_opt(8, 6, 0).unwrap();
+        assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
+    }
+
+    /// Returns false at 07:59:59 (one second before the window opens).
+    #[test]
+    fn time_in_window_false_before_status_window() {
+        let t = NaiveTime::from_hms_opt(7, 59, 59).unwrap();
+        assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
     /// Build an empty in-memory [`DatabaseConnection`] with schema synced.

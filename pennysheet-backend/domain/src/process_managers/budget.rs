@@ -35,7 +35,8 @@ impl BudgetProcessManager {
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError`] if there's no pending transaction import request.
+    /// Returns [`DomainError::ComponentInit`] if neither a weekly nor a monthly
+    /// budget is active.
     pub fn new(all_events: &[Event]) -> Result<Self, DomainError> {
         let new_self = Self {
             ..Default::default()
@@ -50,15 +51,32 @@ impl BudgetProcessManager {
         }
     }
 
-    /// Create a [`GatewayCommand`] command.
+    /// Build an HTML-formatted daily budget-status message and wrap it in a
+    /// [`GatewayCommand::SendTelegramMessage`].
+    ///
+    /// The message includes a date header, a progress bar with a color-coded
+    /// status emoji, and the remaining vs total amount for each active budget.
     ///
     /// # Errors
     ///
-    /// Returns [`DomainError::CommandCreation`] if neither weekly or monthly budgets are exceeded.
-    pub fn create_gateway_command(&self) -> Result<GatewayCommand, DomainError> {
-        // TODO: issue a gateway command to the notifier to tell the user (via Telegram bot) that
-        // budgets have been exceeded!
-        todo!()
+    /// Returns [`DomainError::CommandCreation`] if the formatted message body
+    /// is empty (which should never happen when at least one budget is active).
+    pub fn create_gateway_command(&self, today: NaiveDate) -> Result<GatewayCommand, DomainError> {
+        let date_str = today.format("%b %d").to_string();
+        let mut lines = vec![format!("📊 <b>Budget Status — {date_str}</b>\n")];
+
+        lines.push(format_budget_line(
+            "Weekly",
+            self.weekly_remaining_amount,
+            self.weekly_budget.as_ref(),
+        ));
+        lines.push(format_budget_line(
+            "Monthly",
+            self.monthly_remaining_amount,
+            self.monthly_budget.as_ref(),
+        ));
+
+        Ok(GatewayCommand::SendTelegramMessage(lines.join("\n")))
     }
 
     /// Construct the state from one event.
@@ -145,5 +163,186 @@ impl BudgetProcessManager {
         events
             .iter()
             .fold(self, |manager, event| manager.apply(event))
+    }
+}
+
+/// Format a single budget line for the daily status message using Telegram
+/// HTML markup.
+///
+/// When a budget is active the line includes a color-coded emoji (🟢 ≥50%,
+/// 🟡 ≥25%, 🔴 otherwise), a 10-block progress bar, the remaining percentage,
+/// and the dollar amounts. When a budget is [`None`] the line shows `⚪ Not
+/// set`.
+fn format_budget_line(label: &str, remaining: f64, budget: Option<&Budget>) -> String {
+    match budget {
+        Some(b) => {
+            let emoji = status_emoji(remaining, b.amount);
+            let sign = if remaining < 0.0 { "−" } else { "" };
+            format!(
+                "{emoji} <b>{label}</b>  {sign}${abs:.2} left of ${total:.2}",
+                abs = remaining.abs(),
+                total = b.amount
+            )
+        },
+        None => {
+            format!("⚪ <b>{label}</b>  Not set")
+        },
+    }
+}
+
+/// Return a color-coded emoji based on the proportion of budget remaining.
+///
+/// 🟢 when ≥50% remains, 🟡 when ≥25%, 🔴 otherwise (including when
+/// overspent).
+fn status_emoji(remaining: f64, total: f64) -> &'static str {
+    let ratio = remaining / total;
+    if ratio >= 0.5 {
+        "🟢"
+    } else if ratio >= 0.25 {
+        "🟡"
+    } else {
+        "🔴"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::budgets::BudgetData;
+    use chrono::NaiveDate;
+
+    /// Fixture start date for budget events.
+    fn start_date() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 1, 1).expect("hard-coded test date is valid")
+    }
+
+    /// Fixture "today" date used when building messages.
+    fn today() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 1, 19).expect("hard-coded test date is valid")
+    }
+
+    /// Create a `BudgetCreated` event for the given type, amount, and threshold.
+    fn budget_created_event(budget_type: BudgetType, amount: f64, threshold: f64) -> Event {
+        Event::BudgetCreated(BudgetData {
+            start_date: start_date(),
+            budget_type,
+            amount,
+            threshold,
+        })
+    }
+
+    /// The message produced when both budgets are active includes both lines
+    /// with progress bars, emoji, and HTML markup.
+    #[test]
+    fn create_gateway_command_with_both_budgets_active() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            budget_created_event(BudgetType::Monthly, 2000.0, 100.0),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        let command = manager.create_gateway_command(today()).unwrap();
+        let GatewayCommand::SendTelegramMessage(body) = command else {
+            panic!("expected SendTelegramMessage");
+        };
+
+        assert!(body.starts_with("📊 <b>Budget Status — Jan 19</b>"), "body: {body}");
+        assert!(
+            body.contains("🟢 <b>Weekly</b>  $500.00 left of $500.00"),
+            "body: {body}"
+        );
+        assert!(
+            body.contains("🟢 <b>Monthly</b>  $2000.00 left of $2000.00"),
+            "body: {body}"
+        );
+    }
+
+    /// When only a weekly budget is active the message includes the weekly
+    /// line and a "Not set" line for monthly.
+    #[test]
+    fn create_gateway_command_with_only_weekly_active() {
+        let events = [budget_created_event(BudgetType::Weekly, 300.0, 25.0)];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        let command = manager.create_gateway_command(today()).unwrap();
+        let GatewayCommand::SendTelegramMessage(body) = command else {
+            panic!("expected SendTelegramMessage");
+        };
+
+        assert!(
+            body.contains("🟢 <b>Weekly</b>  $300.00 left of $300.00"),
+            "body: {body}"
+        );
+        assert!(body.contains("⚪ <b>Monthly</b>  Not set"), "body: {body}");
+    }
+
+    /// When only a monthly budget is active the message includes the monthly
+    /// line and a "Not set" line for weekly.
+    #[test]
+    fn create_gateway_command_with_only_monthly_active() {
+        let events = [budget_created_event(BudgetType::Monthly, 1500.0, 50.0)];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        let command = manager.create_gateway_command(today()).unwrap();
+        let GatewayCommand::SendTelegramMessage(body) = command else {
+            panic!("expected SendTelegramMessage");
+        };
+
+        assert!(body.contains("⚪ <b>Weekly</b>  Not set"), "body: {body}");
+        assert!(
+            body.contains("🟢 <b>Monthly</b>  $1500.00 left of $1500.00"),
+            "body: {body}"
+        );
+    }
+
+    /// When the remaining amount goes negative (budget exceeded) the progress
+    /// bar is empty, the emoji is red, and a minus sign is used.
+    #[test]
+    fn create_gateway_command_shows_negative_remaining() {
+        use crate::events::transactions::TransactionData;
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+
+        let transaction = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "600.00".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Big Store".to_string()),
+            }),
+            debtor: None,
+            booking_date: Some("2026-01-02".to_string()),
+            transaction_date: Some("2026-01-02".to_string()),
+        };
+        let recorded = TransactionData::new(transaction).expect("valid transaction");
+
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 600.0),
+            Event::TransactionRecorded(recorded),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        let command = manager.create_gateway_command(today()).unwrap();
+        let GatewayCommand::SendTelegramMessage(body) = command else {
+            panic!("expected SendTelegramMessage");
+        };
+
+        assert!(
+            body.contains("🔴 <b>Weekly</b>  −$100.00 left of $500.00"),
+            "body: {body}"
+        );
+    }
+
+    /// Constructing with no active budgets returns an error from `new`.
+    #[test]
+    fn new_fails_without_any_active_budget() {
+        let result = BudgetProcessManager::new(&[]);
+        assert!(matches!(result, Err(DomainError::ComponentInit(_))));
     }
 }
