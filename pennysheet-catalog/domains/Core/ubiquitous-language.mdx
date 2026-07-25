@@ -25,7 +25,7 @@ dictionary:
     name: Event Store
     summary: "Append-only log that persists all domain events — the source of truth for the Core domain."
     description: |
-      The EventStore holds every event emitted by the Aggregate and injected by the EventInjector. The Projector and Notifier consume from this store to build read models and dispatch notifications.
+      The EventStore holds every event emitted by the Aggregate and injected by the EventInjector. The Projector and BudgetProcessManager consume from this store to build read models and dispatch notifications.
     icon: Database
 
   - id: EventInjector
@@ -41,13 +41,6 @@ dictionary:
     description: |
       The Projector listens to all Core events and keeps three read models up to date: TransactionView (per-transaction list), BudgetView (spending progress), and DashboardView (aggregated financial summary).
     icon: LayoutDashboard
-
-  - id: Notifier
-    name: Notifier
-    summary: "Reactive service that dispatches user notifications when budget thresholds are reached or exceeded."
-    description: |
-      The Notifier subscribes to TransactionRecorded and BudgetExceeded events and sends out-of-band notifications (e.g. push notifications or in-app alerts). It does not write back to the event store.
-    icon: Bell
 
   - id: TransactionView
     name: Transaction View
@@ -76,4 +69,32 @@ dictionary:
     description: |
       Triggered by the ImportTransactions command. The EventInjector writes TransactionImportCompleted or TransactionImportFailed to the EventStore after the Enable Banking API responds.
     icon: Upload
+
+  - id: BudgetProcessManager
+    name: Budget Process Manager
+    summary: "Domain process manager that tracks budget state and issues gateway commands for Telegram notifications."
+    description: |
+      Replays budget lifecycle events (BudgetCreated, BudgetUpdated, BudgetDeleted, BudgetReset, BudgetExceeded, TransactionRecorded) from the EventStore to compute current weekly and monthly remaining amounts. Triggered both reactively (on BudgetExceeded / TransactionRecorded events) and on a daily 8 AM schedule. Produces the SendTelegramMessage gateway command with an HTML-formatted status message including color-coded indicators (🟢 ≥50%, 🟡 ≥25%, 🔴 otherwise).
+    icon: Activity
+
+  - id: TelegramGateway
+    name: Telegram Gateway
+    summary: "Gateway service that delivers HTML-formatted messages to users via the Telegram Bot API."
+    description: |
+      Subscribes to the SendTelegramMessage gateway command from the BudgetProcessManager and calls the Telegram Bot API /sendMessage endpoint with parse_mode HTML. Configured via TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.
+    icon: MessageSquare
+
+  - id: BudgetStatusNotification
+    name: Budget Status Notification
+    summary: "A daily scheduled notification showing remaining weekly and monthly budget amounts."
+    description: |
+      Triggered every morning at 8 AM by a background scheduler. The BudgetProcessManager replays the event store, computes remaining amounts, formats an HTML status message, and issues the SendTelegramMessage gateway command. The TelegramGateway receives the command and delivers it via the Telegram Bot API.
+    icon: Bell
+
+  - id: GatewayCommand
+    name: Gateway Command
+    summary: "A command dispatched by a process manager to a gateway client for out-of-process side effects."
+    description: |
+      Gateway commands bridge the domain layer to external systems. Variants include ImportTransactions (handled by the EnableBankingAPIGateway) and SendTelegramMessage (handled by the TelegramGateway). Unlike domain commands, gateway commands do not go through the Aggregate — they are dispatched directly by process managers and handled by gateway services.
+    icon: ArrowUpRight
 ---

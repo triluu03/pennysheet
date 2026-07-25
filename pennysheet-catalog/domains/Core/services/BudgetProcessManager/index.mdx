@@ -1,0 +1,33 @@
+---
+id: BudgetProcessManager
+name: Budget Process Manager
+version: 0.0.1
+summary: Tracks budget state from domain events and produces gateway commands for Telegram notifications.
+receives:
+  - id: BudgetCreated
+    version: 0.0.1
+  - id: BudgetUpdated
+    version: 0.0.1
+  - id: BudgetDeleted
+    version: 0.0.1
+  - id: BudgetReset
+    version: 0.0.1
+  - id: BudgetExceeded
+    version: 0.0.1
+  - id: TransactionRecorded
+    version: 0.0.1
+sends:
+  - id: SendTelegramMessage
+    version: 0.0.1
+---
+
+## Overview
+
+The Budget Process Manager tracks the lifecycle of budgets by replaying domain events from the [[container|EventStore]]. It computes current remaining amounts for weekly and monthly budgets and produces a [[command|SendTelegramMessage]] gateway command when a notification should be dispatched.
+
+Two triggers drive the manager:
+
+- **Reactive** — on [[event|BudgetExceeded]] and [[event|TransactionRecorded]], it evaluates whether a budget threshold has been breached and sends an alert.
+- **Scheduled daily** — a background job runs every morning at 8 AM, replays the full event store, builds an HTML-formatted status message with color-coded indicators (🟢 ≥50% remaining, 🟡 ≥25%, 🔴 otherwise), and sends [[command|SendTelegramMessage]] to the [[service|TelegramGateway]].
+
+<NodeGraph />
