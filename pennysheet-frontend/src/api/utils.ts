@@ -41,9 +41,6 @@ export function getTransactionRows(rows: BudgetRow[]): BudgetRow[] {
 export function computeRemaining(rows: BudgetRow[]): number | null {
   const budgetRow = findBudgetRow(rows);
   if (!budgetRow) return null;
-  const transactionTotal = getTransactionRows(rows).reduce(
-    (sum, row) => sum + row.amount,
-    0
-  );
+  const transactionTotal = getTransactionRows(rows).reduce((sum, row) => sum + row.amount, 0);
   return budgetRow.amount + transactionTotal;
 }
