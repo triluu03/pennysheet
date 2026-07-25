@@ -230,7 +230,7 @@ pub async fn scheduled_budget_status_notification(db: DatabaseConnection) {
 async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> {
     let all_events = get_all_events(db).await?;
     let process_manager = BudgetProcessManager::new(&all_events)?;
-    let command = process_manager.create_gateway_command()?;
+    let command = process_manager.create_gateway_command(Local::now().date_naive())?;
 
     let body = match command {
         domain::commands::GatewayCommand::SendTelegramMessage(body) => body,

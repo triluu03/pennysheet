@@ -45,6 +45,12 @@ impl TelegramBotClient {
     /// Returns [`GatewayError::Environment`] if either `TELEGRAM_BOT_TOKEN` or
     /// `TELEGRAM_CHAT_ID` is not set or is an empty string.
     pub fn new_from_env() -> Result<Self, GatewayError> {
+        if cfg!(debug_assertions) {
+            dotenvy::from_filename(".env-dev.local").ok();
+        } else {
+            dotenvy::from_filename(".env-prod.local").ok();
+        }
+
         let token = std::env::var("TELEGRAM_BOT_TOKEN")?;
         let chat_id = std::env::var("TELEGRAM_CHAT_ID")?;
 
@@ -69,10 +75,10 @@ impl TelegramBotClient {
         })
     }
 
-    /// Send a plain-text message to the configured chat.
+    /// Send an HTML-formatted message to the configured chat.
     ///
-    /// Calls the `/sendMessage` endpoint and checks the `ok` field on the
-    /// returned JSON.
+    /// Calls the `/sendMessage` endpoint with `parse_mode` set to `"HTML"`
+    /// and checks the `ok` field on the returned JSON.
     ///
     /// # Errors
     ///
@@ -84,6 +90,7 @@ impl TelegramBotClient {
         let body = SendMessageRequest {
             chat_id: self.chat_id.clone(),
             text: text.to_string(),
+            parse_mode: "HTML".to_string(),
         };
 
         debug!(chat_id = %self.chat_id, "sending Telegram message");
@@ -145,7 +152,8 @@ mod tests {
                     .header("content-type", "application/json")
                     .json_body(json!({
                         "chat_id": "12345",
-                        "text": "hello"
+                        "text": "hello",
+                        "parse_mode": "HTML"
                     }));
                 then.status(200)
                     .header("content-type", "application/json")

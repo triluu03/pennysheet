@@ -13,6 +13,9 @@ pub struct SendMessageRequest {
     pub chat_id: String,
     /// Text of the message to be sent (1-4096 characters after entities parsing).
     pub text: String,
+    /// Mode for parsing entities in the message text. Always `"HTML"` for
+    /// the messages produced by this application.
+    pub parse_mode: String,
 }
 
 /// Response body returned by the [`sendMessage`](https://core.telegram.org/bots/api#sendmessage)
