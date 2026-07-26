@@ -43,7 +43,7 @@ use crate::errors::AppError;
 /// This task is meant to be run in the background.
 #[instrument(skip(db))]
 pub async fn scheduled_transaction_import(db: DatabaseConnection) {
-    let morning = NaiveTime::from_hms_opt(8, 0, 0).unwrap();
+    let morning = NaiveTime::from_hms_opt(8, 15, 0).unwrap();
     let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
     let evening = NaiveTime::from_hms_opt(20, 0, 0).unwrap();
     let scheduled_times = [morning, noon, evening];
