@@ -223,13 +223,14 @@ impl Command {
     /// Returns [`DomainError::CommandCreation`] if `start_date` does not follow the
     /// format `"%Y-%m-%d"`.
     pub fn create_reset_budget(
-        start_date: &str,
+        start_date: NaiveDate,
         budget_type: BudgetType,
+        previous_remaining: f64,
     ) -> Result<Self, DomainError> {
-        let parsed_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")?;
         Ok(Command::ResetBudget(ResetBudgetData {
-            start_date: parsed_start_date,
+            start_date,
             budget_type,
+            previous_remaining,
         }))
     }
 }
@@ -521,10 +522,11 @@ mod tests {
     }
 
     /// Creating a reset-budget command with a valid start date returns the correct budget type and
-    /// date.
+    /// date, and preserves the previous_remaining amount.
     #[test]
     fn create_reset_budget_succeeds_with_valid_start_date_and_budget_type() {
-        let result = Command::create_reset_budget("2026-02-01", BudgetType::Monthly);
+        let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        let result = Command::create_reset_budget(start, BudgetType::Monthly, 0.0);
         match result {
             Ok(Command::ResetBudget(data)) => {
                 assert_eq!(
@@ -532,11 +534,13 @@ mod tests {
                     NaiveDate::from_ymd_opt(2026, 2, 1).unwrap()
                 );
                 assert_eq!(data.budget_type, BudgetType::Monthly);
+                assert!((data.previous_remaining - 0.0).abs() < f64::EPSILON);
             },
             other => panic!("expected ResetBudget, got {other:?}"),
         }
 
-        let result = Command::create_reset_budget("2026-03-15", BudgetType::Weekly);
+        let start = NaiveDate::from_ymd_opt(2026, 3, 15).unwrap();
+        let result = Command::create_reset_budget(start, BudgetType::Weekly, 50.0);
         match result {
             Ok(Command::ResetBudget(data)) => {
                 assert_eq!(
@@ -544,15 +548,35 @@ mod tests {
                     NaiveDate::from_ymd_opt(2026, 3, 15).unwrap()
                 );
                 assert_eq!(data.budget_type, BudgetType::Weekly);
+                assert!((data.previous_remaining - 50.0).abs() < f64::EPSILON);
             },
             other => panic!("expected ResetBudget, got {other:?}"),
         }
     }
 
-    /// An invalid start date rejects reset-budget command creation.
+    /// Passing a positive previous_remaining stores it in the command data.
     #[test]
-    fn create_reset_budget_rejects_invalid_start_date() {
-        let result = Command::create_reset_budget("not-a-date", BudgetType::Weekly);
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
+    fn create_reset_budget_preserves_positive_previous_remaining() {
+        let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        let result = Command::create_reset_budget(start, BudgetType::Weekly, 200.0);
+        match result {
+            Ok(Command::ResetBudget(data)) => {
+                assert!((data.previous_remaining - 200.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected ResetBudget, got {other:?}"),
+        }
+    }
+
+    /// Passing a negative previous_remaining (overspend) stores it in the command data.
+    #[test]
+    fn create_reset_budget_preserves_negative_previous_remaining() {
+        let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        let result = Command::create_reset_budget(start, BudgetType::Monthly, -100.0);
+        match result {
+            Ok(Command::ResetBudget(data)) => {
+                assert!((data.previous_remaining + 100.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected ResetBudget, got {other:?}"),
+        }
     }
 }

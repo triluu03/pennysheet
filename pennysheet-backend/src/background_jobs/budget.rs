@@ -106,6 +106,7 @@ pub async fn scheduled_budget_reset(db: DatabaseConnection) {
 /// # Errors
 ///
 /// Returns [`AppError`] if:
+/// - The start date cannot be parsed (must be in `YYYY-MM-DD` format).
 /// - The event table cannot be loaded.
 /// - The aggregate rejects the reset command (e.g. no active budget).
 /// - The event cannot be appended to the store.
@@ -115,9 +116,30 @@ async fn run_budget_reset_job(
     budget_type: BudgetType,
     start_date: &str,
 ) -> Result<(), AppError> {
-    let command = Command::create_reset_budget(start_date, budget_type)?;
-
     let all_events = get_all_events(db).await?;
+    let process_manager = BudgetProcessManager::new(&all_events)?;
+
+    // Parse the new start_date for comparison against the current period.
+    let new_start = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::Domain(e.into()))?;
+
+    // If the current budget period hasn't started yet (its start_date is in
+    // the future relative to the new start_date), skip the reset entirely.
+    if let Some(current_start) = process_manager.start_date(budget_type)
+        && current_start >= new_start
+    {
+        info!(
+            %budget_type,
+            %current_start,
+            %new_start,
+            "skipping budget reset: current budget period has not started yet"
+        );
+        return Ok(());
+    }
+
+    let previous_remaining = process_manager.remaining_amount(budget_type);
+
+    let command = Command::create_reset_budget(new_start, budget_type, previous_remaining)?;
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(db, event.clone()).await?;
@@ -438,5 +460,90 @@ mod tests {
         let db = in_memory_db().await;
         let result = run_budget_reset_job(&db, BudgetType::Monthly, "2026-01-01").await;
         assert!(result.is_err());
+    }
+
+    /// When the budget's start_date equals the reset's new_start, the reset is
+    /// skipped. This prevents a Sunday-evening job from resetting a budget that
+    /// starts on the following Monday (the same Monday computed by
+    /// `next_monday` from Sunday), which would double the budget amount.
+    #[tokio::test]
+    async fn run_budget_reset_job_skips_when_start_date_equals_new_start() {
+        let db = in_memory_db().await;
+
+        // Create a weekly budget starting on Monday 2026-01-19.
+        let create_cmd =
+            Command::create_budget("2026-01-19", BudgetType::Weekly, 500.0, 50.0).unwrap();
+        let all_events = infra::get_all_events(&db).await.unwrap();
+        let create_event = CoreAggregate::new(&all_events).execute(create_cmd).unwrap();
+        infra::append_event_to_db(&db, create_event).await.unwrap();
+
+        // Reset with the same Monday — should be skipped.
+        run_budget_reset_job(&db, BudgetType::Weekly, "2026-01-19")
+            .await
+            .unwrap();
+
+        // Only the BudgetCreated event remains; no BudgetReset appended.
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], domain::events::Event::BudgetCreated(_)));
+    }
+
+    /// Resetting after transactions have been recorded rolls the remaining
+    /// amount into the new period via the BudgetProcessManager.
+    #[tokio::test]
+    async fn run_budget_reset_job_rolls_over_remaining() {
+        use domain::events::{
+            Event,
+            transactions::TransactionData,
+        };
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+
+        let db = in_memory_db().await;
+
+        // Create a weekly budget of 500.
+        let create_cmd =
+            Command::create_budget("2026-01-15", BudgetType::Weekly, 500.0, 500.0).unwrap();
+        let all_events = infra::get_all_events(&db).await.unwrap();
+        let create_event = CoreAggregate::new(&all_events).execute(create_cmd).unwrap();
+        infra::append_event_to_db(&db, create_event).await.unwrap();
+
+        // Record a 300 transaction, leaving 200 remaining.
+        let transaction = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "300.00".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Test Store".to_string()),
+            }),
+            debtor: None,
+            booking_date: Some("2026-01-20".to_string()),
+            transaction_date: Some("2026-01-20".to_string()),
+        };
+        let recorded = TransactionData::new(transaction).expect("valid transaction");
+        infra::append_event_to_db(&db, Event::TransactionRecorded(recorded))
+            .await
+            .unwrap();
+
+        // Run the reset job — should compute previous_remaining=200.
+        run_budget_reset_job(&db, BudgetType::Weekly, "2026-02-01")
+            .await
+            .unwrap();
+
+        // Verify the BudgetReset event carries the rolled-over remaining amount.
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert_eq!(events.len(), 3); // BudgetCreated, TransactionRecorded, BudgetReset
+        match &events[2] {
+            Event::BudgetReset(data) => {
+                assert!((data.previous_remaining - 200.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected BudgetReset, got {other:?}"),
+        }
     }
 }

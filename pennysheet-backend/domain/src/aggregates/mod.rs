@@ -220,6 +220,7 @@ impl CoreAggregate {
                         Ok(Event::BudgetReset(BudgetResetData {
                             start_date: data.start_date,
                             budget_type: data.budget_type,
+                            previous_remaining: data.previous_remaining,
                         }))
                     } else {
                         Err(DomainError::CommandRejected(
@@ -232,6 +233,7 @@ impl CoreAggregate {
                         Ok(Event::BudgetReset(BudgetResetData {
                             start_date: data.start_date,
                             budget_type: data.budget_type,
+                            previous_remaining: data.previous_remaining,
                         }))
                     } else {
                         Err(DomainError::CommandRejected(

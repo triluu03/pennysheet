@@ -141,11 +141,11 @@ impl ProjectorTrait for BudgetProjector {
             },
             Event::BudgetReset(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    weekly_budgets::Entity::reset_budget(txn, data.start_date).await?;
+                    weekly_budgets::Entity::reset_budget(txn, data.start_date, data.previous_remaining).await?;
                     Ok(())
                 },
                 BudgetType::Monthly => {
-                    monthly_budgets::Entity::reset_budget(txn, data.start_date).await?;
+                    monthly_budgets::Entity::reset_budget(txn, data.start_date, data.previous_remaining).await?;
                     Ok(())
                 },
             },

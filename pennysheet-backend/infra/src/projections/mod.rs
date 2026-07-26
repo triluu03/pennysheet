@@ -379,6 +379,9 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     /// Date column for the budget row.
     fn date_column() -> Self::Column;
 
+    /// Amount column, used when rolling leftover budget into the next period.
+    fn amount_column() -> Self::Column;
+
     /// Start tracking a new budget.
     ///
     /// Truncates the projection table and inserts a new budget row.
@@ -453,15 +456,17 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
             .await
     }
 
-    /// Reset the projection table, keeping only the budget row with an updated start date.
+    /// Reset the projection table, keeping only the budget row with an updated start date
+    /// and rolled-over amount.
     ///
-    /// Deletes all transaction rows but preserves the budget tracking row and
-    /// updates its date column to `new_start_date`.
+    /// Deletes all transaction rows but preserves the budget tracking row.
+    /// Updates its date column to `new_start_date` and adds `previous_remaining`
+    /// to the amount column so that leftover (or overspent) budget carries forward.
     ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the query, update, or deletion fails.
-    async fn reset_budget<C>(db: &C, new_start_date: Date) -> Result<(), DbErr>
+    async fn reset_budget<C>(db: &C, new_start_date: Date, previous_remaining: f64) -> Result<(), DbErr>
     where
         C: ConnectionTrait,
     {
@@ -472,6 +477,10 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
 
         Self::update_many()
             .col_expr(Self::date_column(), Expr::value(new_start_date))
+            .col_expr(
+                Self::amount_column(),
+                Expr::col(Self::amount_column()).add(Expr::value(previous_remaining)),
+            )
             .filter(Self::budget_id_column().eq(Uuid::nil()))
             .exec(db)
             .await?;
