@@ -85,17 +85,29 @@ impl ProjectorTrait for BudgetProjector {
                 Ok(())
             },
             Event::TransactionRecorded(data) => {
-                // Check against the active weekly budget threshold.
                 if let Some(budget) = weekly_budgets::Entity::get_active_budget(txn).await?
+                    // Check against the active weekly budget threshold.
                     && data.amount <= budget.threshold
+                    // Only record if the transaction's booking_date is after the budget date.
+                    && data.booking_date.is_some_and(|booking_date| {
+                        budget
+                            .date
+                            .is_some_and(|budget_date| booking_date > budget_date)
+                    })
                     && let Some(row) =
                         weekly_budgets::ActiveModel::from_recorded_transaction(data.clone())
                 {
                     row.apply_user_settings(user_settings).insert(txn).await?;
                 }
-                // Check against the active monthly budget threshold.
                 if let Some(budget) = monthly_budgets::Entity::get_active_budget(txn).await?
+                    // Check against the active monthly budget threshold.
                     && data.amount <= budget.threshold
+                    // Only record if the transaction's booking_date is after the budget date.
+                    && data.booking_date.is_some_and(|booking_date| {
+                        budget
+                            .date
+                            .is_some_and(|budget_date| booking_date > budget_date)
+                    })
                     && let Some(row) =
                         monthly_budgets::ActiveModel::from_recorded_transaction(data.clone())
                 {
