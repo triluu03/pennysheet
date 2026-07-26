@@ -39,13 +39,13 @@ use tracing::{
 
 use crate::errors::AppError;
 
-/// Target wall-clock time for the daily schedule check (8 PM local).
+/// Target wall-clock time for the daily schedule check (9 PM local).
 const SCHEDULED_TIME: NaiveTime =
-    NaiveTime::from_hms_opt(20, 0, 0).expect("hard-coded 20:00:00 must be a valid time");
+    NaiveTime::from_hms_opt(21, 0, 0).expect("hard-coded 21:00:00 must be a valid time");
 
-/// Target wall-clock time for the daily budget-status notification (8 AM local).
+/// Target wall-clock time for the daily budget-status notification (8:30 AM local).
 const STATUS_SCHEDULED_TIME: NaiveTime =
-    NaiveTime::from_hms_opt(8, 0, 0).expect("hard-coded 08:00:00 must be a valid time");
+    NaiveTime::from_hms_opt(8, 30, 0).expect("hard-coded 08:30:00 must be a valid time");
 
 /// Width of the window (in minutes) after `SCHEDULED_TIME` during which the
 /// reset job is eligible to fire.
@@ -280,55 +280,55 @@ mod tests {
         TimeZone,
     };
 
-    /// Returns true for a Sunday at exactly 20:00 local time.
+    /// Returns true for a Sunday at exactly 21:00 local time.
     #[test]
     fn is_sunday_evening_true_on_sunday_at_scheduled_time() {
         // 2026-01-18 is a Sunday.
-        let dt = Local.with_ymd_and_hms(2026, 1, 18, 20, 0, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 18, 21, 0, 0).unwrap();
         assert!(is_sunday_evening(dt));
     }
 
     /// Returns false for a Sunday outside the 5-minute window.
     #[test]
     fn is_sunday_evening_false_outside_window() {
-        let dt = Local.with_ymd_and_hms(2026, 1, 18, 20, 6, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 18, 21, 6, 0).unwrap();
         assert!(!is_sunday_evening(dt));
     }
 
-    /// Returns false for a non-Sunday at 20:00.
+    /// Returns false for a non-Sunday at 21:00.
     #[test]
     fn is_sunday_evening_false_on_non_sunday() {
         // 2026-01-19 is a Monday.
-        let dt = Local.with_ymd_and_hms(2026, 1, 19, 20, 0, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 19, 21, 0, 0).unwrap();
         assert!(!is_sunday_evening(dt));
     }
 
-    /// Returns true on the last day of a 31-day month at 20:00.
+    /// Returns true on the last day of a 31-day month at 21:00.
     #[test]
     fn is_last_day_of_month_true_on_31st() {
-        let dt = Local.with_ymd_and_hms(2026, 1, 31, 20, 0, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 31, 21, 0, 0).unwrap();
         assert!(is_last_day_of_month(dt));
     }
 
-    /// Returns true on Feb 28 of a non-leap year at 20:00.
+    /// Returns true on Feb 28 of a non-leap year at 21:00.
     #[test]
     fn is_last_day_of_month_true_on_feb_28_non_leap() {
         // 2025 is not a leap year.
-        let dt = Local.with_ymd_and_hms(2025, 2, 28, 20, 0, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2025, 2, 28, 21, 0, 0).unwrap();
         assert!(is_last_day_of_month(dt));
     }
 
     /// Returns false on a day that is not the last day of the month.
     #[test]
     fn is_last_day_of_month_false_on_non_last_day() {
-        let dt = Local.with_ymd_and_hms(2026, 1, 15, 20, 0, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 15, 21, 0, 0).unwrap();
         assert!(!is_last_day_of_month(dt));
     }
 
     /// Returns false on the last day but outside the time window.
     #[test]
     fn is_last_day_of_month_false_outside_window() {
-        let dt = Local.with_ymd_and_hms(2026, 1, 31, 20, 6, 0).unwrap();
+        let dt = Local.with_ymd_and_hms(2026, 1, 31, 21, 6, 0).unwrap();
         assert!(!is_last_day_of_month(dt));
     }
 
@@ -386,40 +386,38 @@ mod tests {
         );
     }
 
-    // -- time_in_window (08:00 status) tests ----------------------------
-
-    /// Returns true at exactly 08:00:00.
+    /// Returns true at exactly 08:30:00.
     #[test]
     fn time_in_window_true_at_status_scheduled_time() {
-        let t = NaiveTime::from_hms_opt(8, 0, 0).unwrap();
+        let t = NaiveTime::from_hms_opt(8, 30, 0).unwrap();
         assert!(time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
-    /// Returns true at 08:04:59 (inside the 5-minute window).
+    /// Returns true at 08:34:59 (inside the 5-minute window).
     #[test]
     fn time_in_window_true_in_status_window() {
-        let t = NaiveTime::from_hms_opt(8, 4, 59).unwrap();
+        let t = NaiveTime::from_hms_opt(8, 34, 59).unwrap();
         assert!(time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
-    /// Returns false at 08:05:00 (exactly at the window boundary).
+    /// Returns false at 08:35:00 (exactly at the window boundary).
     #[test]
     fn time_in_window_false_at_status_boundary() {
-        let t = NaiveTime::from_hms_opt(8, 5, 0).unwrap();
+        let t = NaiveTime::from_hms_opt(8, 35, 0).unwrap();
         assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
-    /// Returns false at 08:06:00 (outside the window).
+    /// Returns false at 08:36:00 (outside the window).
     #[test]
     fn time_in_window_false_outside_status_window() {
-        let t = NaiveTime::from_hms_opt(8, 6, 0).unwrap();
+        let t = NaiveTime::from_hms_opt(8, 36, 0).unwrap();
         assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
-    /// Returns false at 07:59:59 (one second before the window opens).
+    /// Returns false at 08:29:59 (one second before the window opens).
     #[test]
     fn time_in_window_false_before_status_window() {
-        let t = NaiveTime::from_hms_opt(7, 59, 59).unwrap();
+        let t = NaiveTime::from_hms_opt(8, 29, 59).unwrap();
         assert!(!time_in_window(t, STATUS_SCHEDULED_TIME));
     }
 
