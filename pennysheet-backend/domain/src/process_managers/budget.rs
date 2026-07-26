@@ -79,6 +79,27 @@ impl BudgetProcessManager {
         Ok(GatewayCommand::SendTelegramMessage(lines.join("\n")))
     }
 
+    /// Return the start date for the active budget of the given type, if any.
+    ///
+    /// Returns [`None`] when the requested budget type is not active.
+    pub fn start_date(&self, budget_type: BudgetType) -> Option<NaiveDate> {
+        match budget_type {
+            BudgetType::Weekly => self.weekly_budget.as_ref().map(|b| b.start_date),
+            BudgetType::Monthly => self.monthly_budget.as_ref().map(|b| b.start_date),
+        }
+    }
+
+    /// Return the remaining amount for the active budget of the given type.
+    ///
+    /// Returns the current `weekly_remaining_amount` or `monthly_remaining_amount`
+    /// depending on `budget_type`.
+    pub fn remaining_amount(&self, budget_type: BudgetType) -> f64 {
+        match budget_type {
+            BudgetType::Weekly => self.weekly_remaining_amount,
+            BudgetType::Monthly => self.monthly_remaining_amount,
+        }
+    }
+
     /// Construct the state from one event.
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
@@ -140,12 +161,14 @@ impl BudgetProcessManager {
                 BudgetType::Weekly => {
                     if let Some(budget) = &mut self.weekly_budget {
                         budget.start_date = data.start_date;
+                        budget.amount += data.previous_remaining;
                         self.weekly_remaining_amount = budget.amount
                     }
                 },
                 BudgetType::Monthly => {
                     if let Some(budget) = &mut self.monthly_budget {
                         budget.start_date = data.start_date;
+                        budget.amount += data.previous_remaining;
                         self.monthly_remaining_amount = budget.amount
                     }
                 },
@@ -208,7 +231,10 @@ fn status_emoji(remaining: f64, total: f64) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::budgets::BudgetData;
+    use crate::events::budgets::{
+        BudgetData,
+        BudgetResetData,
+    };
     use chrono::NaiveDate;
 
     /// Fixture start date for budget events.
@@ -246,7 +272,10 @@ mod tests {
             panic!("expected SendTelegramMessage");
         };
 
-        assert!(body.starts_with("📊 <b>Budget Status — Jan 19</b>"), "body: {body}");
+        assert!(
+            body.starts_with("📊 <b>Budget Status — Jan 19</b>"),
+            "body: {body}"
+        );
         assert!(
             body.contains("🟢 <b>Weekly</b>  $500.00 left of $500.00"),
             "body: {body}"
@@ -344,5 +373,98 @@ mod tests {
     fn new_fails_without_any_active_budget() {
         let result = BudgetProcessManager::new(&[]);
         assert!(matches!(result, Err(DomainError::ComponentInit(_))));
+    }
+
+    /// When resetting with a positive previous_remaining (leftover), the new
+    /// remaining amount equals the configured budget amount plus the rolled-over
+    /// leftover.
+    #[test]
+    fn reset_with_positive_remaining_rolls_over_leftover() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            Event::BudgetReset(BudgetResetData {
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                previous_remaining: 200.0,
+            }),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+        assert!((manager.remaining_amount(BudgetType::Weekly) - 700.0).abs() < f64::EPSILON);
+    }
+
+    /// When resetting with a negative previous_remaining (overspend), the new
+    /// remaining amount is reduced below the configured amount.
+    #[test]
+    fn reset_with_negative_remaining_reduces_new_total() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            Event::BudgetReset(BudgetResetData {
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                previous_remaining: -100.0,
+            }),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+        assert!((manager.remaining_amount(BudgetType::Weekly) - 400.0).abs() < f64::EPSILON);
+    }
+
+    /// Consecutive resets accumulate rollover amounts.
+    #[test]
+    fn consecutive_resets_accumulate_rollover() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            // First reset: 200 leftover → new total 700
+            Event::BudgetReset(BudgetResetData {
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                previous_remaining: 200.0,
+            }),
+            // Second reset: another 100 leftover → new total 800
+            Event::BudgetReset(BudgetResetData {
+                start_date: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                previous_remaining: 100.0,
+            }),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+        assert!((manager.remaining_amount(BudgetType::Weekly) - 800.0).abs() < f64::EPSILON);
+    }
+
+    /// `remaining_amount()` returns the per-type remaining after applying
+    /// transaction events.
+    #[test]
+    fn remaining_amount_returns_current_remaining_per_type() {
+        use crate::events::transactions::TransactionData;
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+
+        let transaction = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "100.00".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Test Store".to_string()),
+            }),
+            debtor: None,
+            booking_date: Some("2026-01-02".to_string()),
+            transaction_date: Some("2026-01-02".to_string()),
+        };
+        let recorded = TransactionData::new(transaction).expect("valid transaction");
+
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 200.0),
+            budget_created_event(BudgetType::Monthly, 1000.0, 200.0),
+            Event::TransactionRecorded(recorded),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        assert!((manager.remaining_amount(BudgetType::Weekly) - 400.0).abs() < f64::EPSILON);
+        assert!((manager.remaining_amount(BudgetType::Monthly) - 900.0).abs() < f64::EPSILON);
     }
 }

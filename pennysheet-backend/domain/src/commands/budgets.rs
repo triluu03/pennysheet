@@ -25,4 +25,5 @@ pub struct BudgetUpdateData {
 pub struct ResetBudgetData {
     pub start_date: NaiveDate,
     pub budget_type: BudgetType,
+    pub previous_remaining: f64,
 }

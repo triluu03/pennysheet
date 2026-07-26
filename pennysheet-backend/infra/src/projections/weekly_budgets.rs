@@ -128,6 +128,10 @@ impl BudgetProjectionTrait for Entity {
         Column::Date
     }
 
+    fn amount_column() -> Self::Column {
+        Column::Amount
+    }
+
     /// Start tracking a new weekly budget.
     ///
     /// Truncates the projection table and inserts a new row representing the

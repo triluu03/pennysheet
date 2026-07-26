@@ -8,10 +8,12 @@ use axum::{
     },
     http::StatusCode,
 };
+use chrono::NaiveDate;
 use domain::{
     aggregates::CoreAggregate,
     commands::Command,
     events::budgets::BudgetType,
+    process_managers::budget::BudgetProcessManager,
 };
 use infra::{
     append_event_to_db,
@@ -211,9 +213,32 @@ pub async fn reset_budget_handler(
     Path(budget_type): Path<BudgetType>,
     Json(payload): Json<ResetBudgetPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = Command::create_reset_budget(&payload.start_date, budget_type)?;
+    let new_start = NaiveDate::parse_from_str(&payload.start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::Domain(e.into()))?;
 
     let all_events = get_all_events(&state.db).await?;
+    let process_manager = BudgetProcessManager::new(&all_events)?;
+
+    // Skip if the current budget period hasn't started yet.
+    if let Some(current_start) = process_manager.start_date(budget_type)
+        && current_start >= new_start
+    {
+        info!(
+            %budget_type,
+            %current_start,
+            %new_start,
+            "skipping budget reset: current budget period has not started yet"
+        );
+        return Ok((
+            StatusCode::OK,
+            "Budget period has not started yet".to_string(),
+        ));
+    }
+
+    let previous_remaining = process_manager.remaining_amount(budget_type);
+
+    let command = Command::create_reset_budget(new_start, budget_type, previous_remaining)?;
+
     let event = CoreAggregate::new(&all_events).execute(command)?;
 
     let res = append_event_to_db(&state.db, event.clone()).await?;
@@ -691,6 +716,79 @@ mod tests {
     async fn reset_budget_handler_rejects_unknown_budget_type_in_path() {
         let result = serde_json::from_str::<BudgetType>("\"yearly\"");
         assert!(result.is_err());
+    }
+
+    /// When transactions have been spent against the budget, resetting rolls
+    /// the remaining amount into the next period by computing previous_remaining
+    /// from the BudgetProcessManager and passing it to the reset command.
+    #[tokio::test]
+    async fn reset_budget_handler_rolls_over_remaining_from_transactions() {
+        use domain::events::{
+            Event,
+            transactions::TransactionData,
+        };
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+
+        let state = in_memory_state().await;
+
+        // Create a weekly budget of 500.
+        create_budget_handler(
+            State(state.clone()),
+            Json(CreateBudgetPayload {
+                start_date: "2026-01-15".into(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 500.0,
+            }),
+        )
+        .await
+        .unwrap();
+
+        // Record a 300 transaction, leaving 200 remaining.
+        let transaction = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "300.00".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Test Store".to_string()),
+            }),
+            debtor: None,
+            booking_date: Some("2026-01-20".to_string()),
+            transaction_date: Some("2026-01-20".to_string()),
+        };
+        let recorded = TransactionData::new(transaction).expect("valid transaction");
+        infra::append_event_to_db(&state.db, Event::TransactionRecorded(recorded))
+            .await
+            .unwrap();
+
+        // Reset the budget — the handler should compute previous_remaining=200.
+        let (status, _body) = reset_budget_handler(
+            State(state.clone()),
+            Path(BudgetType::Weekly),
+            Json(ResetBudgetPayload {
+                start_date: "2026-02-01".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::ACCEPTED);
+
+        // Verify the BudgetReset event carries the rolled-over remaining amount.
+        let events = infra::get_all_events(&state.db).await.unwrap();
+        assert_eq!(events.len(), 3); // BudgetCreated, TransactionRecorded, BudgetReset
+        match &events[2] {
+            Event::BudgetReset(data) => {
+                assert!((data.previous_remaining - 200.0).abs() < f64::EPSILON);
+            },
+            other => panic!("expected BudgetReset, got {other:?}"),
+        }
     }
 
     // ------------------------------------------------------------------
