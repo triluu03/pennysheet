@@ -92,7 +92,7 @@ impl ProjectorTrait for BudgetProjector {
                     && data.booking_date.is_some_and(|booking_date| {
                         budget
                             .date
-                            .is_some_and(|budget_date| booking_date > budget_date)
+                            .is_some_and(|budget_date| booking_date >= budget_date)
                     })
                     && let Some(row) =
                         weekly_budgets::ActiveModel::from_recorded_transaction(data.clone())
@@ -106,7 +106,7 @@ impl ProjectorTrait for BudgetProjector {
                     && data.booking_date.is_some_and(|booking_date| {
                         budget
                             .date
-                            .is_some_and(|budget_date| booking_date > budget_date)
+                            .is_some_and(|budget_date| booking_date >= budget_date)
                     })
                     && let Some(row) =
                         monthly_budgets::ActiveModel::from_recorded_transaction(data.clone())
@@ -141,11 +141,21 @@ impl ProjectorTrait for BudgetProjector {
             },
             Event::BudgetReset(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    weekly_budgets::Entity::reset_budget(txn, data.start_date, data.previous_remaining).await?;
+                    weekly_budgets::Entity::reset_budget(
+                        txn,
+                        data.start_date,
+                        data.previous_remaining,
+                    )
+                    .await?;
                     Ok(())
                 },
                 BudgetType::Monthly => {
-                    monthly_budgets::Entity::reset_budget(txn, data.start_date, data.previous_remaining).await?;
+                    monthly_budgets::Entity::reset_budget(
+                        txn,
+                        data.start_date,
+                        data.previous_remaining,
+                    )
+                    .await?;
                     Ok(())
                 },
             },
