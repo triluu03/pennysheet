@@ -18,9 +18,12 @@ use crate::background_jobs::{
     scheduled_budget_reset,
     scheduled_budget_status_notification,
     scheduled_transaction_import,
-    spawn_and_subscribe_budget_projector,
-    spawn_and_subscribe_core_projector,
-    spawn_and_subscribe_import_request_projector,
+    spawn_and_subscribe_projector,
+};
+use infra::projectors::{
+    BudgetProjector,
+    CoreProjector,
+    ImportRequestProjector,
 };
 
 mod background_jobs;
@@ -57,9 +60,9 @@ async fn main() {
     ensure_append_only_eventstore(&db).await.unwrap();
     info!("append-only event store ensured");
 
-    tokio::spawn(spawn_and_subscribe_core_projector(db.clone()));
-    tokio::spawn(spawn_and_subscribe_import_request_projector(db.clone()));
-    tokio::spawn(spawn_and_subscribe_budget_projector(db.clone()));
+    tokio::spawn(spawn_and_subscribe_projector::<CoreProjector>(db.clone()));
+    tokio::spawn(spawn_and_subscribe_projector::<ImportRequestProjector>(db.clone()));
+    tokio::spawn(spawn_and_subscribe_projector::<BudgetProjector>(db.clone()));
     info!("projectors spawned in the background");
 
     tokio::spawn(scheduled_transaction_import(db.clone()));
