@@ -389,6 +389,82 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     where
         C: ConnectionTrait;
 
+    /// Update the value of a column on tracked transaction rows in the budget projection.
+    ///
+    /// Targets rows where `budget_id_column` matches the given `transaction_id`.
+    /// Does nothing silently if no matching tracked row exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the update operation fails.
+    #[doc(hidden)]
+    async fn update_column_value<C>(
+        db: &C,
+        transaction_id: Uuid,
+        column: Self::Column,
+        value: SimpleExpr,
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::update_many()
+            .col_expr(column, value)
+            .filter(Self::budget_id_column().eq(transaction_id))
+            .exec(db)
+            .await
+            .map(|_| ())
+    }
+
+    /// Update the category of a tracked transaction row in the budget projection.
+    ///
+    /// Targets rows where `budget_id_column` matches the given `transaction_id`.
+    /// Does nothing silently if no matching tracked row exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the update operation fails.
+    async fn update_category<C>(
+        db: &C,
+        transaction_id: Uuid,
+        category: TransactionCategory,
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::update_column_value(
+            db,
+            transaction_id,
+            Self::category_column(),
+            Expr::value(category),
+        )
+        .await
+    }
+
+    /// Update the classification of a tracked transaction row in the budget projection.
+    ///
+    /// Targets rows where `budget_id_column` matches the given `transaction_id`.
+    /// Does nothing silently if no matching tracked row exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DbErr`] if the update operation fails.
+    async fn update_classification<C>(
+        db: &C,
+        transaction_id: Uuid,
+        classification: TransactionClassification,
+    ) -> Result<(), DbErr>
+    where
+        C: ConnectionTrait,
+    {
+        Self::update_column_value(
+            db,
+            transaction_id,
+            Self::classification_column(),
+            Expr::value(classification),
+        )
+        .await
+    }
+
     /// Get all rows from the budget projection table.
     ///
     /// Returns both the budget row and all tracked transaction rows. The
