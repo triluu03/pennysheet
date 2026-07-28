@@ -26,6 +26,14 @@ use crate::{
     },
 };
 
+/// Project to all budget projections that implement [`BudgetProjectionTrait`].
+macro_rules! project_to_all_budgets {
+    ($method:ident, $txn:expr, $id:expr, $value:expr) => {{
+        weekly_budgets::Entity::$method($txn, $id, $value).await?;
+        monthly_budgets::Entity::$method($txn, $id, $value).await?;
+    }};
+}
+
 #[derive(Debug, Clone)]
 pub struct BudgetProjector {
     state: ProjectorState,
@@ -73,17 +81,6 @@ impl ProjectorTrait for BudgetProjector {
         user_settings: &[UserSettingsResult],
     ) -> Result<(), DbErr> {
         match event {
-            Event::ImportTransactionsRequested(_)
-            | Event::ImportTransactionsCompleted(_)
-            | Event::ImportTransactionsFailed(_)
-            | Event::TransactionImportRetryRequested(_)
-            | Event::TransactionCategorized(_)
-            | Event::TransactionClassified(_)
-            | Event::TransactionNoteUpdated(_)
-            | Event::ImportTransactionsContinued(_) => {
-                // Skip these transaction events.
-                Ok(())
-            },
             Event::TransactionRecorded(data) => {
                 if let Some(budget) = weekly_budgets::Entity::get_active_budget(txn).await?
                     // Check against the active weekly budget threshold.
@@ -113,6 +110,23 @@ impl ProjectorTrait for BudgetProjector {
                 {
                     row.apply_user_settings(user_settings).insert(txn).await?;
                 }
+                Ok(())
+            },
+            Event::TransactionCategorized(data) => {
+                project_to_all_budgets!(update_category, txn, data.transaction_id, data.category);
+                Ok(())
+            },
+            Event::TransactionClassified(data) => {
+                project_to_all_budgets!(update_classification, txn, data.transaction_id, data.classification);
+                Ok(())
+            },
+            Event::ImportTransactionsRequested(_)
+            | Event::ImportTransactionsCompleted(_)
+            | Event::ImportTransactionsFailed(_)
+            | Event::TransactionImportRetryRequested(_)
+            | Event::TransactionNoteUpdated(_)
+            | Event::ImportTransactionsContinued(_) => {
+                // Skip these transaction events.
                 Ok(())
             },
             Event::BudgetCreated(data) | Event::BudgetUpdated(data) => match data.budget_type {
