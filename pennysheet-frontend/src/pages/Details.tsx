@@ -28,23 +28,15 @@ const TABLE_COLUMNS: TableColumn<keyof Transactions>[] = [
   {
     key: "category",
     label: "Category",
-    editCellOnSave: async (transactionId: string, value: string) => {
-      if (TRANSACTION_CATEGORIES.includes(value as TransactionCategory)) {
-        return categorizeTransaction(transactionId, value as TransactionCategory);
-      }
-      return 200;
-    },
+    editCellOnSave: async (transactionId: string, value: string) =>
+      categorizeTransaction(transactionId, value as TransactionCategory),
     colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
     key: "classification",
     label: "Classification",
-    editCellOnSave: async (transactionId: string, value: string) => {
-      if (TRANSACTION_CLASSIFICATIONS.includes(value as TransactionClassification)) {
-        return classifyTransaction(transactionId, value as TransactionClassification);
-      }
-      return 200;
-    },
+    editCellOnSave: async (transactionId: string, value: string) =>
+      classifyTransaction(transactionId, value as TransactionClassification),
     colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
