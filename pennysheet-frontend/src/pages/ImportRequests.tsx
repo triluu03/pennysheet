@@ -5,6 +5,13 @@ import Table, { type EditableColumn, type TableColumn } from "../components/Tabl
 import { useToast } from "../components/Toast";
 import { useImportRequestsMetadata } from "../hooks/useImportRequestsMetadata";
 
+/** Color map for import request status values. */
+const IMPORT_REQUEST_STATUS_COLORS: Record<string, string> = {
+  PENDING: "#f9ab00", // yellow
+  FAILED: "#ea4335", // red
+  SUCCEEDED: "#34a853" // green
+};
+
 /**
  * Columns to be rendered in the table.
  */
@@ -12,7 +19,7 @@ const TABLE_COLUMNS: TableColumn<keyof ImportRequestsMetadata>[] = [
   { key: "session_name", label: "Session" },
   { key: "start_date", label: "Start Date" },
   { key: "end_date", label: "End Date" },
-  { key: "status", label: "Status" }
+  { key: "status", label: "Status", colorMap: IMPORT_REQUEST_STATUS_COLORS }
 ];
 
 /**
