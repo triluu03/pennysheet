@@ -123,14 +123,18 @@ export async function getTransactionsTimeAggregated(
   startDate?: Date,
   endDate?: Date,
   kind?: TransactionKind,
-  timeAggregation?: TimeAggregation
+  timeAggregation?: TimeAggregation,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ): Promise<TransactionsAggregated[]> {
   return await client
     .get(`/transactions/aggregate/${timeAggregation}`, {
       params: {
         start_date: startDate ? formatDate(startDate) : undefined,
         end_date: endDate ? formatDate(endDate) : undefined,
-        kind
+        kind,
+        categories: categories ? categories : TRANSACTION_CATEGORIES,
+        classifications: classifications ? classifications : TRANSACTION_CLASSIFICATIONS
       }
     })
     .then(response => response.data);

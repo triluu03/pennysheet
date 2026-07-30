@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppContext } from "../App";
 import {
   categorizeTransaction,
@@ -8,6 +8,7 @@ import {
   TRANSACTION_PIVOT_COLORS,
   type TransactionCategory,
   type TransactionClassification,
+  type TransactionKind,
   type Transactions,
   updateTransactionNote
 } from "../api/endpoints/transactions";
@@ -18,34 +19,39 @@ import { useToast } from "../components/Toast";
 import { useTransactions } from "../hooks/useTransactions";
 
 /**
- * Columns to be rendered in the table.
+ * Returns table column definitions for the given transaction kind.
+ * Swaps the second column between creditor (expenses) and debtor (income).
  */
-const TABLE_COLUMNS: TableColumn<keyof Transactions>[] = [
-  { key: "booking_date", label: "Date" },
-  { key: "creditor_name", label: "Creditor" },
-  { key: "amount", label: "Amount" },
-  { key: "currency", label: "Currency" },
-  {
-    key: "category",
-    label: "Category",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      categorizeTransaction(transactionId, value as TransactionCategory),
-    colorMap: TRANSACTION_PIVOT_COLORS
-  },
-  {
-    key: "classification",
-    label: "Classification",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      classifyTransaction(transactionId, value as TransactionClassification),
-    colorMap: TRANSACTION_PIVOT_COLORS
-  },
-  {
-    key: "note",
-    label: "Note",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      updateTransactionNote(transactionId, value)
-  }
-];
+function buildTableColumns(kind: TransactionKind): TableColumn<keyof Transactions>[] {
+  return [
+    { key: "booking_date", label: "Date" },
+    kind === "expenses"
+      ? { key: "creditor_name", label: "Creditor" }
+      : { key: "debtor_name", label: "Debtor" },
+    { key: "amount", label: "Amount" },
+    { key: "currency", label: "Currency" },
+    {
+      key: "category",
+      label: "Category",
+      editCellOnSave: async (transactionId: string, value: string) =>
+        categorizeTransaction(transactionId, value as TransactionCategory),
+      colorMap: TRANSACTION_PIVOT_COLORS
+    },
+    {
+      key: "classification",
+      label: "Classification",
+      editCellOnSave: async (transactionId: string, value: string) =>
+        classifyTransaction(transactionId, value as TransactionClassification),
+      colorMap: TRANSACTION_PIVOT_COLORS
+    },
+    {
+      key: "note",
+      label: "Note",
+      editCellOnSave: async (transactionId: string, value: string) =>
+        updateTransactionNote(transactionId, value)
+    }
+  ];
+}
 
 /**
  * Columns to support edit feature
@@ -80,13 +86,11 @@ export default function DetailsPage() {
   } = useAppContext();
   const { showToast } = useToast();
 
-  const { data, error } = useTransactions(
-    startDate,
-    endDate,
-    "expenses",
-    categories,
-    classifications
-  );
+  const [kind, setKind] = useState<TransactionKind>("expenses");
+
+  const tableColumns = useMemo(() => buildTableColumns(kind), [kind]);
+
+  const { data, error } = useTransactions(startDate, endDate, kind, categories, classifications);
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
   }, [error, showToast]);
@@ -108,12 +112,28 @@ export default function DetailsPage() {
         }}
       />
       <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
-        <PageHeader title="Details" />
+        <PageHeader title="Transaction Details" />
+        <div className="flex gap-2 mb-4">
+          {(["expenses", "income"] as TransactionKind[]).map(k => (
+            <button
+              key={k}
+              type="button"
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                kind === k
+                  ? "bg-indigo-500 text-white"
+                  : "bg-gray-300 text-gray-700 hover:bg-gray-400"
+              }`}
+              onClick={() => setKind(k)}
+            >
+              {k.charAt(0).toUpperCase() + k.slice(1)}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <Table
             data={data}
             rowIdColumn="transaction_id"
-            tableColumns={TABLE_COLUMNS}
+            tableColumns={tableColumns}
             editableColumns={EDITABLE_COLUMNS}
           />
         </div>

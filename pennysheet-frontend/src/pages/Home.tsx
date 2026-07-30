@@ -4,9 +4,10 @@ import BarPlot from "../components/BarPlot";
 import BudgetSummary from "../components/BudgetSummary";
 import FilterSideBar from "../components/FilterSideBar";
 import PageHeader from "../components/PageHeader";
+import TimeSeriesBar from "../components/TimeSeriesBar";
 import { useToast } from "../components/Toast";
 import { useBudgets } from "../hooks/useBudgets";
-import { useTransactionsPivot } from "../hooks/useTransactions";
+import { useTransactionsAggregated, useTransactionsPivot } from "../hooks/useTransactions";
 
 /**
  * Homepage.
@@ -25,10 +26,20 @@ export default function Home() {
   const { showToast } = useToast();
 
   const { data, error } = useTransactionsPivot(startDate, endDate, categories, classifications);
+  const { data: incomeData, error: incomeError } = useTransactionsAggregated(
+    startDate,
+    endDate,
+    "income",
+    "monthly",
+    categories,
+    classifications
+  );
   const { budgets: budgetsData } = useBudgets();
+
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
-  }, [error, showToast]);
+    if (incomeError) showToast(`Failed to fetch income: ${incomeError}`, "error");
+  }, [error, incomeError, showToast]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -50,6 +61,7 @@ export default function Home() {
         <PageHeader title="Overview" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <BudgetSummary budgets={budgetsData} />
+          <TimeSeriesBar data={incomeData} title="Income over time" fill="#34a853" />
           <BarPlot data={data} groupBy="category" />
           <BarPlot data={data} groupBy="classification" />
         </div>

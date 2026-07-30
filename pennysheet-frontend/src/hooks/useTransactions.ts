@@ -37,14 +37,23 @@ export function useTransactionsAggregated(
   startDate: Date,
   endDate: Date,
   kind?: TransactionKind,
-  timeAggregation?: TimeAggregation
+  timeAggregation?: TimeAggregation,
+  categories?: TransactionCategory[],
+  classifications?: TransactionClassification[]
 ) {
   const [data, setData] = useState<TransactionsAggregated[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getTransactionsTimeAggregated(startDate, endDate, kind, timeAggregation)
+    getTransactionsTimeAggregated(
+      startDate,
+      endDate,
+      kind,
+      timeAggregation,
+      categories,
+      classifications
+    )
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
