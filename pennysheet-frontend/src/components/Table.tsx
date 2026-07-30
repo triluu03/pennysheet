@@ -4,11 +4,26 @@ export interface TableColumn<K extends string> {
   key: K;
   label: string;
   editCellOnSave?: (rowId: string, value: string) => Promise<number>;
+  colorMap?: Record<string, string>;
 }
 
 export interface EditableColumn<K extends string> {
   key: K;
   options?: (string | null)[];
+}
+
+/**
+ * Look up a display color from the given color map.
+ * Returns undefined when the value is not a string, is empty, or is not present in the map.
+ */
+function getCellColor(
+  colorMap: Record<string, string> | undefined,
+  value: unknown
+): string | undefined {
+  if (!colorMap || typeof value !== "string" || value === "") {
+    return undefined;
+  }
+  return colorMap[value];
 }
 
 interface TableProps<K extends string> {
@@ -25,6 +40,7 @@ interface EditableCellProps<K extends string> {
   value: string | null;
   options?: (string | null)[];
   onSave?: (rowId: string, value: string) => Promise<number>;
+  colorMap?: Record<string, string>;
 }
 
 /**
@@ -35,7 +51,8 @@ function EditableCell<K extends string>({
   field,
   value,
   options,
-  onSave
+  onSave,
+  colorMap
 }: EditableCellProps<K>) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(value ?? "");
@@ -53,11 +70,14 @@ function EditableCell<K extends string>({
   }, [value]);
 
   if (!editing) {
+    const color = getCellColor(colorMap, value);
+
     return (
       <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
         <button
           type="button"
           className="px-3 py-1 rounded-lg hover:bg-gray-200"
+          style={color ? { color } : undefined}
           onClick={() => {
             setEditValue(editValue || value || "");
             setEditing(true);
@@ -149,22 +169,34 @@ export default function Table<K extends string>({
         <tbody className="bg-white divide-y divide-gray-100">
           {data.map(row => (
             <tr key={row[rowIdColumn]} className="hover:bg-gray-50 transition-colors">
-              {tableColumns.map(col =>
-                editableColumnKeys.includes(col.key) ? (
-                  <EditableCell
-                    rowId={row[rowIdColumn] as string}
-                    key={col.key}
-                    field={col.key}
-                    value={row[col.key]?.toString() || null}
-                    options={editableColumns.find(editCol => editCol.key === col.key)?.options}
-                    onSave={col.editCellOnSave}
-                  />
-                ) : (
+              {tableColumns.map(col => {
+                if (editableColumnKeys.includes(col.key)) {
+                  return (
+                    <EditableCell
+                      rowId={row[rowIdColumn] as string}
+                      key={col.key}
+                      field={col.key}
+                      value={row[col.key]?.toString() || null}
+                      options={editableColumns.find(editCol => editCol.key === col.key)?.options}
+                      onSave={col.editCellOnSave}
+                      colorMap={col.colorMap}
+                    />
+                  );
+                }
+
+                const cellValue = row[col.key];
+                const cellColor = getCellColor(col.colorMap, cellValue);
+
+                return (
                   <td key={col.key} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
-                    {row[col.key] || <span className="text-gray-300 italic">N/A</span>}
+                    {cellValue ? (
+                      <span style={cellColor ? { color: cellColor } : undefined}>{cellValue}</span>
+                    ) : (
+                      <span className="text-gray-300 italic">N/A</span>
+                    )}
                   </td>
-                )
-              )}
+                );
+              })}
             </tr>
           ))}
         </tbody>

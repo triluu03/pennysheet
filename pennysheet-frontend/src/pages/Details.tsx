@@ -5,6 +5,7 @@ import {
   classifyTransaction,
   TRANSACTION_CATEGORIES,
   TRANSACTION_CLASSIFICATIONS,
+  TRANSACTION_PIVOT_COLORS,
   type TransactionCategory,
   type TransactionClassification,
   type Transactions,
@@ -28,13 +29,15 @@ const TABLE_COLUMNS: TableColumn<keyof Transactions>[] = [
     key: "category",
     label: "Category",
     editCellOnSave: async (transactionId: string, value: string) =>
-      categorizeTransaction(transactionId, value.toLowerCase() as TransactionCategory)
+      categorizeTransaction(transactionId, value as TransactionCategory),
+    colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
     key: "classification",
     label: "Classification",
     editCellOnSave: async (transactionId: string, value: string) =>
-      classifyTransaction(transactionId, value as TransactionClassification)
+      classifyTransaction(transactionId, value as TransactionClassification),
+    colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
     key: "note",
