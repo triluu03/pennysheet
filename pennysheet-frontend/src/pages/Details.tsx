@@ -5,6 +5,7 @@ import {
   classifyTransaction,
   TRANSACTION_CATEGORIES,
   TRANSACTION_CLASSIFICATIONS,
+  TRANSACTION_PIVOT_COLORS,
   type TransactionCategory,
   type TransactionClassification,
   type Transactions,
@@ -27,14 +28,24 @@ const TABLE_COLUMNS: TableColumn<keyof Transactions>[] = [
   {
     key: "category",
     label: "Category",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      categorizeTransaction(transactionId, value.toLowerCase() as TransactionCategory)
+    editCellOnSave: async (transactionId: string, value: string) => {
+      if (TRANSACTION_CATEGORIES.includes(value as TransactionCategory)) {
+        return categorizeTransaction(transactionId, value as TransactionCategory);
+      }
+      return 200;
+    },
+    colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
     key: "classification",
     label: "Classification",
-    editCellOnSave: async (transactionId: string, value: string) =>
-      classifyTransaction(transactionId, value as TransactionClassification)
+    editCellOnSave: async (transactionId: string, value: string) => {
+      if (TRANSACTION_CLASSIFICATIONS.includes(value as TransactionClassification)) {
+        return classifyTransaction(transactionId, value as TransactionClassification);
+      }
+      return 200;
+    },
+    colorMap: TRANSACTION_PIVOT_COLORS
   },
   {
     key: "note",
