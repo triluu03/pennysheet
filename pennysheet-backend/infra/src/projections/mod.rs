@@ -511,6 +511,7 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
                         .is_null()
                         .or(classification_coalesce.ne(Expr::value("excluded")))),
             )
+            .order_by_desc(Self::date_column())
             .all(db)
             .await
     }
@@ -542,7 +543,11 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     /// # Errors
     ///
     /// Returns [`DbErr`] if the query, update, or deletion fails.
-    async fn reset_budget<C>(db: &C, new_start_date: Date, previous_remaining: f64) -> Result<(), DbErr>
+    async fn reset_budget<C>(
+        db: &C,
+        new_start_date: Date,
+        previous_remaining: f64,
+    ) -> Result<(), DbErr>
     where
         C: ConnectionTrait,
     {
