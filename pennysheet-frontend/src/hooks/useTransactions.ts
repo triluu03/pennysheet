@@ -57,7 +57,7 @@ export function useTransactionsAggregated(
       .then(setData)
       .catch(setError)
       .finally(() => setLoading(false));
-  }, [startDate, endDate, kind, timeAggregation]);
+  }, [startDate, endDate, kind, timeAggregation, categories, classifications]);
 
   return { data, loading, error };
 }
