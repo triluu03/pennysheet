@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppContext } from "../App";
 import BarPlot from "../components/BarPlot";
 import BudgetSummary from "../components/BudgetSummary";
@@ -36,6 +36,8 @@ export default function Home() {
   );
   const { budgets: budgetsData } = useBudgets();
 
+  const [groupBy, setGroupBy] = useState<"category" | "classification">("category");
+
   useEffect(() => {
     if (error) showToast(`Failed to fetch transactions: ${error}`, "error");
     if (incomeError) showToast(`Failed to fetch income: ${incomeError}`, "error");
@@ -61,9 +63,28 @@ export default function Home() {
         <PageHeader title="Overview" />
         <div className="flex flex-col flex-1 rounded-lg gap-5">
           <BudgetSummary budgets={budgetsData} />
+          <div className="inline-flex bg-gray-300 p-2 rounded-xl gap-2">
+            {[
+              { key: "category" as const, label: "By Category" },
+              { key: "classification" as const, label: "By Classification" }
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setGroupBy(key)}
+                aria-pressed={groupBy === key}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  groupBy === key
+                    ? "bg-indigo-500 text-white shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <BarPlot key={groupBy} data={data} groupBy={groupBy} />
           <TimeSeriesBar data={incomeData} title="Income over time" fill="#34a853" />
-          <BarPlot data={data} groupBy="category" />
-          <BarPlot data={data} groupBy="classification" />
         </div>
       </div>
     </div>

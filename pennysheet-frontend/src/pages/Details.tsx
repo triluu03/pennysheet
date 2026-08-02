@@ -113,12 +113,12 @@ export default function DetailsPage() {
       />
       <div className="flex flex-col flex-1 h-full p-8 overflow-y-auto">
         <PageHeader title="Transaction Details" />
-        <div className="flex gap-2 mb-4">
+        <div className="inline-flex bg-gray-300 p-2 rounded-xl gap-2 mb-4">
           {(["expenses", "income"] as TransactionKind[]).map(k => (
             <button
               key={k}
               type="button"
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 kind === k
                   ? "bg-indigo-500 text-white"
                   : "bg-gray-300 text-gray-700 hover:bg-gray-400"
