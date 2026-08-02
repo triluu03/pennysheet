@@ -14,7 +14,7 @@ interface PageHeaderProps {
  */
 export default function PageHeader({
   title,
-  subtitle = "Personal Expenses",
+  subtitle = "Personal Finance",
   enableButtons = true
 }: PageHeaderProps) {
   const { showToast } = useToast();

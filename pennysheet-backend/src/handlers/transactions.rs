@@ -154,6 +154,8 @@ pub async fn get_transactions_time_aggregated_handler(
                 params.start_date,
                 params.end_date,
                 aggregated_level,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -164,6 +166,8 @@ pub async fn get_transactions_time_aggregated_handler(
                 params.start_date,
                 params.end_date,
                 aggregated_level,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)
@@ -174,6 +178,8 @@ pub async fn get_transactions_time_aggregated_handler(
                 params.start_date,
                 params.end_date,
                 aggregated_level,
+                params.categories,
+                params.classifications,
             )
             .await?;
             serde_json::to_value(data)

@@ -238,6 +238,10 @@ pub trait TransactionProjectionTrait: EntityTrait {
 
     /// Get transactions time-aggregated.
     ///
+    /// Filters the rows by `categories` and `classifications` using the same
+    /// `IS NULL OR IS IN(...)` semantics as [`get_transactions`], then groups
+    /// by the truncated booking date and sums the amount.
+    ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the query fails.
@@ -246,6 +250,8 @@ pub trait TransactionProjectionTrait: EntityTrait {
         start_date: Option<Date>,
         end_date: Option<Date>,
         aggregation: TimeAggregation,
+        categories: Vec<TransactionCategory>,
+        classifications: Vec<TransactionClassification>,
     ) -> Result<Vec<AggregatedResult>, DbErr>
     where
         C: ConnectionTrait,
@@ -267,12 +273,42 @@ pub trait TransactionProjectionTrait: EntityTrait {
 
         Self::find()
             .select_only()
+            .filter(
+                Condition::any()
+                    .add(Self::category_column().is_null())
+                    .add(Self::category_column().is_in(categories.clone())),
+            )
+            .filter(
+                Condition::any()
+                    .add(Self::classification_column().is_null())
+                    .add(Self::classification_column().is_in(classifications.clone())),
+            )
             .apply_if(start_date, |query, value| {
                 query.filter(Self::booking_date_column().gte(value))
             })
             .apply_if(end_date, |query, value| {
                 query.filter(Self::booking_date_column().lte(value))
             })
+            .apply_if(
+                Self::auto_category_column(),
+                |query, auto_category_column| {
+                    query.filter(
+                        Condition::any()
+                            .add(auto_category_column.is_null())
+                            .add(auto_category_column.is_in(categories)),
+                    )
+                },
+            )
+            .apply_if(
+                Self::auto_classification_column(),
+                |query, auto_classification_column| {
+                    query.filter(
+                        Condition::any()
+                            .add(auto_classification_column.is_null())
+                            .add(auto_classification_column.is_in(classifications)),
+                    )
+                },
+            )
             .column_as(date_trunc_expr.clone().cast_as("date"), "date")
             // TODO: how to get away from this CASTING madness?
             .column_as(
