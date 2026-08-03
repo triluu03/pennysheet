@@ -14,7 +14,7 @@ receives:
     version: 0.0.1
   - id: BudgetExceeded
     version: 0.0.1
-  - id: TransactionRecorded
+  - id: BudgetTransactionTracked
     version: 0.0.1
 sends:
   - id: SendTelegramMessage
@@ -27,7 +27,7 @@ The Budget Process Manager tracks the lifecycle of budgets by replaying domain e
 
 Two triggers drive the manager:
 
-- **Reactive** — on [[event|BudgetExceeded]] and [[event|TransactionRecorded]], it evaluates whether a budget threshold has been breached and sends an alert.
+- **Reactive** — on [[event|BudgetExceeded]] and [[event|BudgetTransactionTracked]], it evaluates whether a budget threshold has been breached and sends an alert.
 - **Scheduled daily** — a background job runs every morning at 8 AM, replays the full event store, builds an HTML-formatted status message with color-coded indicators (🟢 ≥50% remaining, 🟡 ≥25%, 🔴 otherwise), and sends [[command|SendTelegramMessage]] to the [[service|TelegramGateway]].
 
 <NodeGraph />
