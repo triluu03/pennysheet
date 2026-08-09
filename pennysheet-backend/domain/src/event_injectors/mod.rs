@@ -13,6 +13,11 @@ use crate::{
     errors::DomainError,
     events::{
         Event,
+        budgets::{
+            BudgetData,
+            BudgetType,
+            TrackedExpenseData,
+        },
         transactions::{
             ImportContinueData,
             ImportStatusData,
@@ -21,6 +26,7 @@ use crate::{
     },
 };
 
+/// Reconstructs import state and qualifies newly imported transactions for budget tracking.
 #[derive(Default, Debug)]
 pub struct EventInjector {
     /// ID of the current Enable Banking session.
@@ -35,6 +41,10 @@ pub struct EventInjector {
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
+    /// Active weekly budget data.
+    weekly_budget: Option<BudgetData>,
+    /// Active monthly budget data.
+    monthly_budget: Option<BudgetData>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -65,7 +75,10 @@ impl EventInjector {
         }
     }
 
-    /// Inject transaction events.
+    /// Inject transaction-recorded and qualifying budget-expense events.
+    ///
+    /// Each new transaction is emitted as `TransactionRecorded` and may be followed by one
+    /// `BudgetExpenseTracked` event per active budget type. Duplicate transactions are skipped.
     ///
     /// # Errors
     ///
@@ -80,22 +93,47 @@ impl EventInjector {
             .map(TransactionData::new)
             .collect::<Result<Vec<TransactionData>, DomainError>>()?;
 
-        let incoming_count = new_data_records.len();
         let mut new_events: Vec<Event> = new_data_records
             .into_iter()
-            .filter_map(|data| {
-                if self
+            .filter(|data| {
+                !self
                     .recorded_transaction_id_set
-                    .contains(data.get_transaction_id())
+                    .contains(&data.transaction_id)
+            })
+            .flat_map(|data| {
+                let mut events = Vec::with_capacity(3);
+
+                // Create normal transaction recorded event.
+                events.push(Event::TransactionRecorded(data.clone()));
+
+                // Create bucket tracked events.
+                if let Some(budget) = self.weekly_budget
+                    && data.amount <= budget.threshold
+                    && data
+                        .booking_date
+                        .is_some_and(|booking_date| booking_date >= budget.start_date)
+                    && let Some(tracked) =
+                        TrackedExpenseData::from_transaction(&data, BudgetType::Weekly)
                 {
-                    None
-                } else {
-                    Some(Event::TransactionRecorded(data))
+                    events.push(Event::BudgetExpenseTracked(tracked));
                 }
+
+                if let Some(budget) = self.monthly_budget
+                    && data.amount <= budget.threshold
+                    && data
+                        .booking_date
+                        .is_some_and(|booking_date| booking_date >= budget.start_date)
+                    && let Some(tracked) =
+                        TrackedExpenseData::from_transaction(&data, BudgetType::Monthly)
+                {
+                    events.push(Event::BudgetExpenseTracked(tracked));
+                }
+
+                events
             })
             .collect();
+
         let recorded_count = new_events.len();
-        let skipped_duplicates = incoming_count.saturating_sub(recorded_count);
 
         let terminal = if let Some(continuation_key) = response.continuation_key {
             let request_id = self.pending_request_id.ok_or_else(|| {
@@ -131,7 +169,6 @@ impl EventInjector {
             session_id = self.session_id,
             request_id = ?self.pending_request_id,
             recorded_count,
-            skipped_duplicates,
             terminal = %terminal,
             "injected transaction batch"
         );
@@ -205,12 +242,28 @@ impl EventInjector {
             | Event::TransactionNoteUpdated(_) => {
                 // Ignore these transaction events
             },
-            Event::BudgetCreated(_)
-            | Event::BudgetUpdated(_)
-            | Event::BudgetDeleted(_)
-            | Event::BudgetReset(_)
-            | Event::BudgetExceeded(_) => {
-                // Ignore this budget event
+            Event::BudgetCreated(data) | Event::BudgetUpdated(data) => match data.budget_type {
+                BudgetType::Weekly => self.weekly_budget = Some(*data),
+                BudgetType::Monthly => self.monthly_budget = Some(*data),
+            },
+            Event::BudgetDeleted(budget_type) => match budget_type {
+                BudgetType::Weekly => self.weekly_budget = None,
+                BudgetType::Monthly => self.monthly_budget = None,
+            },
+            Event::BudgetReset(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    if let Some(budget) = &mut self.weekly_budget {
+                        budget.start_date = data.start_date;
+                    }
+                },
+                BudgetType::Monthly => {
+                    if let Some(budget) = &mut self.monthly_budget {
+                        budget.start_date = data.start_date;
+                    }
+                },
+            },
+            Event::BudgetExceeded(_) | Event::BudgetExpenseTracked(_) => {
+                // These events do not change injector qualification state.
             },
         }
 
@@ -243,6 +296,11 @@ mod tests {
         errors::DomainError,
         events::{
             Event,
+            budgets::{
+                BudgetData,
+                BudgetResetData,
+                BudgetType,
+            },
             transactions::{
                 ImportContinueData,
                 ImportRequestData,
@@ -778,5 +836,217 @@ mod tests {
             events.last(),
             Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
         ));
+    }
+
+    /// New transactions emit a tracked weekly expense when the active weekly budget accepts them.
+    #[test]
+    fn inject_emits_tracked_expense_for_qualifying_weekly_budget() {
+        let request_id = Uuid::new_v4();
+        let injector = pending_injector(1, request_id).apply(&Event::BudgetCreated(BudgetData {
+            start_date: start_date(),
+            budget_type: BudgetType::Weekly,
+            amount: 500.0,
+            threshold: 50.0,
+        }));
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("25.00")],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        assert!(matches!(
+            events.first(),
+            Some(Event::TransactionRecorded(_))
+        ));
+        assert!(matches!(
+            events.get(1),
+            Some(Event::BudgetExpenseTracked(data))
+                if data.budget_type == BudgetType::Weekly && data.amount == 25.0
+        ));
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
+        ));
+    }
+
+    /// New transactions emit a tracked monthly expense when the active monthly budget accepts them.
+    #[test]
+    fn inject_emits_tracked_expense_for_qualifying_monthly_budget() {
+        let request_id = Uuid::new_v4();
+        let injector = pending_injector(1, request_id).apply(&Event::BudgetCreated(BudgetData {
+            start_date: start_date(),
+            budget_type: BudgetType::Monthly,
+            amount: 2000.0,
+            threshold: 100.0,
+        }));
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("75.00")],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+
+        assert!(matches!(
+            events.get(1),
+            Some(Event::BudgetExpenseTracked(data))
+                if data.budget_type == BudgetType::Monthly && data.amount == 75.0
+        ));
+    }
+
+    /// A transaction can be tracked by both active budget periods.
+    #[test]
+    fn inject_emits_one_tracked_expense_per_matching_budget_type() {
+        let request_id = Uuid::new_v4();
+        let injector = pending_injector(1, request_id)
+            .apply(&Event::BudgetCreated(BudgetData {
+                start_date: start_date(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 100.0,
+            }))
+            .apply(&Event::BudgetCreated(BudgetData {
+                start_date: start_date(),
+                budget_type: BudgetType::Monthly,
+                amount: 2000.0,
+                threshold: 100.0,
+            }));
+        let response = TransactionResponse {
+            transactions: vec![transaction_with_amount("75.00")],
+            continuation_key: None,
+        };
+
+        let events = injector.inject_transaction_events(response).unwrap();
+        let tracked_types: Vec<BudgetType> = events
+            .iter()
+            .filter_map(|event| match event {
+                Event::BudgetExpenseTracked(data) => Some(data.budget_type),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(tracked_types, vec![BudgetType::Weekly, BudgetType::Monthly]);
+    }
+
+    /// Transactions outside an active budget period are not tracked.
+    #[test]
+    fn inject_skips_non_qualifying_budget_expenses() {
+        let budgeted_injector = || {
+            pending_injector(1, Uuid::new_v4()).apply(&Event::BudgetCreated(BudgetData {
+                start_date: start_date(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 50.0,
+            }))
+        };
+        let tracked_count = |events: &[Event]| {
+            events
+                .iter()
+                .filter(|event| matches!(event, Event::BudgetExpenseTracked(_)))
+                .count()
+        };
+
+        let over_threshold = budgeted_injector()
+            .inject_transaction_events(TransactionResponse {
+                transactions: vec![transaction_with_amount("75.00")],
+                continuation_key: None,
+            })
+            .unwrap();
+        assert_eq!(tracked_count(&over_threshold), 0);
+
+        let mut before_start = transaction_with_amount("25.00");
+        before_start.booking_date = Some("2026-05-31".to_string());
+        let before_start = budgeted_injector()
+            .inject_transaction_events(TransactionResponse {
+                transactions: vec![before_start],
+                continuation_key: None,
+            })
+            .unwrap();
+        assert_eq!(tracked_count(&before_start), 0);
+
+        let mut missing_creditor = transaction_with_amount("25.00");
+        missing_creditor.creditor = None;
+        let missing_creditor = budgeted_injector()
+            .inject_transaction_events(TransactionResponse {
+                transactions: vec![missing_creditor],
+                continuation_key: None,
+            })
+            .unwrap();
+        assert_eq!(tracked_count(&missing_creditor), 0);
+    }
+
+    /// Duplicate transactions do not emit either recorded or tracked-expense events.
+    #[test]
+    fn inject_skips_tracked_expenses_for_duplicate_transactions() {
+        let request_id = Uuid::new_v4();
+        let injector = EventInjector::new(
+            1,
+            &[
+                requested_event(request_id, 1),
+                recorded_event(transaction_with_amount("25.00")),
+            ],
+        )
+        .unwrap()
+        .apply(&Event::BudgetCreated(BudgetData {
+            start_date: start_date(),
+            budget_type: BudgetType::Weekly,
+            amount: 500.0,
+            threshold: 50.0,
+        }));
+
+        let events = injector
+            .inject_transaction_events(TransactionResponse {
+                transactions: vec![transaction_with_amount("25.00")],
+                continuation_key: None,
+            })
+            .unwrap();
+
+        assert_eq!(recorded_count(&events), 0);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, Event::BudgetExpenseTracked(_)))
+                .count(),
+            0
+        );
+        assert!(matches!(
+            events.last(),
+            Some(Event::ImportTransactionsCompleted(_))
+        ));
+    }
+
+    /// Budget lifecycle events establish the data used for later injection.
+    #[test]
+    fn apply_tracks_active_budget_data() {
+        let weekly = BudgetData {
+            start_date: start_date(),
+            budget_type: BudgetType::Weekly,
+            amount: 500.0,
+            threshold: 50.0,
+        };
+        let updated_weekly = BudgetData {
+            start_date: end_date(),
+            budget_type: BudgetType::Weekly,
+            amount: 600.0,
+            threshold: 75.0,
+        };
+        let injector = EventInjector::default()
+            .apply(&Event::BudgetCreated(weekly))
+            .apply(&Event::BudgetUpdated(updated_weekly));
+        assert_eq!(injector.weekly_budget, Some(updated_weekly));
+
+        let reset = Event::BudgetReset(BudgetResetData {
+            start_date: end_date(),
+            budget_type: BudgetType::Weekly,
+            previous_remaining: 100.0,
+        });
+        let injector = injector.apply(&reset);
+        assert_eq!(
+            injector.weekly_budget.map(|data| data.start_date),
+            Some(end_date())
+        );
+
+        let injector = injector.apply(&Event::BudgetDeleted(BudgetType::Weekly));
+        assert_eq!(injector.weekly_budget, None);
     }
 }

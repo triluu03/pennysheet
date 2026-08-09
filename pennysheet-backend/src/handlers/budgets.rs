@@ -725,6 +725,7 @@ mod tests {
     async fn reset_budget_handler_rolls_over_remaining_from_transactions() {
         use domain::events::{
             Event,
+            budgets::TrackedExpenseData,
             transactions::TransactionData,
         };
         use gateway::schema::enable_banking_api::{
@@ -764,7 +765,9 @@ mod tests {
             transaction_date: Some("2026-01-20".to_string()),
         };
         let recorded = TransactionData::new(transaction).expect("valid transaction");
-        infra::append_event_to_db(&state.db, Event::TransactionRecorded(recorded))
+        let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
+            .expect("fixture transaction has a creditor");
+        infra::append_event_to_db(&state.db, Event::BudgetExpenseTracked(tracked))
             .await
             .unwrap();
 
@@ -782,7 +785,7 @@ mod tests {
 
         // Verify the BudgetReset event carries the rolled-over remaining amount.
         let events = infra::get_all_events(&state.db).await.unwrap();
-        assert_eq!(events.len(), 3); // BudgetCreated, TransactionRecorded, BudgetReset
+        assert_eq!(events.len(), 3); // BudgetCreated, BudgetExpenseTracked, BudgetReset
         match &events[2] {
             Event::BudgetReset(data) => {
                 assert!((data.previous_remaining - 200.0).abs() < f64::EPSILON);
@@ -897,5 +900,71 @@ mod tests {
     async fn get_one_budget_handler_rejects_unknown_budget_type() {
         let result = serde_json::from_str::<BudgetType>("\"yearly\"");
         assert!(result.is_err());
+    }
+
+    /// Budget reset rollover through the handler consumes tracked-expense events.
+    #[tokio::test]
+    async fn reset_budget_handler_rolls_over_tracked_expense_remaining() {
+        use domain::events::{
+            Event,
+            budgets::TrackedExpenseData,
+            transactions::TransactionData,
+        };
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            transaction::{
+                PartyIdentification,
+                Transaction,
+            },
+        };
+
+        let state = in_memory_state().await;
+        create_budget_handler(
+            State(state.clone()),
+            Json(CreateBudgetPayload {
+                start_date: "2026-01-15".into(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 500.0,
+            }),
+        )
+        .await
+        .unwrap();
+
+        let transaction = Transaction {
+            transaction_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "300.00".to_string(),
+            },
+            creditor: Some(PartyIdentification {
+                name: Some("Test Store".to_string()),
+            }),
+            debtor: None,
+            booking_date: Some("2026-01-20".to_string()),
+            transaction_date: Some("2026-01-20".to_string()),
+        };
+        let recorded = TransactionData::new(transaction).expect("valid transaction");
+        let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
+            .expect("fixture transaction has a creditor");
+        infra::append_event_to_db(&state.db, Event::BudgetExpenseTracked(tracked))
+            .await
+            .unwrap();
+
+        let (status, _) = reset_budget_handler(
+            State(state.clone()),
+            Path(BudgetType::Weekly),
+            Json(ResetBudgetPayload {
+                start_date: "2026-02-01".into(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::ACCEPTED);
+
+        let events = infra::get_all_events(&state.db).await.unwrap();
+        match &events[2] {
+            Event::BudgetReset(data) => assert_eq!(data.previous_remaining, 200.0),
+            other => panic!("expected BudgetReset, got {other:?}"),
+        }
     }
 }

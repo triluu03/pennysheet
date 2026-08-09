@@ -53,6 +53,8 @@ pub enum Event {
     BudgetExceeded(BudgetType),
     /// A budget is reset with a new start date.
     BudgetReset(BudgetResetData),
+    /// An expense transaction is tracked within a budget.
+    BudgetExpenseTracked(TrackedExpenseData),
 }
 
 impl fmt::Display for Event {

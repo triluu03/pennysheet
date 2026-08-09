@@ -298,7 +298,10 @@ impl CoreAggregate {
                 BudgetType::Weekly => self.active_weekly_budget = false,
                 BudgetType::Monthly => self.active_monthly_budget = false,
             },
-            Event::BudgetUpdated(_) | Event::BudgetExceeded(_) | Event::BudgetReset(_) => {
+            Event::BudgetUpdated(_)
+            | Event::BudgetExceeded(_)
+            | Event::BudgetReset(_)
+            | Event::BudgetExpenseTracked(_) => {
                 // Ignore these budget events
             },
         }

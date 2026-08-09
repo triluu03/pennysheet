@@ -4,8 +4,10 @@ use std::str::FromStr;
 use domain::events::{
     TransactionCategory,
     TransactionClassification,
-    budgets::BudgetData,
-    transactions::TransactionData,
+    budgets::{
+        BudgetData,
+        TrackedExpenseData,
+    },
 };
 use regex::Regex;
 use sea_orm::{
@@ -49,28 +51,22 @@ pub struct Model {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl ActiveModel {
-    /// Construct a model from the recorded transaction data.
+    /// Construct a budget projection row from a qualified tracked-expense event.
+    ///
+    /// The event guarantees a creditor name, so construction cannot be skipped.
     // NOTE: the implementation here is the copy-and-paste of the same method implemented in
-    // [`crate::projections::expenses`].
+    // [`crate::projections::monthly_budgets`].
     // TODO: how to avoid repeating yourself here?
-    pub fn from_recorded_transaction(data: TransactionData) -> Option<Self> {
-        let creditor_name = match data.creditor_name {
-            Some(name) => name,
-            None => {
-                return None;
-            },
-        };
-        Some(Self {
+    pub fn from_tracked_expense(data: TrackedExpenseData) -> Self {
+        Self {
             transaction_id: Set(data.transaction_id),
             date: Set(data.booking_date),
-            // NOTE: the transaction amount in this projection is set to be negative.
             amount: Set(-data.amount),
             currency: Set(data.currency),
-            creditor_name: Set(creditor_name),
-            // Just some placeholder values
+            creditor_name: Set(data.creditor_name),
             threshold: Set(0.0),
             ..ActiveModelTrait::default()
-        })
+        }
     }
 
     /// Apply user regex rules to category and classification
@@ -158,5 +154,40 @@ impl BudgetProjectionTrait for Entity {
         .await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::NaiveDate;
+    use domain::events::budgets::{
+        BudgetType,
+        TrackedExpenseData,
+    };
+    use uuid::Uuid;
+
+    use super::ActiveModel;
+
+    /// A tracked expense maps to a negative monthly budget row.
+    #[test]
+    fn from_tracked_expense_maps_monthly_projection_fields() {
+        let transaction_id = Uuid::new_v4();
+        let data = TrackedExpenseData {
+            transaction_id,
+            booking_date: NaiveDate::from_ymd_opt(2026, 6, 15),
+            transaction_date: NaiveDate::from_ymd_opt(2026, 6, 14),
+            amount: 42.5,
+            currency: "EUR".to_string(),
+            creditor_name: "Acme Corp".to_string(),
+            budget_type: BudgetType::Monthly,
+        };
+
+        let row = ActiveModel::from_tracked_expense(data);
+
+        assert_eq!(row.transaction_id.as_ref(), &transaction_id);
+        assert_eq!(row.date.as_ref(), &NaiveDate::from_ymd_opt(2026, 6, 15));
+        assert_eq!(row.amount.as_ref(), &-42.5);
+        assert_eq!(row.currency.as_ref(), "EUR");
+        assert_eq!(row.creditor_name.as_ref(), "Acme Corp");
     }
 }

@@ -7,25 +7,21 @@ use crate::{
     errors::DomainError,
     events::{
         Event,
-        budgets::BudgetType,
+        budgets::{
+            BudgetData,
+            BudgetType,
+        },
     },
 };
 
 #[derive(Default, Debug)]
-struct Budget {
-    start_date: NaiveDate,
-    amount: f64,
-    threshold: f64,
-}
-
-#[derive(Default, Debug)]
 pub struct BudgetProcessManager {
     /// Weekly budget. [`None`] means no active weekly budgets.
-    weekly_budget: Option<Budget>,
+    weekly_budget: Option<BudgetData>,
     /// Weekly remaining amount.
     weekly_remaining_amount: f64,
     /// Monthly budget. [`None`] means no active monthly budgets.
-    monthly_budget: Option<Budget>,
+    monthly_budget: Option<BudgetData>,
     /// Monthly remaining amount.
     monthly_remaining_amount: f64,
 }
@@ -101,28 +97,25 @@ impl BudgetProcessManager {
     }
 
     /// Construct the state from one event.
+    ///
+    /// Budget remaining amounts are changed by `BudgetExpenseTracked` events; recorded
+    /// transactions are not evaluated for budget eligibility here.
     pub fn apply(mut self, event: &Event) -> Self {
         match event {
-            Event::TransactionRecorded(data) => {
-                if let Some(budget) = &self.weekly_budget
-                    && data.amount <= budget.threshold
-                    && data
-                        .booking_date
-                        .is_some_and(|booking_date| booking_date >= budget.start_date)
-                {
-                    self.weekly_remaining_amount -= data.amount
-                }
-
-                if let Some(budget) = &self.monthly_budget
-                    && data.amount <= budget.threshold
-                    && data
-                        .booking_date
-                        .is_some_and(|booking_date| booking_date >= budget.start_date)
-                {
-                    self.monthly_remaining_amount -= data.amount
-                }
+            Event::BudgetExpenseTracked(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    if self.weekly_budget.is_some() {
+                        self.weekly_remaining_amount -= data.amount;
+                    }
+                },
+                BudgetType::Monthly => {
+                    if self.monthly_budget.is_some() {
+                        self.monthly_remaining_amount -= data.amount;
+                    }
+                },
             },
-            Event::ImportTransactionsRequested(_)
+            Event::TransactionRecorded(_)
+            | Event::ImportTransactionsRequested(_)
             | Event::ImportTransactionsContinued(_)
             | Event::ImportTransactionsCompleted(_)
             | Event::ImportTransactionsFailed(_)
@@ -137,19 +130,11 @@ impl BudgetProcessManager {
             // TODO: address this behavior!
             Event::BudgetCreated(data) | Event::BudgetUpdated(data) => match data.budget_type {
                 BudgetType::Weekly => {
-                    self.weekly_budget = Some(Budget {
-                        start_date: data.start_date,
-                        amount: data.amount,
-                        threshold: data.threshold,
-                    });
+                    self.weekly_budget = Some(*data);
                     self.weekly_remaining_amount = data.amount
                 },
                 BudgetType::Monthly => {
-                    self.monthly_budget = Some(Budget {
-                        start_date: data.start_date,
-                        amount: data.amount,
-                        threshold: data.threshold,
-                    });
+                    self.monthly_budget = Some(*data);
                     self.monthly_remaining_amount = data.amount
                 },
             },
@@ -161,15 +146,13 @@ impl BudgetProcessManager {
                 BudgetType::Weekly => {
                     if let Some(budget) = &mut self.weekly_budget {
                         budget.start_date = data.start_date;
-                        budget.amount += data.previous_remaining;
-                        self.weekly_remaining_amount = budget.amount
+                        self.weekly_remaining_amount = budget.amount + data.previous_remaining;
                     }
                 },
                 BudgetType::Monthly => {
                     if let Some(budget) = &mut self.monthly_budget {
                         budget.start_date = data.start_date;
-                        budget.amount += data.previous_remaining;
-                        self.monthly_remaining_amount = budget.amount
+                        self.monthly_remaining_amount = budget.amount + data.previous_remaining;
                     }
                 },
             },
@@ -196,7 +179,7 @@ impl BudgetProcessManager {
 /// 🟡 ≥25%, 🔴 otherwise), a 10-block progress bar, the remaining percentage,
 /// and the dollar amounts. When a budget is [`None`] the line shows `⚪ Not
 /// set`.
-fn format_budget_line(label: &str, remaining: f64, budget: Option<&Budget>) -> String {
+fn format_budget_line(label: &str, remaining: f64, budget: Option<&BudgetData>) -> String {
     match budget {
         Some(b) => {
             let emoji = status_emoji(remaining, b.amount);
@@ -234,6 +217,8 @@ mod tests {
     use crate::events::budgets::{
         BudgetData,
         BudgetResetData,
+        BudgetType,
+        TrackedExpenseData,
     };
     use chrono::NaiveDate;
 
@@ -328,7 +313,10 @@ mod tests {
     /// bar is empty, the emoji is red, and a minus sign is used.
     #[test]
     fn create_gateway_command_shows_negative_remaining() {
-        use crate::events::transactions::TransactionData;
+        use crate::events::{
+            budgets::TrackedExpenseData,
+            transactions::TransactionData,
+        };
         use gateway::schema::enable_banking_api::{
             AmountType,
             transaction::{
@@ -353,7 +341,10 @@ mod tests {
 
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 600.0),
-            Event::TransactionRecorded(recorded),
+            Event::BudgetExpenseTracked(
+                TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
+                    .expect("fixture transaction has a creditor"),
+            ),
         ];
         let manager = BudgetProcessManager::new(&events).unwrap();
 
@@ -408,9 +399,9 @@ mod tests {
         assert!((manager.remaining_amount(BudgetType::Weekly) - 400.0).abs() < f64::EPSILON);
     }
 
-    /// Consecutive resets accumulate rollover amounts.
+    /// Consecutive resets recompute the configured budget plus each reset's rollover.
     #[test]
-    fn consecutive_resets_accumulate_rollover() {
+    fn consecutive_resets_recompute_configured_budget_with_rollover() {
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 50.0),
             // First reset: 200 leftover → new total 700
@@ -419,7 +410,7 @@ mod tests {
                 budget_type: BudgetType::Weekly,
                 previous_remaining: 200.0,
             }),
-            // Second reset: another 100 leftover → new total 800
+            // Second reset: another 100 leftover → configured budget plus rollover is 600.
             Event::BudgetReset(BudgetResetData {
                 start_date: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
                 budget_type: BudgetType::Weekly,
@@ -427,14 +418,17 @@ mod tests {
             }),
         ];
         let manager = BudgetProcessManager::new(&events).unwrap();
-        assert!((manager.remaining_amount(BudgetType::Weekly) - 800.0).abs() < f64::EPSILON);
+        assert!((manager.remaining_amount(BudgetType::Weekly) - 600.0).abs() < f64::EPSILON);
     }
 
     /// `remaining_amount()` returns the per-type remaining after applying
     /// transaction events.
     #[test]
     fn remaining_amount_returns_current_remaining_per_type() {
-        use crate::events::transactions::TransactionData;
+        use crate::events::{
+            budgets::TrackedExpenseData,
+            transactions::TransactionData,
+        };
         use gateway::schema::enable_banking_api::{
             AmountType,
             transaction::{
@@ -460,11 +454,113 @@ mod tests {
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 200.0),
             budget_created_event(BudgetType::Monthly, 1000.0, 200.0),
-            Event::TransactionRecorded(recorded),
+            Event::BudgetExpenseTracked(
+                TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
+                    .expect("fixture transaction has a creditor"),
+            ),
+            Event::BudgetExpenseTracked(
+                TrackedExpenseData::from_transaction(&recorded, BudgetType::Monthly)
+                    .expect("fixture transaction has a creditor"),
+            ),
         ];
         let manager = BudgetProcessManager::new(&events).unwrap();
 
         assert!((manager.remaining_amount(BudgetType::Weekly) - 400.0).abs() < f64::EPSILON);
         assert!((manager.remaining_amount(BudgetType::Monthly) - 900.0).abs() < f64::EPSILON);
+    }
+
+    /// Tracked weekly expenses reduce only the weekly remaining amount.
+    #[test]
+    fn tracked_weekly_expense_reduces_weekly_budget() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            budget_created_event(BudgetType::Monthly, 1000.0, 50.0),
+            Event::BudgetExpenseTracked(TrackedExpenseData {
+                transaction_id: uuid::Uuid::new_v4(),
+                booking_date: Some(start_date()),
+                transaction_date: Some(start_date()),
+                amount: 100.0,
+                currency: "EUR".to_string(),
+                creditor_name: "Test Store".to_string(),
+                budget_type: BudgetType::Weekly,
+            }),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        assert_eq!(manager.remaining_amount(BudgetType::Weekly), 400.0);
+        assert_eq!(manager.remaining_amount(BudgetType::Monthly), 1000.0);
+    }
+
+    /// Tracked monthly expenses reduce only the monthly remaining amount.
+    #[test]
+    fn tracked_monthly_expense_reduces_monthly_budget() {
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            budget_created_event(BudgetType::Monthly, 1000.0, 50.0),
+            Event::BudgetExpenseTracked(TrackedExpenseData {
+                transaction_id: uuid::Uuid::new_v4(),
+                booking_date: Some(start_date()),
+                transaction_date: Some(start_date()),
+                amount: 100.0,
+                currency: "EUR".to_string(),
+                creditor_name: "Test Store".to_string(),
+                budget_type: BudgetType::Monthly,
+            }),
+        ];
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        assert_eq!(manager.remaining_amount(BudgetType::Monthly), 900.0);
+        assert_eq!(manager.remaining_amount(BudgetType::Weekly), 500.0);
+    }
+
+    /// Recorded transactions no longer change budget remaining amounts directly.
+    #[test]
+    fn recorded_transaction_does_not_directly_track_budget_expense() {
+        use crate::events::transactions::TransactionData;
+
+        let transaction = TransactionData {
+            transaction_id: uuid::Uuid::new_v4(),
+            booking_date: Some(start_date()),
+            transaction_date: Some(start_date()),
+            amount: 100.0,
+            currency: "EUR".to_string(),
+            creditor_name: Some("Test Store".to_string()),
+            debtor_name: None,
+        };
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 200.0),
+            Event::TransactionRecorded(transaction),
+        ];
+
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        assert_eq!(manager.remaining_amount(BudgetType::Weekly), 500.0);
+    }
+
+    /// A tracked expense can be applied to both periods through two events.
+    #[test]
+    fn tracked_expense_supports_both_budget_periods() {
+        let tracked = |budget_type| {
+            Event::BudgetExpenseTracked(TrackedExpenseData {
+                transaction_id: uuid::Uuid::new_v4(),
+                booking_date: Some(start_date()),
+                transaction_date: Some(start_date()),
+                amount: 100.0,
+                currency: "EUR".to_string(),
+                creditor_name: "Test Store".to_string(),
+                budget_type,
+            })
+        };
+        let events = [
+            budget_created_event(BudgetType::Weekly, 500.0, 50.0),
+            budget_created_event(BudgetType::Monthly, 1000.0, 50.0),
+            tracked(BudgetType::Weekly),
+            tracked(BudgetType::Monthly),
+        ];
+
+        let manager = BudgetProcessManager::new(&events).unwrap();
+
+        assert_eq!(manager.remaining_amount(BudgetType::Weekly), 400.0);
+        assert_eq!(manager.remaining_amount(BudgetType::Monthly), 900.0);
     }
 }
