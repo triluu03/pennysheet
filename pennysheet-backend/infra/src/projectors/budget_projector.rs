@@ -105,7 +105,12 @@ impl ProjectorTrait for BudgetProjector {
                 Ok(())
             },
             Event::TransactionClassified(data) => {
-                project_to_all_budgets!(update_classification, txn, data.transaction_id, data.classification);
+                project_to_all_budgets!(
+                    update_classification,
+                    txn,
+                    data.transaction_id,
+                    data.classification
+                );
                 Ok(())
             },
             Event::TransactionRecorded(_)

@@ -61,7 +61,9 @@ async fn main() {
     info!("append-only event store ensured");
 
     tokio::spawn(spawn_and_subscribe_projector::<CoreProjector>(db.clone()));
-    tokio::spawn(spawn_and_subscribe_projector::<ImportRequestProjector>(db.clone()));
+    tokio::spawn(spawn_and_subscribe_projector::<ImportRequestProjector>(
+        db.clone(),
+    ));
     tokio::spawn(spawn_and_subscribe_projector::<BudgetProjector>(db.clone()));
     info!("projectors spawned in the background");
 

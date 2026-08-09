@@ -967,4 +967,308 @@ mod tests {
             other => panic!("expected BudgetReset, got {other:?}"),
         }
     }
+
+    // ------------------------------------------------------------------
+    // BudgetProjectionTrait::reset_budget (direct trait method tests)
+    // ------------------------------------------------------------------
+
+    /// After reset with positive remaining, the budget amount is preserved and a
+    /// separate carryover row captures the unused budget.
+    #[tokio::test]
+    async fn reset_budget_preserves_amount_with_positive_carryover() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            weekly_budgets,
+        };
+
+        let state = in_memory_state().await;
+
+        // Seed a weekly budget.
+        weekly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 500.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Reset: roll over 200 remaining to the next period.
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        weekly_budgets::Entity::reset_budget(&state.db, new_date, 200.0)
+            .await
+            .unwrap();
+
+        let all = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+        // Expect 2 rows: budget + carryover.
+        assert_eq!(all.len(), 2, "should have budget row and one carryover row");
+
+        let budget_row = all
+            .iter()
+            .find(|r| r.transaction_id.is_nil())
+            .expect("budget row with nil transaction_id");
+        assert_eq!(
+            budget_row.amount, 500.0,
+            "budget amount should be unchanged"
+        );
+        assert_eq!(
+            budget_row.date,
+            Some(new_date),
+            "budget date should be updated"
+        );
+
+        let carryover = all
+            .iter()
+            .find(|r| !r.transaction_id.is_nil())
+            .expect("carryover row with non-nil transaction_id");
+        assert_eq!(
+            carryover.amount, 200.0,
+            "carryover should capture the unused amount"
+        );
+        assert_eq!(carryover.date, Some(new_date));
+        assert_eq!(carryover.creditor_name, "Weekly budget carryover");
+    }
+
+    /// After reset with negative remaining (overspending), the carryover row
+    /// holds a negative amount while the budget amount stays unchanged.
+    #[tokio::test]
+    async fn reset_budget_handles_negative_overspending() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            weekly_budgets,
+        };
+
+        let state = in_memory_state().await;
+
+        weekly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 400.0,
+                threshold: 400.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 4, 1).unwrap();
+        // Overspent by 150.
+        weekly_budgets::Entity::reset_budget(&state.db, new_date, -150.0)
+            .await
+            .unwrap();
+
+        let all = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let budget_row = all.iter().find(|r| r.transaction_id.is_nil()).unwrap();
+        assert_eq!(
+            budget_row.amount, 400.0,
+            "budget amount should be unchanged"
+        );
+
+        let carryover = all.iter().find(|r| !r.transaction_id.is_nil()).unwrap();
+        assert_eq!(
+            carryover.amount, -150.0,
+            "carryover should capture the overspent amount"
+        );
+    }
+
+    /// The carryover row always has a non-nil transaction_id, distinct from
+    /// the budget row which always has a nil transaction_id.
+    #[tokio::test]
+    async fn reset_budget_carryover_has_non_nil_transaction_id() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            weekly_budgets,
+        };
+
+        let state = in_memory_state().await;
+
+        weekly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 5, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 300.0,
+                threshold: 300.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        weekly_budgets::Entity::reset_budget(&state.db, new_date, 50.0)
+            .await
+            .unwrap();
+
+        let all = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+
+        let nil_ids: Vec<_> = all.iter().filter(|r| r.transaction_id.is_nil()).collect();
+        let non_nil_ids: Vec<_> = all.iter().filter(|r| !r.transaction_id.is_nil()).collect();
+
+        assert_eq!(
+            nil_ids.len(),
+            1,
+            "exactly one row should have nil transaction_id"
+        );
+        assert_eq!(
+            non_nil_ids.len(),
+            1,
+            "exactly one row should have non-nil transaction_id"
+        );
+        assert_eq!(nil_ids[0].creditor_name, "Weekly budget tracking");
+        assert_eq!(non_nil_ids[0].creditor_name, "Weekly budget carryover");
+    }
+
+    /// Both the budget row and carryover row have their date set to the new start date.
+    #[tokio::test]
+    async fn reset_budget_updates_dates_on_both_rows() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            weekly_budgets,
+        };
+
+        let state = in_memory_state().await;
+
+        weekly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 7, 10).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 250.0,
+                threshold: 250.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 8, 1).unwrap();
+        weekly_budgets::Entity::reset_budget(&state.db, new_date, 75.0)
+            .await
+            .unwrap();
+
+        let all = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+        for row in &all {
+            assert_eq!(
+                row.date,
+                Some(new_date),
+                "every row after reset should have the new start date"
+            );
+        }
+    }
+
+    /// Old transaction rows are deleted during reset; only the budget row
+    /// and the new carryover row remain.
+    #[tokio::test]
+    async fn reset_budget_removes_old_transaction_rows() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            weekly_budgets,
+        };
+        use sea_orm::ActiveModelTrait;
+
+        let state = in_memory_state().await;
+
+        // Seed a budget and insert two old transaction rows.
+        weekly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 600.0,
+                threshold: 600.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Insert two old tracked-expense rows.
+        for (id, amt) in [
+            (uuid::Uuid::new_v4(), -100.0),
+            (uuid::Uuid::new_v4(), -200.0),
+        ] {
+            weekly_budgets::ActiveModel {
+                transaction_id: sea_orm::ActiveValue::Set(id),
+                date: sea_orm::ActiveValue::Set(Some(
+                    chrono::NaiveDate::from_ymd_opt(2026, 9, 15).unwrap(),
+                )),
+                amount: sea_orm::ActiveValue::Set(amt),
+                currency: sea_orm::ActiveValue::Set("EUR".into()),
+                creditor_name: sea_orm::ActiveValue::Set("Test Store".into()),
+                threshold: sea_orm::ActiveValue::Set(0.0),
+                ..Default::default()
+            }
+            .insert(&state.db)
+            .await
+            .unwrap();
+        }
+
+        // Before reset we have 1 budget row + 2 transaction rows.
+        let before = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+        assert_eq!(before.len(), 3);
+
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        weekly_budgets::Entity::reset_budget(&state.db, new_date, 300.0)
+            .await
+            .unwrap();
+
+        // After reset: budget row + carryover row = 2 rows.
+        let after = weekly_budgets::Entity::get_all(&state.db).await.unwrap();
+        assert_eq!(after.len(), 2, "old transaction rows should be removed");
+
+        // The old transaction IDs should not appear.
+        let has_budget = after.iter().any(|r| r.transaction_id.is_nil());
+        let carryover = after
+            .iter()
+            .find(|r| !r.transaction_id.is_nil() && r.creditor_name == "Weekly budget carryover");
+        assert!(has_budget);
+        assert!(carryover.is_some());
+        assert!(
+            (carryover.unwrap().amount - 300.0).abs() < f64::EPSILON,
+            "carryover amount must equal the passed previous_remaining"
+        );
+    }
+
+    /// Monthly budgets also work with the carryover mechanism.
+    #[tokio::test]
+    async fn reset_budget_monthly_preserves_amount_with_carryover() {
+        use infra::projections::{
+            BudgetProjectionTrait,
+            monthly_budgets,
+        };
+
+        let state = in_memory_state().await;
+
+        monthly_budgets::Entity::start_tracking_new_budget(
+            &state.db,
+            &domain::events::budgets::BudgetData {
+                start_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+                budget_type: BudgetType::Monthly,
+                amount: 1000.0,
+                threshold: 500.0,
+            },
+        )
+        .await
+        .unwrap();
+
+        let new_date = chrono::NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        monthly_budgets::Entity::reset_budget(&state.db, new_date, 350.0)
+            .await
+            .unwrap();
+
+        let all = monthly_budgets::Entity::get_all(&state.db).await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let budget_row = all.iter().find(|r| r.transaction_id.is_nil()).unwrap();
+        assert_eq!(budget_row.amount, 1000.0);
+        assert_eq!(budget_row.date, Some(new_date));
+
+        let carryover = all.iter().find(|r| !r.transaction_id.is_nil()).unwrap();
+        assert_eq!(carryover.amount, 350.0);
+        assert_eq!(carryover.creditor_name, "Monthly budget carryover");
+    }
 }
