@@ -125,10 +125,11 @@ function EditableCell<K extends string>({
           onBlur={cancel}
           onKeyDown={e => {
             if (e.key === "Enter") {
+              e.preventDefault();
               if (editValue !== value && editValue !== "") {
                 onSave?.(rowId, editValue);
               }
-              e.currentTarget.blur();
+              // Do not blur first: onBlur cancels the draft using the stale prop value.
               setEditing(false);
             }
             if (e.key === "Escape") cancel();
