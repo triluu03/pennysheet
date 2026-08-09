@@ -119,7 +119,6 @@ impl ProjectorTrait for CoreProjector {
             Event::ImportTransactionsContinued(_)
             | Event::ImportTransactionsRequested(_)
             | Event::ImportTransactionsCompleted(_)
-            | Event::TransactionImportRetryRequested(_)
             | Event::ImportTransactionsFailed(_) => {
                 // Skip these transaction events.
                 Ok(())

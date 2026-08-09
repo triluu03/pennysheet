@@ -119,7 +119,6 @@ impl BudgetProcessManager {
             | Event::ImportTransactionsContinued(_)
             | Event::ImportTransactionsCompleted(_)
             | Event::ImportTransactionsFailed(_)
-            | Event::TransactionImportRetryRequested(_)
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)
             | Event::TransactionNoteUpdated(_) => {

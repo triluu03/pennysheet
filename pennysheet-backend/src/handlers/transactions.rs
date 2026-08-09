@@ -25,7 +25,6 @@ use infra::{
     append_multi_events_to_db,
     get_all_events,
     get_all_sessions,
-    get_session_by_id,
     projections::{
         self,
         TimeAggregation,
@@ -347,63 +346,6 @@ pub async fn import_transactions_handler(
 }
 
 #[derive(Deserialize)]
-pub struct TransactionImportRetryPayload {
-    pub request_id: String,
-    pub session_id: i64,
-}
-
-/// Handler for POST request to /transactions/import/retry
-///
-/// If a retry request event is successfully created, transaction process manager
-/// will be spawn and run the import in the background.
-///
-/// # Errors
-///
-/// Return [`AppError`] in the following scenarios:
-/// - Failed to parse the payload into expected format.
-/// - Command is rejected by the aggregate.
-/// - Failed to insert the new event into the store.
-#[instrument(
-    skip(state, payload),
-    fields(
-        request_id = payload.request_id
-    )
-)]
-pub async fn transaction_import_retry_handler(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<TransactionImportRetryPayload>,
-) -> axum::response::Result<(StatusCode, String), AppError> {
-    let session_data = get_session_by_id(&state.db, payload.session_id).await?;
-
-    let command =
-        Command::create_retry_failed_import_request(&payload.request_id, payload.session_id)?;
-
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(
-        event_id = %res.last_insert_id,
-        session_id = payload.session_id,
-        "transaction import retry requested"
-    );
-
-    // Spawn a background job running transaction process manager.
-    if let Event::TransactionImportRetryRequested(data) = &event {
-        tokio::spawn(run_transaction_import(
-            state.db.clone(),
-            session_data,
-            data.request_id,
-        ));
-    }
-
-    Ok((
-        StatusCode::ACCEPTED,
-        "Transaction import retry requested!".to_string(),
-    ))
-}
-
-#[derive(Deserialize)]
 pub struct CategorizeTransactionPayload {
     pub transaction_id: String,
     pub category: String,
@@ -516,17 +458,10 @@ pub async fn update_transaction_note_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::events::{
-        Event,
-        transactions::{
-            ImportRequestData,
-            ImportStatusData,
-        },
-    };
+    use domain::events::Event;
     use gateway::schema::enable_banking_session::EnableBankingSession;
     use infra::{
         append_event_to_db,
-        append_multi_events_to_db,
         create_new_session,
         get_all_events,
         sync_database_schema,
@@ -624,177 +559,20 @@ mod tests {
             failed, 1,
             "spawned background import should record exactly one failure for an invalid session"
         );
-    }
 
-    #[tokio::test]
-    async fn test_transaction_import_retry_handler_accepts_known_failed_request() {
-        let state = in_memory_state().await;
-
-        // Seed a request that has already failed, making it eligible for retry.
-        // The aggregate marks a request retryable from the failure event alone.
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-        append_multi_events_to_db(
-            &state.db,
-            vec![
-                Event::ImportTransactionsRequested(ImportRequestData {
-                    request_id,
-                    session_id,
-                    ..Default::default()
-                }),
-                Event::ImportTransactionsFailed(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-            ],
-        )
-        .await
-        .unwrap();
-
-        let response = transaction_import_retry_handler(
+        // After failure the aggregate is released (no retry state), so a second
+        // import with the same session must be accepted.
+        let response2 = import_transactions_handler(
             State(state.clone()),
-            Json(TransactionImportRetryPayload {
-                request_id: request_id.to_string(),
-                session_id,
+            Json(ImportTransactionsPayload {
+                start_date: None,
+                end_date: None,
             }),
         )
         .await;
-
-        let Ok((status, body)) = response else {
-            panic!("expected transaction_import_retry_handler to succeed");
-        };
-        assert_eq!(status, StatusCode::ACCEPTED);
-        assert_eq!(body, "Transaction import retry requested!".to_string());
-
-        // Seeded failure, plus the appended retry-requested event, plus a second
-        // failure from the spawned background import (the session is invalid).
-        let events = wait_for_events(&state.db, 3).await;
-        let retry_requested = events
-            .iter()
-            .filter(|event| matches!(event, Event::TransactionImportRetryRequested(_)))
-            .count();
-        assert_eq!(
-            retry_requested, 1,
-            "handler should append exactly one TransactionImportRetryRequested event"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_transaction_import_retry_handler_rejects_unknown_request() {
-        let state = in_memory_state().await;
-
-        // No prior failure exists, so the aggregate rejects the retry command.
-        let response = transaction_import_retry_handler(
-            State(state.clone()),
-            Json(TransactionImportRetryPayload {
-                request_id: Uuid::new_v4().to_string(),
-                session_id: 1,
-            }),
-        )
-        .await;
-
         assert!(
-            response.is_err(),
-            "retrying an unknown request must be rejected"
-        );
-        let events = get_all_events(&state.db).await.unwrap();
-        assert!(
-            events.is_empty(),
-            "a rejected retry must not append any events"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_transaction_import_retry_handler_rejects_invalid_request_id() {
-        let state = in_memory_state().await;
-
-        // A malformed request id fails command creation before touching the store.
-        let response = transaction_import_retry_handler(
-            State(state.clone()),
-            Json(TransactionImportRetryPayload {
-                request_id: "not-a-uuid".to_string(),
-                session_id: 1,
-            }),
-        )
-        .await;
-
-        assert!(response.is_err(), "a malformed request id must be rejected");
-        let events = get_all_events(&state.db).await.unwrap();
-        assert!(
-            events.is_empty(),
-            "a rejected retry must not append any events"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_transaction_import_retry_handler_rejects_when_request_pending() {
-        let state = in_memory_state().await;
-
-        // A previously failed request is, on its own, eligible for retry.
-        let failed_id = Uuid::new_v4();
-        let session_id = 1;
-
-        append_multi_events_to_db(
-            &state.db,
-            vec![
-                Event::ImportTransactionsRequested(ImportRequestData {
-                    request_id: failed_id,
-                    session_id,
-                    ..Default::default()
-                }),
-                Event::ImportTransactionsFailed(ImportStatusData {
-                    request_id: failed_id,
-                    session_id,
-                }),
-            ],
-        )
-        .await
-        .unwrap();
-
-        // Seed a fresh, still-pending import. Building it through the domain API
-        // (rather than the handler) keeps the pending state deterministic, since
-        // no background job is spawned to race in a terminal event.
-        let pending = CoreAggregate::new(&[])
-            .execute(
-                Command::create_import_transactions(None, None, vec![session_id])
-                    .unwrap()
-                    .into_iter()
-                    .next()
-                    .unwrap(),
-            )
-            .unwrap();
-        append_event_to_db(&state.db, pending).await.unwrap();
-
-        // Retrying the failed request must be rejected because another request is
-        // pending, even though that request id is itself retryable.
-        let response = transaction_import_retry_handler(
-            State(state.clone()),
-            Json(TransactionImportRetryPayload {
-                request_id: failed_id.to_string(),
-                session_id,
-            }),
-        )
-        .await;
-
-        assert!(
-            response.is_err(),
-            "a retry must be rejected while another request is pending"
-        );
-
-        // Only the two seeded events remain; the rejected retry appended nothing.
-        let events = get_all_events(&state.db).await.unwrap();
-        assert_eq!(
-            events.len(),
-            3,
-            "a rejected retry must not append any events"
-        );
-        let retry_requested = events
-            .iter()
-            .filter(|event| matches!(event, Event::TransactionImportRetryRequested(_)))
-            .count();
-        assert_eq!(
-            retry_requested, 0,
-            "a rejected retry must not append a retry-requested event"
+            response2.is_ok(),
+            "second import request after failure must be accepted (aggregate is not stuck in retry)"
         );
     }
 
@@ -812,23 +590,6 @@ mod tests {
         assert!(
             response.is_err(),
             "an import request must be rejected if the session has expired!"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_transaction_retry_import_hanlder_rejects_when_session_expires() {
-        let state = in_memory_state_with_expired_session().await;
-        let response = transaction_import_retry_handler(
-            State(state.clone()),
-            Json(TransactionImportRetryPayload {
-                request_id: "this-does-not-matter".to_string(),
-                session_id: 1,
-            }),
-        )
-        .await;
-        assert!(
-            response.is_err(),
-            "a retry request must be rejected if the session has expired!"
         );
     }
 
