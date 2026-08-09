@@ -142,7 +142,8 @@ impl TransactionProcessManager {
             | Event::BudgetUpdated(_)
             | Event::BudgetDeleted(_)
             | Event::BudgetExceeded(_)
-            | Event::BudgetReset(_) => {
+            | Event::BudgetReset(_)
+            | Event::BudgetExpenseTracked(_) => {
                 // Ignore all budget events.
             },
         }

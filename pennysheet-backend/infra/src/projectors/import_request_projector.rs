@@ -114,7 +114,8 @@ impl ProjectorTrait for ImportRequestProjector {
             | Event::BudgetUpdated(_)
             | Event::BudgetDeleted(_)
             | Event::BudgetExceeded(_)
-            | Event::BudgetReset(_) => {
+            | Event::BudgetReset(_)
+            | Event::BudgetExpenseTracked(_) => {
                 // Skip these budget events
                 Ok(())
             },

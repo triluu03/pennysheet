@@ -71,6 +71,9 @@ impl ProjectorTrait for BudgetProjector {
 
     /// Project records based on a single event.
     ///
+    /// Budget tracking rows are created only from qualified `BudgetExpenseTracked` events;
+    /// `TransactionRecorded` events are handled by the core projector instead.
+    ///
     /// # Errors
     ///
     /// Returns [`DbErr`] if the insertion into the projection fails.
@@ -81,46 +84,37 @@ impl ProjectorTrait for BudgetProjector {
         user_settings: &[UserSettingsResult],
     ) -> Result<(), DbErr> {
         match event {
-            Event::TransactionRecorded(data) => {
-                if let Some(budget) = weekly_budgets::Entity::get_active_budget(txn).await?
-                    // Check against the active weekly budget threshold.
-                    && data.amount <= budget.threshold
-                    // Only record if the transaction's booking_date is after the budget date.
-                    && data.booking_date.is_some_and(|booking_date| {
-                        budget
-                            .date
-                            .is_some_and(|budget_date| booking_date >= budget_date)
-                    })
-                    && let Some(row) =
-                        weekly_budgets::ActiveModel::from_recorded_transaction(data.clone())
-                {
-                    row.apply_user_settings(user_settings).insert(txn).await?;
-                }
-                if let Some(budget) = monthly_budgets::Entity::get_active_budget(txn).await?
-                    // Check against the active monthly budget threshold.
-                    && data.amount <= budget.threshold
-                    // Only record if the transaction's booking_date is after the budget date.
-                    && data.booking_date.is_some_and(|booking_date| {
-                        budget
-                            .date
-                            .is_some_and(|budget_date| booking_date >= budget_date)
-                    })
-                    && let Some(row) =
-                        monthly_budgets::ActiveModel::from_recorded_transaction(data.clone())
-                {
-                    row.apply_user_settings(user_settings).insert(txn).await?;
-                }
-                Ok(())
+            Event::BudgetExpenseTracked(data) => match data.budget_type {
+                BudgetType::Weekly => {
+                    weekly_budgets::ActiveModel::from_tracked_expense(data.clone())
+                        .apply_user_settings(user_settings)
+                        .insert(txn)
+                        .await?;
+                    Ok(())
+                },
+                BudgetType::Monthly => {
+                    monthly_budgets::ActiveModel::from_tracked_expense(data.clone())
+                        .apply_user_settings(user_settings)
+                        .insert(txn)
+                        .await?;
+                    Ok(())
+                },
             },
             Event::TransactionCategorized(data) => {
                 project_to_all_budgets!(update_category, txn, data.transaction_id, data.category);
                 Ok(())
             },
             Event::TransactionClassified(data) => {
-                project_to_all_budgets!(update_classification, txn, data.transaction_id, data.classification);
+                project_to_all_budgets!(
+                    update_classification,
+                    txn,
+                    data.transaction_id,
+                    data.classification
+                );
                 Ok(())
             },
-            Event::ImportTransactionsRequested(_)
+            Event::TransactionRecorded(_)
+            | Event::ImportTransactionsRequested(_)
             | Event::ImportTransactionsCompleted(_)
             | Event::ImportTransactionsFailed(_)
             | Event::TransactionImportRetryRequested(_)

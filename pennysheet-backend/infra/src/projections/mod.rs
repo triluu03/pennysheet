@@ -400,9 +400,14 @@ pub trait AutoUserSettingTrait: EntityTrait {
 ///
 /// Provides shared operations for managing a budget projection table:
 /// starting a new budget, querying the active budget row, resetting
-/// (keeping only the budget row), and deleting all tracking rows.
+/// (keeping only the budget row plus a synthetic carryover row), and
+/// deleting all tracking rows.
 #[async_trait::async_trait]
-pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
+pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait
+where
+    <Self as EntityTrait>::Model: IntoActiveModel<<Self as EntityTrait>::ActiveModel>,
+    <Self as EntityTrait>::ActiveModel: Send,
+{
     /// Column that identifies the budget row (typically `transaction_id`).
     fn budget_id_column() -> Self::Column;
 
@@ -528,25 +533,8 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
         Self::find()
             .select_only()
             .columns(Self::Column::iter())
-            .column_as(category_coalesce.clone(), Self::category_column())
-            .column_as(
-                classification_coalesce.clone(),
-                Self::classification_column(),
-            )
-            .filter(
-                Self::budget_id_column()
-                    .eq(Uuid::nil())
-                    .or(category_coalesce.clone().is_null().or(category_coalesce
-                        .is_not_in([Expr::value("Investments"), Expr::value("Excluded")]))),
-            )
-            .filter(
-                Self::budget_id_column()
-                    .eq(Uuid::nil())
-                    .or(classification_coalesce
-                        .clone()
-                        .is_null()
-                        .or(classification_coalesce.ne(Expr::value("excluded")))),
-            )
+            .column_as(category_coalesce, Self::category_column())
+            .column_as(classification_coalesce, Self::classification_column())
             .order_by_desc(Self::date_column())
             .all(db)
             .await
@@ -569,16 +557,31 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
             .await
     }
 
-    /// Reset the projection table, keeping only the budget row with an updated start date
-    /// and rolled-over amount.
+    /// Construct a synthetic carryover row for a budget reset.
     ///
-    /// Deletes all transaction rows but preserves the budget tracking row.
-    /// Updates its date column to `new_start_date` and adds `previous_remaining`
-    /// to the amount column so that leftover (or overspent) budget carries forward.
+    /// Returns an [`ActiveModel`] representing the remaining (or overspent) amount
+    /// carried over from the previous budget period. The resulting model must have:
+    /// - A non-nil `transaction_id` so it behaves as a tracked transaction row
+    /// - `date` set to `new_start_date`
+    /// - `amount` set to `previous_remaining` (positive when under budget, negative when overspent)
+    ///
+    /// Implementors fill in model-specific required fields such as `currency` and
+    /// `creditor_name`.
+    fn make_carryover_model(
+        new_start_date: Date,
+        previous_remaining: f64,
+    ) -> <Self as EntityTrait>::ActiveModel;
+
+    /// Reset the projection table, keeping only the budget row with an updated start date.
+    ///
+    /// Deletes all prior transaction rows, updates the budget row date, and inserts a
+    /// synthetic carryover row whose amount is `previous_remaining`. The budget row's
+    /// original amount is preserved unchanged; the carryover row captures the rollover
+    /// (or overspent) amount separately.
     ///
     /// # Errors
     ///
-    /// Returns [`DbErr`] if the query, update, or deletion fails.
+    /// Returns [`DbErr`] if any query, update, or insertion fails.
     async fn reset_budget<C>(
         db: &C,
         new_start_date: Date,
@@ -587,19 +590,22 @@ pub trait BudgetProjectionTrait: EntityTrait + AutoUserSettingTrait {
     where
         C: ConnectionTrait,
     {
+        // Remove all prior transaction rows, leaving only the budget row.
         Self::delete_many()
             .filter(Self::budget_id_column().ne(Uuid::nil()))
             .exec(db)
             .await?;
 
+        // Update the budget row's start date. The amount stays as-is.
         Self::update_many()
             .col_expr(Self::date_column(), Expr::value(new_start_date))
-            .col_expr(
-                Self::amount_column(),
-                Expr::col(Self::amount_column()).add(Expr::value(previous_remaining)),
-            )
             .filter(Self::budget_id_column().eq(Uuid::nil()))
             .exec(db)
+            .await?;
+
+        // Create the carryover budget remaining amounts.
+        Self::make_carryover_model(new_start_date, previous_remaining)
+            .insert(db)
             .await?;
 
         Ok(())

@@ -494,6 +494,7 @@ mod tests {
     async fn run_budget_reset_job_rolls_over_remaining() {
         use domain::events::{
             Event,
+            budgets::TrackedExpenseData,
             transactions::TransactionData,
         };
         use gateway::schema::enable_banking_api::{
@@ -527,7 +528,9 @@ mod tests {
             transaction_date: Some("2026-01-20".to_string()),
         };
         let recorded = TransactionData::new(transaction).expect("valid transaction");
-        infra::append_event_to_db(&db, Event::TransactionRecorded(recorded))
+        let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
+            .expect("fixture transaction has a creditor");
+        infra::append_event_to_db(&db, Event::BudgetExpenseTracked(tracked))
             .await
             .unwrap();
 
@@ -538,11 +541,52 @@ mod tests {
 
         // Verify the BudgetReset event carries the rolled-over remaining amount.
         let events = infra::get_all_events(&db).await.unwrap();
-        assert_eq!(events.len(), 3); // BudgetCreated, TransactionRecorded, BudgetReset
+        assert_eq!(events.len(), 3); // BudgetCreated, BudgetExpenseTracked, BudgetReset
         match &events[2] {
             Event::BudgetReset(data) => {
                 assert!((data.previous_remaining - 200.0).abs() < f64::EPSILON);
             },
+            other => panic!("expected BudgetReset, got {other:?}"),
+        }
+    }
+
+    /// Budget reset rollover uses tracked-expense events as the source of deductions.
+    #[tokio::test]
+    async fn run_budget_reset_job_rolls_over_tracked_expense_remaining() {
+        use domain::events::{
+            Event,
+            budgets::TrackedExpenseData,
+        };
+
+        let db = in_memory_db().await;
+        let create_cmd =
+            Command::create_budget("2026-01-15", BudgetType::Weekly, 500.0, 500.0).unwrap();
+        let create_event = CoreAggregate::new(&[]).execute(create_cmd).unwrap();
+        infra::append_event_to_db(&db, create_event).await.unwrap();
+
+        infra::append_event_to_db(
+            &db,
+            Event::BudgetExpenseTracked(TrackedExpenseData {
+                transaction_id: uuid::Uuid::new_v4(),
+                booking_date: Some(NaiveDate::from_ymd_opt(2026, 1, 20).unwrap()),
+                transaction_date: Some(NaiveDate::from_ymd_opt(2026, 1, 20).unwrap()),
+                amount: 300.0,
+                currency: "EUR".to_string(),
+                creditor_name: "Test Store".to_string(),
+                budget_type: BudgetType::Weekly,
+            }),
+        )
+        .await
+        .unwrap();
+
+        run_budget_reset_job(&db, BudgetType::Weekly, "2026-02-01")
+            .await
+            .unwrap();
+
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert_eq!(events.len(), 3);
+        match &events[2] {
+            Event::BudgetReset(data) => assert_eq!(data.previous_remaining, 200.0),
             other => panic!("expected BudgetReset, got {other:?}"),
         }
     }
