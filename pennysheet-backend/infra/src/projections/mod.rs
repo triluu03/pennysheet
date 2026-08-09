@@ -533,25 +533,8 @@ where
         Self::find()
             .select_only()
             .columns(Self::Column::iter())
-            .column_as(category_coalesce.clone(), Self::category_column())
-            .column_as(
-                classification_coalesce.clone(),
-                Self::classification_column(),
-            )
-            .filter(
-                Self::budget_id_column()
-                    .eq(Uuid::nil())
-                    .or(category_coalesce.clone().is_null().or(category_coalesce
-                        .is_not_in([Expr::value("Investments"), Expr::value("Excluded")]))),
-            )
-            .filter(
-                Self::budget_id_column()
-                    .eq(Uuid::nil())
-                    .or(classification_coalesce
-                        .clone()
-                        .is_null()
-                        .or(classification_coalesce.ne(Expr::value("excluded")))),
-            )
+            .column_as(category_coalesce, Self::category_column())
+            .column_as(classification_coalesce, Self::classification_column())
             .order_by_desc(Self::date_column())
             .all(db)
             .await
