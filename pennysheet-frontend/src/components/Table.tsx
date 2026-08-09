@@ -70,7 +70,7 @@ function EditableCell<K extends string>({
   }, [value]);
 
   if (!editing) {
-    const color = getCellColor(colorMap, value);
+    const color = getCellColor(colorMap, editValue);
 
     return (
       <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
@@ -89,12 +89,15 @@ function EditableCell<K extends string>({
     );
   }
 
+  const editColor = getCellColor(colorMap, editValue);
+
   if (options) {
     return (
       <td key={field} className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">
         <select
           ref={inputRef as React.RefObject<HTMLSelectElement>}
           className="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          style={editColor ? { color: editColor } : undefined}
           value={editValue}
           onChange={e => {
             setEditValue(e.target.value);
@@ -120,6 +123,7 @@ function EditableCell<K extends string>({
           ref={inputRef as React.RefObject<HTMLInputElement>}
           type="text"
           className="text-sm border border-gray-200 rounded-md px-2 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          style={editColor ? { color: editColor } : undefined}
           value={editValue}
           onChange={e => setEditValue(e.target.value)}
           onBlur={cancel}
