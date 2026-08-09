@@ -45,7 +45,6 @@ use crate::{
             get_transactions_pivot_handler,
             get_transactions_time_aggregated_handler,
             import_transactions_handler,
-            transaction_import_retry_handler,
             update_transaction_note_handler,
         },
         user_settings::{
@@ -73,7 +72,6 @@ fn transactions_router() -> Router<Arc<AppState>> {
         )
         .route("/{transaction_id}", get(get_one_transaction_handler))
         .route("/import", post(import_transactions_handler))
-        .route("/import/retry", post(transaction_import_retry_handler))
         .route("/category", post(categorize_transaction_handler))
         .route("/classification", post(classify_transaction_handler))
         .route("/note", post(update_transaction_note_handler))

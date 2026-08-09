@@ -32,9 +32,6 @@ pub enum Event {
     ImportTransactionsFailed(ImportStatusData),
     /// A pending import request continues with a continuation key.
     ImportTransactionsContinued(ImportContinueData),
-    /// A retry for a failed transaction import is requested.
-    // TODO: use a better name for the data part instead of `ImportStatusData`?
-    TransactionImportRetryRequested(ImportStatusData),
     /// A transaction is recorded.
     TransactionRecorded(TransactionData),
     /// A transaction is categorized.

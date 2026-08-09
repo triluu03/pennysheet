@@ -1,7 +1,5 @@
 //! Transaction Process Manager
 
-use std::collections::HashMap;
-
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionQueryParameters;
 use uuid::Uuid;
@@ -20,9 +18,6 @@ pub struct TransactionProcessManager {
     pending_request_id: Option<Uuid>,
     /// Data of the current pending import request.
     pending_request_data: Option<RequestData>,
-    /// Map of all failed import requests with request ID as keys
-    /// and [`RequestData`] as values.
-    failed_request_map: HashMap<Uuid, RequestData>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -102,10 +97,6 @@ impl TransactionProcessManager {
                 if self.session_id == data.session_id
                     && self.pending_request_id == Some(data.request_id)
                 {
-                    if let Some(request_id) = self.pending_request_id {
-                        self.failed_request_map.remove(&request_id);
-                    };
-
                     self.pending_request_id = None;
                     self.pending_request_data = None;
                 }
@@ -114,23 +105,9 @@ impl TransactionProcessManager {
                 if self.session_id == data.session_id
                     && self.pending_request_id == Some(data.request_id)
                 {
-                    if let (Some(request_id), Some(request_data)) =
-                        (self.pending_request_id, self.pending_request_data)
-                    {
-                        self.failed_request_map.insert(request_id, request_data);
-                    };
-
                     self.pending_request_id = None;
                     self.pending_request_data = None;
                 }
-            },
-            Event::TransactionImportRetryRequested(data) => {
-                if self.session_id == data.session_id
-                    && let Some(request_data) = self.failed_request_map.get(&data.request_id)
-                {
-                    self.pending_request_id = Some(data.request_id);
-                    self.pending_request_data = Some(request_data.to_owned());
-                };
             },
             Event::TransactionRecorded(_)
             | Event::TransactionCategorized(_)
@@ -350,81 +327,6 @@ mod tests {
     }
 
     #[test]
-    fn retry_after_failure_restores_original_request() {
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-
-        // The original request fails and is then retried; the manager must become
-        // pending on the original request id again with its original date range.
-        let manager = TransactionProcessManager::new(
-            session_id,
-            &[
-                requested_event(request_id, session_id),
-                Event::ImportTransactionsFailed(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-                Event::TransactionImportRetryRequested(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-            ],
-        )
-        .expect("a retried request should re-initialize the manager");
-
-        let params = expect_query_params(&manager);
-        assert_eq!(params.date_from, Some(start_date().to_string()));
-        assert_eq!(params.date_to, Some(end_date().to_string()));
-    }
-
-    #[test]
-    fn retry_for_unknown_request_does_not_establish_pending() {
-        // A retry event with no preceding failure references an unknown request,
-        // so it must not establish a pending request and the manager stays uninitialized.
-        let events = [Event::TransactionImportRetryRequested(ImportStatusData {
-            request_id: Uuid::new_v4(),
-            session_id: 1,
-        })];
-        assert!(matches!(
-            TransactionProcessManager::new(1, &events),
-            Err(DomainError::ComponentInit(_))
-        ));
-    }
-
-    #[test]
-    fn completion_makes_request_ineligible_for_later_retry() {
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-
-        // Failing records the request as retryable, a retry restores it, and the
-        // subsequent completion must drop it from the failed-request map. A further
-        // retry then references an unknown request and cannot restore a pending one.
-        let events = [
-            requested_event(request_id, session_id),
-            Event::ImportTransactionsFailed(ImportStatusData {
-                request_id,
-                session_id,
-            }),
-            Event::TransactionImportRetryRequested(ImportStatusData {
-                request_id,
-                session_id,
-            }),
-            Event::ImportTransactionsCompleted(ImportStatusData {
-                request_id,
-                session_id,
-            }),
-            Event::TransactionImportRetryRequested(ImportStatusData {
-                request_id,
-                session_id,
-            }),
-        ];
-        assert!(matches!(
-            TransactionProcessManager::new(session_id, &events),
-            Err(DomainError::ComponentInit(_))
-        ));
-    }
-
-    #[test]
     fn transaction_recorded_events_do_not_affect_pending_request() {
         use gateway::schema::enable_banking_api::{
             AmountType,
@@ -534,30 +436,6 @@ mod tests {
         assert_eq!(params.date_from, Some(start_date().to_string()));
         assert_eq!(params.date_to, Some(end_date().to_string()));
         assert_eq!(params.continuation_key, None);
-    }
-
-    /// Retry events for a different session do not restore a pending request.
-    #[test]
-    fn retry_for_a_different_session_does_not_establish_pending() {
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-        // Request fails, then a retry comes for a different session — the manager stays
-        // uninitialized.
-        let events = [
-            requested_event(request_id, session_id),
-            Event::ImportTransactionsFailed(ImportStatusData {
-                request_id,
-                session_id,
-            }),
-            Event::TransactionImportRetryRequested(ImportStatusData {
-                request_id,
-                session_id: 999,
-            }),
-        ];
-        assert!(matches!(
-            TransactionProcessManager::new(session_id, &events),
-            Err(DomainError::ComponentInit(_))
-        ));
     }
 
     /// Annotation events do not affect the manager's pending request.

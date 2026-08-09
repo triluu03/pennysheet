@@ -24,8 +24,6 @@ use crate::{
 pub enum Command {
     /// Import transactions
     ImportTransactions(ImportTransactionsData),
-    /// Retry a failed import request.
-    RetryFailedImportRequest(ImportRequestData),
     /// Categorize a transaction.
     CategorizeTransaction(TransactionCategoryData),
     /// Classify a transaction.
@@ -83,22 +81,6 @@ impl Command {
             .collect();
 
         Ok(commands)
-    }
-
-    /// Create a new [`Command::RetryFailedImportRequest`] command.
-    ///
-    /// # Errors
-    ///
-    /// Return [`DomainError::CommandCreation`] if the provided request ID is not a valid UUID.
-    pub fn create_retry_failed_import_request(
-        request_id: &str,
-        session_id: i64,
-    ) -> Result<Self, DomainError> {
-        let parsed_request_id = Uuid::from_str(request_id)?;
-        Ok(Command::RetryFailedImportRequest(ImportRequestData {
-            request_id: parsed_request_id,
-            session_id,
-        }))
     }
 
     /// Create a new [`Command::CategorizeTransaction`] command.
@@ -309,30 +291,6 @@ mod tests {
     fn invalid_end_date_returns_command_creation_error() {
         let result =
             Command::create_import_transactions(Some("2024-01-01"), Some("not-a-date"), vec![1]);
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
-    }
-
-    #[test]
-    fn valid_request_id_creates_retry_command() {
-        let request_id = Uuid::new_v4();
-        let result = Command::create_retry_failed_import_request(&request_id.to_string(), 1);
-        match result {
-            Ok(Command::RetryFailedImportRequest(data)) => {
-                assert_eq!(data.request_id, request_id);
-            },
-            other => panic!("expected Command::RetryFailedImportRequest, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn invalid_request_id_returns_command_creation_error() {
-        let result = Command::create_retry_failed_import_request("not-a-uuid", 1);
-        assert!(matches!(result, Err(DomainError::CommandCreation(_))));
-    }
-
-    #[test]
-    fn empty_request_id_returns_command_creation_error() {
-        let result = Command::create_retry_failed_import_request("", 1);
         assert!(matches!(result, Err(DomainError::CommandCreation(_))));
     }
 

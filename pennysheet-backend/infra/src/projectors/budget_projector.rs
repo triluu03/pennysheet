@@ -117,7 +117,6 @@ impl ProjectorTrait for BudgetProjector {
             | Event::ImportTransactionsRequested(_)
             | Event::ImportTransactionsCompleted(_)
             | Event::ImportTransactionsFailed(_)
-            | Event::TransactionImportRetryRequested(_)
             | Event::TransactionNoteUpdated(_)
             | Event::ImportTransactionsContinued(_) => {
                 // Skip these transaction events.

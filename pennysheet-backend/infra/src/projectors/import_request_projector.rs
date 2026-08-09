@@ -94,14 +94,6 @@ impl ProjectorTrait for ImportRequestProjector {
                 )
                 .await
             },
-            Event::TransactionImportRetryRequested(data) => {
-                projections::import_requests::update_import_request_status(
-                    txn,
-                    data.request_id,
-                    ImportRequestStatus::Pending,
-                )
-                .await
-            },
             Event::TransactionRecorded(_)
             | Event::TransactionCategorized(_)
             | Event::TransactionClassified(_)

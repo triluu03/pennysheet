@@ -1,7 +1,6 @@
 //! Transactions-related commands.
 
 use chrono::NaiveDate;
-use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct ImportTransactionsData {
@@ -21,12 +20,6 @@ impl ImportTransactionsData {
             session_id,
         }
     }
-}
-
-#[derive(Debug)]
-pub struct ImportRequestData {
-    pub request_id: Uuid,
-    pub session_id: i64,
 }
 
 #[cfg(test)]

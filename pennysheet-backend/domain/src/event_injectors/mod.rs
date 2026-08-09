@@ -2,10 +2,7 @@
 
 use chrono::NaiveDate;
 use gateway::schema::enable_banking_api::transaction::TransactionResponse;
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::HashSet;
 use tracing::info;
 use uuid::Uuid;
 
@@ -35,9 +32,6 @@ pub struct EventInjector {
     pending_request_id: Option<Uuid>,
     /// Data of the current pending request.
     pending_request_data: Option<RequestData>,
-    /// Map of all failed import requests with request ID as keys
-    /// and [`RequestData`] as values.
-    failed_request_map: HashMap<Uuid, RequestData>,
     /// Set of UUIDs for recorded transactions. This is used to avoid duplication when injecting
     /// new transaction events into the event table.
     recorded_transaction_id_set: HashSet<Uuid>,
@@ -189,14 +183,6 @@ impl EventInjector {
                     })
                 }
             },
-            Event::TransactionImportRetryRequested(data) => {
-                if self.session_id == data.session_id
-                    && let Some(request_data) = self.failed_request_map.get(&data.request_id)
-                {
-                    self.pending_request_id = Some(data.request_id);
-                    self.pending_request_data = Some(request_data.to_owned());
-                };
-            },
             Event::TransactionRecorded(data) => {
                 self.recorded_transaction_id_set
                     .insert(*data.get_transaction_id());
@@ -205,10 +191,6 @@ impl EventInjector {
                 if self.session_id == data.session_id
                     && self.pending_request_id == Some(data.request_id)
                 {
-                    if let Some(request_id) = self.pending_request_id {
-                        self.failed_request_map.remove(&request_id);
-                    };
-
                     self.pending_request_id = None;
                     self.pending_request_data = None;
                 }
@@ -217,12 +199,6 @@ impl EventInjector {
                 if self.session_id == data.session_id
                     && self.pending_request_id == Some(data.request_id)
                 {
-                    if let (Some(request_id), Some(request_data)) =
-                        (self.pending_request_id, self.pending_request_data)
-                    {
-                        self.failed_request_map.insert(request_id, request_data);
-                    };
-
                     self.pending_request_id = None;
                     self.pending_request_data = None;
                 }
@@ -398,97 +374,6 @@ mod tests {
     fn new_succeeds_with_pending_request() {
         assert!(EventInjector::new(1, &[requested_event(Uuid::new_v4(), 1)]).is_ok());
         assert!(EventInjector::new(2, &[requested_event(Uuid::new_v4(), 1)]).is_err());
-    }
-
-    #[test]
-    fn new_fails_with_retry_for_unknown_request() {
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-
-        let events = [Event::TransactionImportRetryRequested(ImportStatusData {
-            request_id,
-            session_id,
-        })];
-        assert!(matches!(
-            EventInjector::new(session_id, &events),
-            Err(DomainError::ComponentInit(_))
-        ));
-    }
-
-    #[test]
-    fn retry_after_failure_restores_pending_request() {
-        // Replaying a request that failed and was then retried must leave the
-        // injector pending on the original request id again.
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-
-        let injector = EventInjector::new(
-            session_id,
-            &[
-                requested_event(request_id, session_id),
-                Event::ImportTransactionsFailed(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-                Event::TransactionImportRetryRequested(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-            ],
-        )
-        .expect("a retried request should re-initialize the injector");
-
-        let response = TransactionResponse {
-            transactions: vec![transaction_with_amount("10.00")],
-            continuation_key: None,
-        };
-        let events = injector.inject_transaction_events(response).unwrap();
-
-        assert!(matches!(
-            events.last(),
-            Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
-        ));
-    }
-
-    #[test]
-    fn retry_after_failure_restores_request_date_window() {
-        // Replaying request -> failure -> retry must restore the original date
-        // range, not merely the request id. A paginated response should resume
-        // from the same window the original request was issued for.
-        let request_id = Uuid::new_v4();
-        let session_id = 1;
-
-        let injector = EventInjector::new(
-            session_id,
-            &[
-                requested_event(request_id, session_id),
-                Event::ImportTransactionsFailed(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-                Event::TransactionImportRetryRequested(ImportStatusData {
-                    request_id,
-                    session_id,
-                }),
-            ],
-        )
-        .expect("a retried request should re-initialize the injector");
-
-        // A continuation key forces a continuation event, which is the only place
-        // the rebuilt date window is observable in the injector's output.
-        let response = TransactionResponse {
-            transactions: vec![transaction_with_amount("10.00")],
-            continuation_key: Some("next-page".to_string()),
-        };
-        let events = injector.inject_transaction_events(response).unwrap();
-
-        let Some(Event::ImportTransactionsContinued(data)) = events.last() else {
-            panic!("expected a continuation event when a continuation key is present");
-        };
-        assert_eq!(data.request_id, request_id);
-        assert_eq!(data.start_date, start_date());
-        assert_eq!(data.end_date, end_date());
-        assert_eq!(data.continuation_key, "next-page".to_string());
     }
 
     /// Build a `TransactionRecorded` event for the given transaction, mirroring how a
