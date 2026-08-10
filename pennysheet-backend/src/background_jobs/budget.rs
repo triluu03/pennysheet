@@ -526,8 +526,10 @@ mod tests {
             debtor: None,
             booking_date: Some("2026-01-20".to_string()),
             transaction_date: Some("2026-01-20".to_string()),
+            entry_reference: None,
         };
-        let recorded = TransactionData::new(transaction).expect("valid transaction");
+        let recorded =
+            TransactionData::new(transaction, "test-account-uid").expect("valid transaction");
         let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
             .expect("fixture transaction has a creditor");
         infra::append_event_to_db(&db, Event::BudgetExpenseTracked(tracked))

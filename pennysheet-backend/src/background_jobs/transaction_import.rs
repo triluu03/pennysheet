@@ -153,6 +153,23 @@ pub async fn run_transaction_import(
     request_id: Uuid,
 ) {
     info!("starting transaction import");
+
+    // Extract account_uid before constructing the client, since
+    // EnableBankingClient::new moves the session out of session_data.
+    let account_uid = match session_data.enable_banking_session.get_account_uid() {
+        Ok(uid) => uid.clone(),
+        Err(error) => {
+            return fail_import(
+                &db,
+                request_id,
+                session_data.session_id,
+                "get account uid",
+                &error.to_string(),
+            )
+            .await;
+        },
+    };
+
     let client = match EnableBankingClient::new(session_data.enable_banking_session) {
         Ok(client) => client,
         Err(error) => {
@@ -249,7 +266,7 @@ pub async fn run_transaction_import(
             },
         };
 
-        let new_events = match injector.inject_transaction_events(response) {
+        let new_events = match injector.inject_transaction_events(response, &account_uid) {
             Ok(new_events) => new_events,
             Err(error) => {
                 return fail_import(

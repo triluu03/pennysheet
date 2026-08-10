@@ -100,6 +100,8 @@ mod tests {
             currency: "EUR".into(),
             creditor_name: Some("Shop".into()),
             debtor_name: Some("Payer".into()),
+            entry_reference: None,
+            account_uid: "test-account-uid".to_string(),
         });
         // Verify the key fields are set.
         assert_eq!(model.transaction_id.as_ref(), &txn_id);
