@@ -22,12 +22,12 @@ pub struct TransactionResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
+    pub entry_reference: Option<String>,
     pub transaction_amount: AmountType,
     pub creditor: Option<PartyIdentification>,
     pub debtor: Option<PartyIdentification>,
     pub booking_date: Option<String>,
     pub transaction_date: Option<String>,
-    pub entry_reference: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
