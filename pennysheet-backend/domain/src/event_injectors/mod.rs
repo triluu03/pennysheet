@@ -80,11 +80,12 @@ impl EventInjector {
     pub fn inject_transaction_events(
         &self,
         response: TransactionResponse,
+        account_uid: &str,
     ) -> Result<Vec<Event>, DomainError> {
         let new_data_records: Vec<TransactionData> = response
             .transactions
             .into_iter()
-            .map(TransactionData::new)
+            .map(|txn| TransactionData::new(txn, account_uid))
             .collect::<Result<Vec<TransactionData>, DomainError>>()?;
 
         let mut new_events: Vec<Event> = new_data_records
@@ -312,6 +313,9 @@ mod tests {
             .expect("a pending request should initialize the injector")
     }
 
+    /// Test account uid used across tests.
+    const TEST_ACCOUNT_UID: &str = "test-account-uid";
+
     /// Build a gateway `Transaction` with the given amount; remaining fields are fixed and valid.
     fn transaction_with_amount(amount: &str) -> Transaction {
         Transaction {
@@ -325,6 +329,7 @@ mod tests {
             debtor: None,
             booking_date: Some("2026-06-15".to_string()),
             transaction_date: Some("2026-06-14".to_string()),
+            entry_reference: None,
         }
     }
 
@@ -380,7 +385,8 @@ mod tests {
     /// previously injected transaction would appear in the event history.
     fn recorded_event(transaction: Transaction) -> Event {
         Event::TransactionRecorded(
-            TransactionData::new(transaction).expect("fixture transaction has valid fields"),
+            TransactionData::new(transaction, TEST_ACCOUNT_UID)
+                .expect("fixture transaction has valid fields"),
         )
     }
 
@@ -413,7 +419,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         // The duplicate is filtered out; only the terminal completion event remains.
         assert_eq!(recorded_count(&events), 0);
@@ -446,7 +454,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         // Only the new transaction survives the dedup filter.
         let recorded: Vec<&Event> = events
@@ -475,7 +485,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         // Both transactions are recorded (none dropped) plus a single terminal completion event.
         let recorded = events
@@ -501,7 +513,9 @@ mod tests {
             continuation_key: Some("next-page".to_string()),
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         // The continuation event must carry the request id, date range, and key forward
         // so the next pagination round can resume from where this one left off.
@@ -525,7 +539,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
         match &events[0] {
             Event::TransactionRecorded(data) => {
                 // Compare the amount via formatting to avoid brittle float equality.
@@ -554,7 +570,7 @@ mod tests {
             continuation_key: None,
         };
 
-        let result = injector.inject_transaction_events(response);
+        let result = injector.inject_transaction_events(response, TEST_ACCOUNT_UID);
         assert!(matches!(result, Err(DomainError::EventCreation(_))));
     }
 
@@ -571,7 +587,9 @@ mod tests {
             continuation_key: None,
         };
 
-        assert!(injector.inject_transaction_events(response).is_err());
+        assert!(injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .is_err());
     }
 
     /// A matching failure clears the pending request so the injector cannot re-init.
@@ -643,7 +661,9 @@ mod tests {
             transactions: vec![transaction_with_amount("10.00")],
             continuation_key: Some("next-page".to_string()),
         };
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
         match events.last() {
             Some(Event::ImportTransactionsContinued(data)) => {
                 assert_eq!(data.start_date, new_start);
@@ -677,7 +697,9 @@ mod tests {
             transactions: vec![transaction_with_amount("10.00")],
             continuation_key: Some("next-page".to_string()),
         };
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
         match events.last() {
             Some(Event::ImportTransactionsContinued(data)) => {
                 assert_eq!(data.start_date, start_date());
@@ -716,7 +738,9 @@ mod tests {
             transactions: vec![transaction_with_amount("10.00")],
             continuation_key: None,
         };
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
         assert!(matches!(
             events.last(),
             Some(Event::ImportTransactionsCompleted(data)) if data.request_id == request_id
@@ -738,7 +762,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         assert!(matches!(
             events.first(),
@@ -770,7 +796,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
 
         assert!(matches!(
             events.get(1),
@@ -801,7 +829,9 @@ mod tests {
             continuation_key: None,
         };
 
-        let events = injector.inject_transaction_events(response).unwrap();
+        let events = injector
+            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .unwrap();
         let tracked_types: Vec<BudgetType> = events
             .iter()
             .filter_map(|event| match event {
@@ -832,30 +862,39 @@ mod tests {
         };
 
         let over_threshold = budgeted_injector()
-            .inject_transaction_events(TransactionResponse {
-                transactions: vec![transaction_with_amount("75.00")],
-                continuation_key: None,
-            })
+            .inject_transaction_events(
+                TransactionResponse {
+                    transactions: vec![transaction_with_amount("75.00")],
+                    continuation_key: None,
+                },
+                TEST_ACCOUNT_UID,
+            )
             .unwrap();
         assert_eq!(tracked_count(&over_threshold), 0);
 
         let mut before_start = transaction_with_amount("25.00");
         before_start.booking_date = Some("2026-05-31".to_string());
         let before_start = budgeted_injector()
-            .inject_transaction_events(TransactionResponse {
-                transactions: vec![before_start],
-                continuation_key: None,
-            })
+            .inject_transaction_events(
+                TransactionResponse {
+                    transactions: vec![before_start],
+                    continuation_key: None,
+                },
+                TEST_ACCOUNT_UID,
+            )
             .unwrap();
         assert_eq!(tracked_count(&before_start), 0);
 
         let mut missing_creditor = transaction_with_amount("25.00");
         missing_creditor.creditor = None;
         let missing_creditor = budgeted_injector()
-            .inject_transaction_events(TransactionResponse {
-                transactions: vec![missing_creditor],
-                continuation_key: None,
-            })
+            .inject_transaction_events(
+                TransactionResponse {
+                    transactions: vec![missing_creditor],
+                    continuation_key: None,
+                },
+                TEST_ACCOUNT_UID,
+            )
             .unwrap();
         assert_eq!(tracked_count(&missing_creditor), 0);
     }
@@ -880,10 +919,13 @@ mod tests {
         }));
 
         let events = injector
-            .inject_transaction_events(TransactionResponse {
-                transactions: vec![transaction_with_amount("25.00")],
-                continuation_key: None,
-            })
+            .inject_transaction_events(
+                TransactionResponse {
+                    transactions: vec![transaction_with_amount("25.00")],
+                    continuation_key: None,
+                },
+                TEST_ACCOUNT_UID,
+            )
             .unwrap();
 
         assert_eq!(recorded_count(&events), 0);

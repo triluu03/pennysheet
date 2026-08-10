@@ -54,6 +54,10 @@ pub struct TransactionData {
     pub currency: String,
     pub creditor_name: Option<String>,
     pub debtor_name: Option<String>,
+    #[serde(default)]
+    pub entry_reference: Option<String>,
+    #[serde(default)]
+    pub account_uid: String,
 }
 
 /// UUID namespace for Transactions Data.
@@ -70,6 +74,7 @@ impl TransactionData {
     /// [`enable_banking_api::transaction::Transaction`] fails.
     pub fn new(
         transaction: enable_banking_api::transaction::Transaction,
+        account_uid: &str,
     ) -> Result<Self, DomainError> {
         let booking_date = transaction
             .booking_date
@@ -83,16 +88,18 @@ impl TransactionData {
         let currency = transaction.transaction_amount.currency;
         let creditor_name = transaction.creditor.and_then(|info| info.name);
         let debtor_name = transaction.debtor.and_then(|info| info.name);
+        let entry_reference = transaction.entry_reference;
 
-        // TODO: incorporate more information into the `transaction_id`
         let transaction_id = Uuid::new_v5(
             &NAMESPACE_TRANSACTION_DATA,
             format!(
-                "transaction_data:{}:{}:{amount}:{currency}:{}:{}",
-                booking_date.map_or("None".to_string(), |v| v.to_string()),
-                transaction_date.map_or("None".to_string(), |v| v.to_string()),
-                creditor_name.clone().unwrap_or("None".to_string()),
-                debtor_name.clone().unwrap_or("None".to_string()),
+                "transaction_data:{booking_date}:{transaction_date}:{amount}:{currency}:\
+                 {creditor_name}:{debtor_name}:{entry_reference}:{account_uid}",
+                booking_date = booking_date.map_or("None".to_string(), |v| v.to_string()),
+                transaction_date = transaction_date.map_or("None".to_string(), |v| v.to_string()),
+                creditor_name = creditor_name.clone().unwrap_or("None".to_string()),
+                debtor_name = debtor_name.clone().unwrap_or("None".to_string()),
+                entry_reference = entry_reference.clone().unwrap_or("None".to_string()),
             )
             .as_bytes(),
         );
@@ -105,6 +112,8 @@ impl TransactionData {
             currency,
             creditor_name,
             debtor_name,
+            entry_reference,
+            account_uid: account_uid.to_string(),
         })
     }
 
@@ -130,7 +139,7 @@ mod tests {
         TransactionData,
     };
 
-    /// Build a fully-populated, valid gateway `Transaction`.
+    /// Fully-populated, valid gateway `Transaction`.
     fn sample_transaction() -> Transaction {
         Transaction {
             transaction_amount: AmountType {
@@ -145,12 +154,16 @@ mod tests {
             }),
             booking_date: Some("2026-06-15".to_string()),
             transaction_date: Some("2026-06-14".to_string()),
+            entry_reference: None,
         }
     }
 
+    /// Test account uid used across tests.
+    const TEST_ACCOUNT_UID: &str = "test-account-uid";
+
     /// Construct a [`TransactionData`] and return its derived transaction id.
     fn id_of(transaction: Transaction) -> Uuid {
-        *TransactionData::new(transaction)
+        *TransactionData::new(transaction, TEST_ACCOUNT_UID)
             .expect("sample transaction has valid fields")
             .get_transaction_id()
     }
@@ -164,7 +177,9 @@ mod tests {
     fn transaction_id_matches_expected_uuid_v5() {
         let expected = Uuid::new_v5(
             &NAMESPACE_TRANSACTION_DATA,
-            "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane Doe".as_bytes(),
+            "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane \
+             Doe:None:test-account-uid"
+                .as_bytes(),
         );
         assert_eq!(id_of(sample_transaction()), expected);
     }
@@ -253,14 +268,17 @@ mod tests {
             }),
             booking_date: Some("2026-06-01".to_string()),
             transaction_date: Some("2026-05-31".to_string()),
+            entry_reference: None,
         };
-        let data = TransactionData::new(txn).unwrap();
+        let data = TransactionData::new(txn, TEST_ACCOUNT_UID).unwrap();
         assert_eq!(format!("{:.2}", data.amount), "99.95");
         assert_eq!(data.currency, "USD");
         assert_eq!(data.creditor_name.as_deref(), Some("Coffee Shop"));
         assert_eq!(data.debtor_name.as_deref(), Some("Employer"));
         assert_eq!(data.booking_date, NaiveDate::from_ymd_opt(2026, 6, 1));
         assert_eq!(data.transaction_date, NaiveDate::from_ymd_opt(2026, 5, 31));
+        assert_eq!(data.entry_reference, None);
+        assert_eq!(data.account_uid, TEST_ACCOUNT_UID);
     }
 
     /// Optional party and date fields may be absent without failing construction.
@@ -279,12 +297,14 @@ mod tests {
             debtor: None,
             booking_date: None,
             transaction_date: None,
+            entry_reference: None,
         };
-        let data = TransactionData::new(txn).unwrap();
+        let data = TransactionData::new(txn, TEST_ACCOUNT_UID).unwrap();
         assert_eq!(data.creditor_name, None);
         assert_eq!(data.debtor_name, None);
         assert_eq!(data.booking_date, None);
         assert_eq!(data.transaction_date, None);
+        assert_eq!(data.entry_reference, None);
     }
 
     /// An unparseable amount fails construction with an event-creation error.
@@ -292,7 +312,7 @@ mod tests {
     fn transaction_data_new_rejects_invalid_amount() {
         let mut txn = sample_transaction();
         txn.transaction_amount.amount = "not-a-number".to_string();
-        let result = TransactionData::new(txn);
+        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
         assert!(matches!(
             result,
             Err(crate::errors::DomainError::EventCreation(_))
@@ -304,7 +324,7 @@ mod tests {
     fn transaction_data_new_rejects_invalid_booking_date() {
         let mut txn = sample_transaction();
         txn.booking_date = Some("2026-13-40".to_string());
-        let result = TransactionData::new(txn);
+        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
         assert!(result.is_err());
     }
 
@@ -313,7 +333,26 @@ mod tests {
     fn transaction_data_new_rejects_invalid_transaction_date() {
         let mut txn = sample_transaction();
         txn.transaction_date = Some("2026-13-40".to_string());
-        let result = TransactionData::new(txn);
+        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
         assert!(result.is_err());
+    }
+
+    /// Transaction id differs when entry_reference differs.
+    #[test]
+    fn transaction_id_differs_when_entry_reference_differs() {
+        let base = id_of(sample_transaction());
+        let mut changed = sample_transaction();
+        changed.entry_reference = Some("REF-001".to_string());
+        assert_ne!(base, id_of(changed));
+    }
+
+    /// Transaction id differs when account_uid differs.
+    #[test]
+    fn transaction_id_differs_when_account_uid_differs() {
+        let base = id_of(sample_transaction());
+        let changed = *TransactionData::new(sample_transaction(), "different-account-uid")
+            .expect("sample transaction has valid fields")
+            .get_transaction_id();
+        assert_ne!(base, changed);
     }
 }

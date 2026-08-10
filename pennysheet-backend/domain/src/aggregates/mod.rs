@@ -478,6 +478,8 @@ mod tests {
             currency: "EUR".into(),
             creditor_name: None,
             debtor_name: None,
+            entry_reference: None,
+            account_uid: "test-account-uid".to_string(),
         }
     }
 

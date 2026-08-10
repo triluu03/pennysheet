@@ -342,18 +342,22 @@ mod tests {
         let session_id = 1;
         // Recorded transactions are irrelevant to the process manager's pending
         // state, so the manager must remain pending on the original request.
-        let recorded = TransactionData::new(Transaction {
-            transaction_amount: AmountType {
-                currency: "EUR".to_string(),
-                amount: "10.00".to_string(),
+        let recorded = TransactionData::new(
+            Transaction {
+                transaction_amount: AmountType {
+                    currency: "EUR".to_string(),
+                    amount: "10.00".to_string(),
+                },
+                creditor: Some(PartyIdentification {
+                    name: Some("Acme Corp".to_string()),
+                }),
+                debtor: None,
+                booking_date: Some("2026-06-15".to_string()),
+                transaction_date: Some("2026-06-14".to_string()),
+                entry_reference: None,
             },
-            creditor: Some(PartyIdentification {
-                name: Some("Acme Corp".to_string()),
-            }),
-            debtor: None,
-            booking_date: Some("2026-06-15".to_string()),
-            transaction_date: Some("2026-06-14".to_string()),
-        })
+            "test-account-uid",
+        )
         .expect("a valid transaction yields transaction data");
         let manager = TransactionProcessManager::new(
             session_id,

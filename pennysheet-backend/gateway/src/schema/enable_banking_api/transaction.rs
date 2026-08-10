@@ -27,6 +27,7 @@ pub struct Transaction {
     pub debtor: Option<PartyIdentification>,
     pub booking_date: Option<String>,
     pub transaction_date: Option<String>,
+    pub entry_reference: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
