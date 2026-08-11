@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { BudgetRow, BudgetType } from "../api/endpoints/budgets";
+
+import { TRANSACTION_PIVOT_COLORS } from "../api/endpoints/transactions";
 import { computeRemaining, findBudgetRow, getTransactionRows } from "../api/utils";
 
 /**
@@ -126,17 +128,33 @@ export default function BudgetCard({ budgetType, rows, onEdit, onDelete }: Budge
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {transactionRows.map(row => (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="py-3 text-gray-700">{row.date || "—"}</td>
-                      <td className="py-3 text-gray-700">{row.creditor_name}</td>
-                      <td className={`py-3 ${row.amount < 0 ? "text-red-600" : ""}`}>
-                        €{row.amount.toFixed(2)}
-                      </td>
-                      <td className="py-3 text-gray-700">{row.category || "—"}</td>
-                      <td className="py-3 text-gray-700">{row.classification || "—"}</td>
-                    </tr>
-                  ))}
+                  {transactionRows.map((row) => {
+                    const categoryColor = row.category ? TRANSACTION_PIVOT_COLORS[row.category] : undefined;
+                    const classificationColor = row.classification ? TRANSACTION_PIVOT_COLORS[row.classification] : undefined;
+                    return (
+                      <tr key={row.id} className="hover:bg-gray-50">
+                        <td className="py-3 text-gray-700">{row.date || "—"}</td>
+                        <td className="py-3 text-gray-700">{row.creditor_name}</td>
+                        <td className={`py-3 ${row.amount < 0 ? "text-red-600" : ""}`}>
+                          €{row.amount.toFixed(2)}
+                        </td>
+                        <td className="py-3 text-gray-700">
+                          {categoryColor ? (
+                            <span style={{ color: categoryColor }}>{row.category || "—"}</span>
+                          ) : (
+                            row.category || "—"
+                          )}
+                        </td>
+                        <td className="py-3 text-gray-700">
+                          {classificationColor ? (
+                            <span style={{ color: classificationColor }}>{row.classification || "—"}</span>
+                          ) : (
+                            row.classification || "—"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
