@@ -128,9 +128,13 @@ export default function BudgetCard({ budgetType, rows, onEdit, onDelete }: Budge
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {transactionRows.map((row) => {
-                    const categoryColor = row.category ? TRANSACTION_PIVOT_COLORS[row.category] : undefined;
-                    const classificationColor = row.classification ? TRANSACTION_PIVOT_COLORS[row.classification] : undefined;
+                  {transactionRows.map(row => {
+                    const categoryColor = row.category
+                      ? TRANSACTION_PIVOT_COLORS[row.category]
+                      : undefined;
+                    const classificationColor = row.classification
+                      ? TRANSACTION_PIVOT_COLORS[row.classification]
+                      : undefined;
                     return (
                       <tr key={row.id} className="hover:bg-gray-50">
                         <td className="py-3 text-gray-700">{row.date || "—"}</td>
@@ -147,7 +151,9 @@ export default function BudgetCard({ budgetType, rows, onEdit, onDelete }: Budge
                         </td>
                         <td className="py-3 text-gray-700">
                           {classificationColor ? (
-                            <span style={{ color: classificationColor }}>{row.classification || "—"}</span>
+                            <span style={{ color: classificationColor }}>
+                              {row.classification || "—"}
+                            </span>
                           ) : (
                             row.classification || "—"
                           )}
