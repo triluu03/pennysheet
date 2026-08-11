@@ -221,8 +221,16 @@ where
     select_query
         .expr_as(date_trunc_expr.clone().cast_as("date"), "date")
         .from("coalesce_table")
-        .and_where(Expr::col("category").is_in(categories))
-        .and_where(Expr::col("classification").is_in(classifications))
+        .and_where(
+            Expr::col("category")
+                .is_in(categories)
+                .or(Expr::col("category").is_null()),
+        )
+        .and_where(
+            Expr::col("classification")
+                .is_in(classifications)
+                .or(Expr::col("classification").is_null()),
+        )
         .add_group_by([date_trunc_expr.clone()])
         .order_by_expr(date_trunc_expr, Order::Asc);
 
