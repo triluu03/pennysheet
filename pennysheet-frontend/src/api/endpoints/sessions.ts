@@ -11,14 +11,18 @@ export interface CreateSessionPayload {
   session: string;
 }
 
+export interface SessionsResponse {
+  valid_sessions: EnableBankingSession[];
+  expired_sessions: EnableBankingSession[];
+}
+
 /**
  * Fetch all Enable Banking sessions.
  *
- * @returns {Promise<EnableBankingSession[]>} - List of all Enable Banking sessions.
+ * @returns {Promise<SessionsResponse>} - Object containing valid and expired Enable Banking sessions.
  */
-export async function getAllSessions(): Promise<EnableBankingSession[]> {
-  // TODO: show also the expired sessions!
-  return await client.get("/sessions").then(response => response.data.valid_sessions);
+export async function getAllSessions(): Promise<SessionsResponse> {
+  return await client.get("/sessions").then(response => response.data);
 }
 
 /**
