@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type SessionsResponse, getAllSessions } from "../api/endpoints/sessions";
+import { getAllSessions, type SessionsResponse } from "../api/endpoints/sessions";
 
 export function useSessions() {
   const [data, setData] = useState<SessionsResponse>({ valid_sessions: [], expired_sessions: [] });
