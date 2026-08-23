@@ -28,15 +28,6 @@ export default function SessionsSection() {
       showToast(`Error when fetching the Enable Banking sessions: ${error.message}`, "error");
   }, [data, loading, error, showToast]);
 
-  useEffect(() => {
-    if (expiredSessions.length > 0) {
-      showToast(
-        "You have expired Enable Banking sessions. Please address them by deleting and re-importing a new one.",
-        "warning"
-      );
-    }
-  }, [expiredSessions.length, showToast]);
-
   const [showImport, setShowImport] = useState(false);
   const [importName, setImportName] = useState("");
   const [importJson, setImportJson] = useState("");

@@ -1,10 +1,13 @@
 import { Outlet } from "react-router-dom";
+import { useSessionExpiryToast } from "../hooks/useSessionExpiryToast";
 import SideNav from "./SideNav";
 
 /**
  * Layout of the application.
  */
 export default function Layout() {
+  useSessionExpiryToast();
+
   return (
     <div className="flex h-screen bg-gray-100">
       <SideNav />
