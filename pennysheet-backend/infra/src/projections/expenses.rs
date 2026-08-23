@@ -317,7 +317,7 @@ mod tests {
             creditor_name: creditor.map(|c| c.to_string()),
             debtor_name: None,
             entry_reference: None,
-            account_uid: "test-account-uid".to_string(),
+            aspsp_name: "test-aspsp".to_string(),
         }
     }
 

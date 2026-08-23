@@ -83,6 +83,11 @@ impl EnableBankingSession {
             Ok(&self.accounts[0].uid)
         }
     }
+
+    /// Get ASPSP name.
+    pub fn get_aspsp_name(&self) -> &str {
+        &self.aspsp.name
+    }
 }
 
 #[cfg(test)]
@@ -119,6 +124,14 @@ mod tests {
         let session =
             EnableBankingSession::from_json(SAMPLE_SESSION).expect("sample session should parse");
         assert!(matches!(session.psu_type, PSUType::Personal));
+    }
+
+    /// `get_aspsp_name` returns the ASPSP name from the session.
+    #[test]
+    fn get_aspsp_name_returns_aspsp_name() {
+        let session =
+            EnableBankingSession::from_json(SAMPLE_SESSION).expect("sample session should parse");
+        assert_eq!(session.get_aspsp_name(), "Mock Bank");
     }
 
     /// `get_account_uid` errors when the session carries no accounts.

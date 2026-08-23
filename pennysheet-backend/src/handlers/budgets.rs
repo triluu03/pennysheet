@@ -765,8 +765,7 @@ mod tests {
             transaction_date: Some("2026-01-20".to_string()),
             entry_reference: None,
         };
-        let recorded =
-            TransactionData::new(transaction, "test-account-uid").expect("valid transaction");
+        let recorded = TransactionData::new(transaction, "test-aspsp").expect("valid transaction");
         let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
             .expect("fixture transaction has a creditor");
         infra::append_event_to_db(&state.db, Event::BudgetExpenseTracked(tracked))
@@ -946,8 +945,7 @@ mod tests {
             transaction_date: Some("2026-01-20".to_string()),
             entry_reference: None,
         };
-        let recorded =
-            TransactionData::new(transaction, "test-account-uid").expect("valid transaction");
+        let recorded = TransactionData::new(transaction, "test-aspsp").expect("valid transaction");
         let tracked = TrackedExpenseData::from_transaction(&recorded, BudgetType::Weekly)
             .expect("fixture transaction has a creditor");
         infra::append_event_to_db(&state.db, Event::BudgetExpenseTracked(tracked))

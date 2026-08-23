@@ -356,7 +356,7 @@ mod tests {
                 transaction_date: Some("2026-06-14".to_string()),
                 entry_reference: None,
             },
-            "test-account-uid",
+            "test-aspsp",
         )
         .expect("a valid transaction yields transaction data");
         let manager = TransactionProcessManager::new(

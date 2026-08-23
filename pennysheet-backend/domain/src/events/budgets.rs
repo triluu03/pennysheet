@@ -107,7 +107,7 @@ mod tests {
             creditor_name: Some("Acme Corp".to_string()),
             debtor_name: None,
             entry_reference: None,
-            account_uid: "test-account-uid".to_string(),
+            aspsp_name: "test-aspsp".to_string(),
         };
 
         let tracked = TrackedExpenseData::from_transaction(&data, BudgetType::Weekly)
@@ -134,7 +134,7 @@ mod tests {
             creditor_name: None,
             debtor_name: None,
             entry_reference: None,
-            account_uid: "test-account-uid".to_string(),
+            aspsp_name: "test-aspsp".to_string(),
         };
 
         assert!(TrackedExpenseData::from_transaction(&data, BudgetType::Monthly).is_none());
