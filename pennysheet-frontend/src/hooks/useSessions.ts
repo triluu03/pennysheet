@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { type EnableBankingSession, getAllSessions } from "../api/endpoints/sessions";
+import { getAllSessions, type SessionsResponse } from "../api/endpoints/sessions";
 
 export function useSessions() {
-  const [data, setData] = useState<EnableBankingSession[]>([]);
+  const [data, setData] = useState<SessionsResponse>({ valid_sessions: [], expired_sessions: [] });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     getAllSessions()

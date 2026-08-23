@@ -16,11 +16,26 @@ export default function SessionsSection() {
   const { showToast } = useToast();
 
   const [sessions, setSessions] = useState<EnableBankingSession[]>([]);
+  const [expiredSessions, setExpiredSessions] = useState<EnableBankingSession[]>([]);
   const { data, loading, error } = useSessions();
+
   useEffect(() => {
-    if (!loading && !error) setSessions(data);
-    if (error) showToast(`Error when fetching the Enable Banking sessions: ${error}`, "error");
+    if (!loading && !error) {
+      setSessions(data.valid_sessions);
+      setExpiredSessions(data.expired_sessions);
+    }
+    if (error)
+      showToast(`Error when fetching the Enable Banking sessions: ${error.message}`, "error");
   }, [data, loading, error, showToast]);
+
+  useEffect(() => {
+    if (expiredSessions.length > 0) {
+      showToast(
+        "You have expired Enable Banking sessions. Please address them by deleting and re-importing a new one.",
+        "warning"
+      );
+    }
+  }, [expiredSessions.length, showToast]);
 
   const [showImport, setShowImport] = useState(false);
   const [importName, setImportName] = useState("");
@@ -45,18 +60,29 @@ export default function SessionsSection() {
       return;
     }
 
-    const newSession = await createNewSession({ name: trimmedName, session: importJson });
-    setSessions(prev => [...prev, newSession]);
+    await createNewSession({ name: trimmedName, session: importJson })
+      .then(newSession => {
+        setSessions(prev => [...prev, newSession]);
 
-    setImportName("");
-    setImportJson("");
-    setShowImport(false);
-    setImportError(null);
+        setImportName("");
+        setImportJson("");
+        setShowImport(false);
+        setImportError(null);
+      })
+      .catch(error => showToast(`Failed to import a new session. Reason: ${error}`, "error"));
   }
 
   async function confirmDelete(sessionId: number) {
-    await deleteSession(sessionId);
-    setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+    await deleteSession(sessionId)
+      .then(_ => {
+        setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+        setExpiredSessions(prev => prev.filter(s => s.session_id !== sessionId));
+        setDeleteConfirmId(null);
+      })
+      .catch(error => {
+        showToast(`Failed to delete session: ${error}`, "error");
+        setDeleteConfirmId(null);
+      });
   }
 
   return (
@@ -122,7 +148,7 @@ export default function SessionsSection() {
         </div>
       )}
 
-      {sessions.length === 0 && (
+      {sessions.length === 0 && expiredSessions.length === 0 && (
         <p className="text-sm text-gray-400 italic">
           No Enable Banking sessions are found! Please import at least one to keep the app working!
         </p>
@@ -172,6 +198,59 @@ export default function SessionsSection() {
           </div>
         ))}
       </div>
+
+      {expiredSessions.length > 0 && (
+        <>
+          <p className="text-sm font-medium text-amber-600 mt-4 mb-1">Expired sessions</p>
+          <div className="flex flex-col gap-2">
+            {expiredSessions.map(session => (
+              <div
+                key={session.session_id}
+                className="flex items-center justify-between p-3 rounded-lg border border-amber-500 bg-amber-50"
+              >
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">
+                    {session.session_name}
+                    <span className="ml-2 text-xs font-medium text-amber-600">Expired</span>
+                  </span>
+                  <span className="text-xs text-amber-700">
+                    {formatDate(new Date(session.created_at))}
+                  </span>
+                </div>
+
+                {deleteConfirmId === session.session_id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-red-600">Delete this session?</span>
+                    <button
+                      type="button"
+                      onClick={() => confirmDelete(session.session_id)}
+                      className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs hover:bg-red-600"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="px-2 py-1 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmId(session.session_id)}
+                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
+                    aria-label="Delete session"
+                  >
+                    <TrashIcon className="size-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }
