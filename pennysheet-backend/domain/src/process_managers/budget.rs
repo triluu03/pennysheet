@@ -337,8 +337,7 @@ mod tests {
             transaction_date: Some("2026-01-02".to_string()),
             entry_reference: None,
         };
-        let recorded =
-            TransactionData::new(transaction, "test-account-uid").expect("valid transaction");
+        let recorded = TransactionData::new(transaction, "test-aspsp").expect("valid transaction");
 
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 600.0),
@@ -451,8 +450,7 @@ mod tests {
             transaction_date: Some("2026-01-02".to_string()),
             entry_reference: None,
         };
-        let recorded =
-            TransactionData::new(transaction, "test-account-uid").expect("valid transaction");
+        let recorded = TransactionData::new(transaction, "test-aspsp").expect("valid transaction");
 
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 200.0),
@@ -530,7 +528,7 @@ mod tests {
             creditor_name: Some("Test Store".to_string()),
             debtor_name: None,
             entry_reference: None,
-            account_uid: "test-account-uid".to_string(),
+            aspsp_name: "test-aspsp".to_string(),
         };
         let events = [
             budget_created_event(BudgetType::Weekly, 500.0, 200.0),

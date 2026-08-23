@@ -80,12 +80,12 @@ impl EventInjector {
     pub fn inject_transaction_events(
         &self,
         response: TransactionResponse,
-        account_uid: &str,
+        aspsp_name: &str,
     ) -> Result<Vec<Event>, DomainError> {
         let new_data_records: Vec<TransactionData> = response
             .transactions
             .into_iter()
-            .map(|txn| TransactionData::new(txn, account_uid))
+            .map(|txn| TransactionData::new(txn, aspsp_name))
             .collect::<Result<Vec<TransactionData>, DomainError>>()?;
 
         let mut new_events: Vec<Event> = new_data_records
@@ -313,8 +313,8 @@ mod tests {
             .expect("a pending request should initialize the injector")
     }
 
-    /// Test account uid used across tests.
-    const TEST_ACCOUNT_UID: &str = "test-account-uid";
+    /// Test ASPSP name used across tests.
+    const TEST_ASPSP_NAME: &str = "test-aspsp";
 
     /// Build a gateway `Transaction` with the given amount; remaining fields are fixed and valid.
     fn transaction_with_amount(amount: &str) -> Transaction {
@@ -385,7 +385,7 @@ mod tests {
     /// previously injected transaction would appear in the event history.
     fn recorded_event(transaction: Transaction) -> Event {
         Event::TransactionRecorded(
-            TransactionData::new(transaction, TEST_ACCOUNT_UID)
+            TransactionData::new(transaction, TEST_ASPSP_NAME)
                 .expect("fixture transaction has valid fields"),
         )
     }
@@ -420,7 +420,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         // The duplicate is filtered out; only the terminal completion event remains.
@@ -455,7 +455,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         // Only the new transaction survives the dedup filter.
@@ -486,7 +486,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         // Both transactions are recorded (none dropped) plus a single terminal completion event.
@@ -514,7 +514,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         // The continuation event must carry the request id, date range, and key forward
@@ -540,7 +540,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
         match &events[0] {
             Event::TransactionRecorded(data) => {
@@ -570,7 +570,7 @@ mod tests {
             continuation_key: None,
         };
 
-        let result = injector.inject_transaction_events(response, TEST_ACCOUNT_UID);
+        let result = injector.inject_transaction_events(response, TEST_ASPSP_NAME);
         assert!(matches!(result, Err(DomainError::EventCreation(_))));
     }
 
@@ -588,7 +588,7 @@ mod tests {
         };
 
         assert!(injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .is_err());
     }
 
@@ -662,7 +662,7 @@ mod tests {
             continuation_key: Some("next-page".to_string()),
         };
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
         match events.last() {
             Some(Event::ImportTransactionsContinued(data)) => {
@@ -698,7 +698,7 @@ mod tests {
             continuation_key: Some("next-page".to_string()),
         };
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
         match events.last() {
             Some(Event::ImportTransactionsContinued(data)) => {
@@ -739,7 +739,7 @@ mod tests {
             continuation_key: None,
         };
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
         assert!(matches!(
             events.last(),
@@ -763,7 +763,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         assert!(matches!(
@@ -797,7 +797,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
 
         assert!(matches!(
@@ -830,7 +830,7 @@ mod tests {
         };
 
         let events = injector
-            .inject_transaction_events(response, TEST_ACCOUNT_UID)
+            .inject_transaction_events(response, TEST_ASPSP_NAME)
             .unwrap();
         let tracked_types: Vec<BudgetType> = events
             .iter()
@@ -867,7 +867,7 @@ mod tests {
                     transactions: vec![transaction_with_amount("75.00")],
                     continuation_key: None,
                 },
-                TEST_ACCOUNT_UID,
+                TEST_ASPSP_NAME,
             )
             .unwrap();
         assert_eq!(tracked_count(&over_threshold), 0);
@@ -880,7 +880,7 @@ mod tests {
                     transactions: vec![before_start],
                     continuation_key: None,
                 },
-                TEST_ACCOUNT_UID,
+                TEST_ASPSP_NAME,
             )
             .unwrap();
         assert_eq!(tracked_count(&before_start), 0);
@@ -893,7 +893,7 @@ mod tests {
                     transactions: vec![missing_creditor],
                     continuation_key: None,
                 },
-                TEST_ACCOUNT_UID,
+                TEST_ASPSP_NAME,
             )
             .unwrap();
         assert_eq!(tracked_count(&missing_creditor), 0);
@@ -924,7 +924,7 @@ mod tests {
                     transactions: vec![transaction_with_amount("25.00")],
                     continuation_key: None,
                 },
-                TEST_ACCOUNT_UID,
+                TEST_ASPSP_NAME,
             )
             .unwrap();
 

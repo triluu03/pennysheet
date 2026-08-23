@@ -57,7 +57,7 @@ pub struct TransactionData {
     #[serde(default)]
     pub entry_reference: Option<String>,
     #[serde(default)]
-    pub account_uid: String,
+    pub aspsp_name: String,
 }
 
 /// UUID namespace for Transactions Data.
@@ -66,15 +66,15 @@ const NAMESPACE_TRANSACTION_DATA: Uuid = Uuid::from_bytes([
 ]);
 
 impl TransactionData {
-    /// Constructor
+    /// Construct a [`TransactionData`] from a gateway transaction.
     ///
     /// # Errors
     ///
-    /// Return [`DomainError`] if parsing the values from
+    /// Returns [`DomainError`] if parsing any value from
     /// [`enable_banking_api::transaction::Transaction`] fails.
     pub fn new(
         transaction: enable_banking_api::transaction::Transaction,
-        account_uid: &str,
+        aspsp_name: &str,
     ) -> Result<Self, DomainError> {
         let booking_date = transaction
             .booking_date
@@ -94,7 +94,7 @@ impl TransactionData {
             &NAMESPACE_TRANSACTION_DATA,
             format!(
                 "transaction_data:{booking_date}:{transaction_date}:{amount}:{currency}:\
-                 {creditor_name}:{debtor_name}:{entry_reference}:{account_uid}",
+                 {creditor_name}:{debtor_name}:{entry_reference}:{aspsp_name}",
                 booking_date = booking_date.map_or("None".to_string(), |v| v.to_string()),
                 transaction_date = transaction_date.map_or("None".to_string(), |v| v.to_string()),
                 creditor_name = creditor_name.clone().unwrap_or("None".to_string()),
@@ -113,7 +113,7 @@ impl TransactionData {
             creditor_name,
             debtor_name,
             entry_reference,
-            account_uid: account_uid.to_string(),
+            aspsp_name: aspsp_name.to_string(),
         })
     }
 
@@ -158,12 +158,12 @@ mod tests {
         }
     }
 
-    /// Test account uid used across tests.
-    const TEST_ACCOUNT_UID: &str = "test-account-uid";
+    /// Test ASPSP name used across tests.
+    const TEST_ASPSP_NAME: &str = "test-aspsp";
 
     /// Construct a [`TransactionData`] and return its derived transaction id.
     fn id_of(transaction: Transaction) -> Uuid {
-        *TransactionData::new(transaction, TEST_ACCOUNT_UID)
+        *TransactionData::new(transaction, TEST_ASPSP_NAME)
             .expect("sample transaction has valid fields")
             .get_transaction_id()
     }
@@ -177,8 +177,7 @@ mod tests {
     fn transaction_id_matches_expected_uuid_v5() {
         let expected = Uuid::new_v5(
             &NAMESPACE_TRANSACTION_DATA,
-            "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane \
-             Doe:None:test-account-uid"
+            "transaction_data:2026-06-15:2026-06-14:42.5:EUR:Acme Corp:Jane Doe:None:test-aspsp"
                 .as_bytes(),
         );
         assert_eq!(id_of(sample_transaction()), expected);
@@ -270,7 +269,7 @@ mod tests {
             transaction_date: Some("2026-05-31".to_string()),
             entry_reference: None,
         };
-        let data = TransactionData::new(txn, TEST_ACCOUNT_UID).unwrap();
+        let data = TransactionData::new(txn, TEST_ASPSP_NAME).unwrap();
         assert_eq!(format!("{:.2}", data.amount), "99.95");
         assert_eq!(data.currency, "USD");
         assert_eq!(data.creditor_name.as_deref(), Some("Coffee Shop"));
@@ -278,7 +277,7 @@ mod tests {
         assert_eq!(data.booking_date, NaiveDate::from_ymd_opt(2026, 6, 1));
         assert_eq!(data.transaction_date, NaiveDate::from_ymd_opt(2026, 5, 31));
         assert_eq!(data.entry_reference, None);
-        assert_eq!(data.account_uid, TEST_ACCOUNT_UID);
+        assert_eq!(data.aspsp_name, TEST_ASPSP_NAME);
     }
 
     /// Optional party and date fields may be absent without failing construction.
@@ -299,7 +298,7 @@ mod tests {
             transaction_date: None,
             entry_reference: None,
         };
-        let data = TransactionData::new(txn, TEST_ACCOUNT_UID).unwrap();
+        let data = TransactionData::new(txn, TEST_ASPSP_NAME).unwrap();
         assert_eq!(data.creditor_name, None);
         assert_eq!(data.debtor_name, None);
         assert_eq!(data.booking_date, None);
@@ -312,7 +311,7 @@ mod tests {
     fn transaction_data_new_rejects_invalid_amount() {
         let mut txn = sample_transaction();
         txn.transaction_amount.amount = "not-a-number".to_string();
-        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
+        let result = TransactionData::new(txn, TEST_ASPSP_NAME);
         assert!(matches!(
             result,
             Err(crate::errors::DomainError::EventCreation(_))
@@ -324,7 +323,7 @@ mod tests {
     fn transaction_data_new_rejects_invalid_booking_date() {
         let mut txn = sample_transaction();
         txn.booking_date = Some("2026-13-40".to_string());
-        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
+        let result = TransactionData::new(txn, TEST_ASPSP_NAME);
         assert!(result.is_err());
     }
 
@@ -333,7 +332,7 @@ mod tests {
     fn transaction_data_new_rejects_invalid_transaction_date() {
         let mut txn = sample_transaction();
         txn.transaction_date = Some("2026-13-40".to_string());
-        let result = TransactionData::new(txn, TEST_ACCOUNT_UID);
+        let result = TransactionData::new(txn, TEST_ASPSP_NAME);
         assert!(result.is_err());
     }
 
@@ -346,11 +345,11 @@ mod tests {
         assert_ne!(base, id_of(changed));
     }
 
-    /// Transaction id differs when account_uid differs.
+    /// Transaction id differs when aspsp_name differs.
     #[test]
-    fn transaction_id_differs_when_account_uid_differs() {
+    fn transaction_id_differs_when_aspsp_name_differs() {
         let base = id_of(sample_transaction());
-        let changed = *TransactionData::new(sample_transaction(), "different-account-uid")
+        let changed = *TransactionData::new(sample_transaction(), "different-aspsp")
             .expect("sample transaction has valid fields")
             .get_transaction_id();
         assert_ne!(base, changed);
