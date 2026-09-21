@@ -22,7 +22,7 @@ Each module reads its configuration from environment files. Actual `.env*` files
 
 ### Root — backend configuration (`pennysheet-backend`)
 
-The backend loads `.env-dev.local` (debug builds) or `.env-prod.local` (release builds) from the repository root, using [`dotenvy`](https://crates.io/crates/dotenvy). Start from [`.env.example`](./.env.example):
+The backend loads `.env-dev.local` (debug builds) or `.env-prod.local` (release builds) from the repository root. Start from [`.env.example`](./.env.example):
 
 | Variable             | Description                                           |
 | -------------------- | ----------------------------------------------------- |
