@@ -1,11 +1,26 @@
-//! Main entry-point of Pennysheet backend.
+//! Binary entry-point for the Axum REST API.
 
 use infra::{
-    DatabaseConnection,
     connect_to_database,
     ensure_append_only_eventstore,
+    projectors::{
+        BudgetProjector,
+        CoreProjector,
+        ImportRequestProjector,
+    },
     setup_new_event_notification,
     sync_database_schema,
+};
+use pennysheet_backend::{
+    AppState,
+    background_jobs::{
+        scheduled_budget_reset,
+        scheduled_budget_status_notification,
+        scheduled_transaction_import,
+        spawn_and_subscribe_projector,
+    },
+    routes::app_router,
+    telemetry::init_tracing,
 };
 use std::sync::Arc;
 use tower_http::services::{
@@ -14,39 +29,17 @@ use tower_http::services::{
 };
 use tracing::info;
 
-use crate::background_jobs::{
-    scheduled_budget_reset,
-    scheduled_budget_status_notification,
-    scheduled_transaction_import,
-    spawn_and_subscribe_projector,
-};
-use infra::projectors::{
-    BudgetProjector,
-    CoreProjector,
-    ImportRequestProjector,
-};
-
-mod background_jobs;
-mod errors;
-mod handlers;
-mod routes;
-mod telemetry;
-
-pub struct AppState {
-    db: DatabaseConnection,
-}
-
-/// Main function of Axum application
+/// Main function of Axum REST API.
 ///
 /// # Panics
 ///
-/// Panic in the following scenarios:
+/// Panics in the following scenarios:
 /// - Cannot install the global tracing subscriber.
-/// - Cannot connect to database or sync database setup.
-/// - Cannot serve the Axum application to the specified port.
+/// - Cannot connect to the database or sync the database setup.
+/// - Cannot bind the listener or serve the Axum application on the specified port.
 #[tokio::main]
 async fn main() {
-    telemetry::init_tracing().expect("tracing subscriber should install once at startup");
+    init_tracing().expect("tracing subscriber should install once at startup");
 
     let db = connect_to_database().await.unwrap();
     info!("connected to database");
@@ -76,7 +69,7 @@ async fn main() {
     tokio::spawn(scheduled_budget_status_notification(db.clone()));
     info!("scheduled daily budget status notification in the background");
 
-    let app = routes::app_router()
+    let app = app_router()
         .with_state(Arc::new(AppState { db }))
         .fallback_service(
             ServeDir::new("dist").not_found_service(ServeFile::new("dist/index.html")),
