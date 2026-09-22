@@ -305,7 +305,7 @@ wheels = [
 ]
 
 [[package]]
-name = "pennysheet-poc"
+name = "pennysheet-auth"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
