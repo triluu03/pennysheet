@@ -43,7 +43,8 @@ impl ServerHandler for PennysheetMcpServer {
 /// # Errors
 ///
 /// Returns an error if the stdio transport fails to serve, for example due to
-/// a transport or initialization error propagated via `?`.
+/// a transport or initialization error, or if the service loop task fails
+/// while waiting for the connection to close.
 ///
 /// # Panics
 ///
@@ -53,6 +54,7 @@ impl ServerHandler for PennysheetMcpServer {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
     tracing::info!("starting Pennysheet MCP server over stdio");
-    PennysheetMcpServer.serve(rmcp::transport::stdio()).await?;
+    let server = PennysheetMcpServer.serve(rmcp::transport::stdio()).await?;
+    server.waiting().await?;
     Ok(())
 }
