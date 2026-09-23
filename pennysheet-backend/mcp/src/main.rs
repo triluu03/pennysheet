@@ -3,11 +3,6 @@
 use rmcp::{
     ServerHandler,
     ServiceExt,
-    model::{
-        Implementation,
-        ServerCapabilities,
-        ServerConfig,
-    },
     tool,
     tool_handler,
     tool_router,
@@ -26,17 +21,8 @@ impl PennysheetMcpServer {
     }
 }
 
-#[tool_handler]
-impl ServerHandler for PennysheetMcpServer {
-    fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(
-                "pennysheet-mcp",
-                env!("CARGO_PKG_VERSION"),
-            ))
-            .with_instructions("Pennysheet MCP server.")
-    }
-}
+#[tool_handler(name = "pennysheet-mcp", instructions = "Pennysheet MCP server.")]
+impl ServerHandler for PennysheetMcpServer {}
 
 /// Main function of the Pennysheet MCP server.
 ///
