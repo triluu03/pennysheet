@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = { workspace = true }
+domain = { version = "0.1.0", path = "../domain" }
+infra = { version = "0.1.0", path = "../infra" }
 service = { version = "0.1.0", path = "../service" }
 rmcp = { version = "3.4.0", features = ["transport-io"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
@@ -11,6 +14,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
+uuid = { workspace = true }
+
+[dev-dependencies]
+sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
 
 [lints]
 workspace = true
