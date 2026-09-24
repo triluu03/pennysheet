@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+service = { version = "0.1.0", path = "../service" }
 rmcp = { version = "3.4.0", features = ["transport-io"] }
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 serde = { workspace = true }

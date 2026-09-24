@@ -2166,6 +2166,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "service",
  "strum",
  "tokio",
  "tower-http",
@@ -2181,6 +2182,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "service",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3120,6 +3122,16 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "service"
+version = "0.1.0"
+dependencies = [
+ "domain",
+ "gateway",
+ "infra",
+ "tracing",
 ]
 
 [[package]]

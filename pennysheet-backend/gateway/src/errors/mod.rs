@@ -32,6 +32,8 @@ impl fmt::Display for GatewayError {
     }
 }
 
+impl std::error::Error for GatewayError {}
+
 impl From<reqwest::Error> for GatewayError {
     fn from(value: reqwest::Error) -> Self {
         Self::Request(value.to_string())

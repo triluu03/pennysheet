@@ -1,0 +1,13 @@
+[package]
+name = "service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+domain = { version = "0.1.0", path = "../domain" }
+gateway = { version = "0.1.0", path = "../gateway", default-features = false }
+infra = { version = "0.1.0", path = "../infra" }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

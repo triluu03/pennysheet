@@ -1,15 +1,9 @@
 //! Binary entry-point for the Axum REST API.
 
-use infra::{
-    connect_to_database,
-    ensure_append_only_eventstore,
-    projectors::{
-        BudgetProjector,
-        CoreProjector,
-        ImportRequestProjector,
-    },
-    setup_new_event_notification,
-    sync_database_schema,
+use infra::projectors::{
+    BudgetProjector,
+    CoreProjector,
+    ImportRequestProjector,
 };
 use pennysheet_backend::{
     AppState,
@@ -22,6 +16,7 @@ use pennysheet_backend::{
     routes::app_router,
     telemetry::init_tracing,
 };
+use service::database::connect_and_prepare;
 use std::sync::Arc;
 use tower_http::services::{
     ServeDir,
@@ -41,17 +36,9 @@ use tracing::info;
 async fn main() {
     init_tracing().expect("tracing subscriber should install once at startup");
 
-    let db = connect_to_database().await.unwrap();
-    info!("connected to database");
-
-    sync_database_schema(&db).await.unwrap();
-    info!("database schema synced");
-
-    setup_new_event_notification(&db).await.unwrap();
-    info!("event notifications online");
-
-    ensure_append_only_eventstore(&db).await.unwrap();
-    info!("append-only event store ensured");
+    let db = connect_and_prepare()
+        .await
+        .expect("database bootstrap should succeed");
 
     tokio::spawn(spawn_and_subscribe_projector::<CoreProjector>(db.clone()));
     tokio::spawn(spawn_and_subscribe_projector::<ImportRequestProjector>(

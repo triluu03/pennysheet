@@ -27,6 +27,8 @@ impl fmt::Display for DomainError {
     }
 }
 
+impl std::error::Error for DomainError {}
+
 impl From<chrono::ParseError> for DomainError {
     fn from(value: chrono::ParseError) -> Self {
         Self::CommandCreation(value.to_string())

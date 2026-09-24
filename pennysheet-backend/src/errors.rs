@@ -8,6 +8,7 @@ use axum::{
 use core::fmt;
 use domain::errors::DomainError;
 use gateway::errors::GatewayError;
+use service::errors::ServiceError;
 use tracing::{
     error,
     warn,
@@ -98,6 +99,18 @@ impl From<infra::DatabaseError> for AppError {
 impl From<GatewayError> for AppError {
     fn from(value: GatewayError) -> Self {
         Self::Gateway(value)
+    }
+}
+
+impl From<ServiceError> for AppError {
+    fn from(value: ServiceError) -> Self {
+        match value {
+            ServiceError::Domain(error) => Self::Domain(error),
+            ServiceError::Database(error) => Self::Database(error.to_string()),
+            ServiceError::Gateway(error) => Self::Gateway(error),
+            ServiceError::NotImplemented(error) => Self::NotImplemented(error),
+            ServiceError::ExpiredSession => Self::ExpiredSession,
+        }
     }
 }
 

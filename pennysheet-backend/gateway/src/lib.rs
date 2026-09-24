@@ -1,5 +1,6 @@
 //! Gateway to external services.
 
+#[cfg(feature = "with-client")]
 mod authorization;
 
 #[cfg(feature = "with-client")]
