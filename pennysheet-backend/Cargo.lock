@@ -2179,13 +2179,18 @@ dependencies = [
 name = "pennysheet-mcp"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "domain",
+ "infra",
  "rmcp",
+ "sea-orm",
  "serde",
  "serde_json",
  "service",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -3128,10 +3133,17 @@ dependencies = [
 name = "service"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "domain",
  "gateway",
  "infra",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "strum",
+ "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

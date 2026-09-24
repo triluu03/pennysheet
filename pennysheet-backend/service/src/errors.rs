@@ -16,6 +16,8 @@ pub enum ServiceError {
     Gateway(GatewayError),
     /// Not implemented error.
     NotImplemented(String),
+    /// Serialization error.
+    Serialization(String),
     /// Expired session error.
     ExpiredSession,
 }
@@ -32,6 +34,7 @@ impl fmt::Display for ServiceError {
             Self::NotImplemented(error) => {
                 write!(f, "Requested resource is not supported: {error}")
             },
+            Self::Serialization(error) => write!(f, "Serialization error: {error}"),
             Self::ExpiredSession => write!(f, "One or more sessions is expired!"),
         }
     }
@@ -43,7 +46,7 @@ impl std::error::Error for ServiceError {
             Self::Domain(error) => Some(error),
             Self::Database(error) => Some(error),
             Self::Gateway(error) => Some(error),
-            Self::NotImplemented(_) | Self::ExpiredSession => None,
+            Self::NotImplemented(_) | Self::Serialization(_) | Self::ExpiredSession => None,
         }
     }
 }
@@ -117,5 +120,10 @@ mod tests {
                 .is_none()
         );
         assert!(ServiceError::ExpiredSession.source().is_none());
+        assert!(
+            ServiceError::Serialization("bad json".into())
+                .source()
+                .is_none()
+        );
     }
 }

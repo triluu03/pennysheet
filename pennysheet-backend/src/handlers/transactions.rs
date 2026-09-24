@@ -28,12 +28,17 @@ use infra::{
     projections::{
         self,
         TimeAggregation,
-        TransactionProjectionTrait,
     },
 };
 use serde::Deserialize;
+use service::services::transactions::{
+    TransactionKind,
+    aggregate_transactions,
+    get_transaction,
+    list_transactions,
+    pivot_expenses,
+};
 use std::sync::Arc;
-use strum::IntoEnumIterator;
 use tracing::{
     info,
     instrument,
@@ -56,13 +61,6 @@ pub struct GetTransactionsQuery {
     classifications: Vec<TransactionClassification>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum TransactionKind {
-    Income,
-    Expenses,
-}
-
 /// Handler for GET request to /transactions
 ///
 /// # Errors
@@ -82,48 +80,17 @@ pub async fn get_transactions_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            let data = projections::income::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            let data = projections::transactions::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-    };
-
-    result
-        .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+    list_transactions(
+        &state.db,
+        params.start_date,
+        params.end_date,
+        params.kind,
+        params.categories,
+        params.classifications,
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 /// Handler for GET request to /transactions/aggregate/{aggregated_level}
@@ -146,48 +113,18 @@ pub async fn get_transactions_time_aggregated_handler(
     Path(aggregated_level): Path<TimeAggregation>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            let data = projections::income::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            let data = projections::transactions::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-    };
-
-    result
-        .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+    aggregate_transactions(
+        &state.db,
+        params.start_date,
+        params.end_date,
+        aggregated_level,
+        params.kind,
+        params.categories,
+        params.classifications,
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 /// Handler for GET request to /transactions/pivot
@@ -211,33 +148,24 @@ pub async fn get_transactions_pivot_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            return Err(AppError::NotImplemented(
-                "Getting pivot table for Income is not supported yet!".to_string(),
-            ));
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::get_expenses_pivot_table(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            return Err(AppError::NotImplemented(
-                "Getting pivot table for general transactions is not supported yet!".to_string(),
-            ));
-        },
-    };
-
-    result
+    match params.kind {
+        Some(TransactionKind::Income) => Err(AppError::NotImplemented(
+            "Getting pivot table for Income is not supported yet!".to_string(),
+        )),
+        Some(TransactionKind::Expenses) => pivot_expenses(
+            &state.db,
+            params.start_date,
+            params.end_date,
+            params.categories,
+            params.classifications,
+        )
+        .await
         .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+        .map_err(AppError::from),
+        None => Err(AppError::NotImplemented(
+            "Getting pivot table for general transactions is not supported yet!".to_string(),
+        )),
+    }
 }
 
 /// Handler for GET request to /transactions/{transaction_id}
@@ -251,17 +179,10 @@ pub async fn get_one_transaction_handler(
     State(state): State<Arc<AppState>>,
     Path(transaction_id): Path<Uuid>,
 ) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
-    projections::transactions::Entity::get_transactions(
-        &state.db,
-        None,
-        None,
-        Some(transaction_id),
-        TransactionCategory::iter().collect(),
-        TransactionClassification::iter().collect(),
-    )
-    .await
-    .map(Json)
-    .map_err(AppError::from)
+    get_transaction(&state.db, transaction_id)
+        .await
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 #[derive(Deserialize)]

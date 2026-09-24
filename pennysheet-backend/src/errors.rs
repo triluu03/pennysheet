@@ -109,6 +109,7 @@ impl From<ServiceError> for AppError {
             ServiceError::Database(error) => Self::Database(error.to_string()),
             ServiceError::Gateway(error) => Self::Gateway(error),
             ServiceError::NotImplemented(error) => Self::NotImplemented(error),
+            ServiceError::Serialization(error) => Self::Database(error),
             ServiceError::ExpiredSession => Self::ExpiredSession,
         }
     }
