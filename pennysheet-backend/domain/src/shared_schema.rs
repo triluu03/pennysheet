@@ -4,6 +4,8 @@
 
 use std::str::FromStr;
 
+#[cfg(feature = "mcp-support")]
+use schemars::JsonSchema;
 #[cfg(feature = "sea-orm-support")]
 use sea_orm::{
     DeriveActiveEnum,
@@ -20,6 +22,7 @@ use crate::errors::DomainError;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumIter)]
 #[serde(rename_all = "PascalCase")]
+#[cfg_attr(feature = "mcp-support", derive(JsonSchema))]
 #[cfg_attr(feature = "sea-orm-support", derive(DeriveActiveEnum))]
 #[cfg_attr(
     feature = "sea-orm-support",
@@ -68,6 +71,7 @@ pub struct TransactionCategoryData {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, EnumIter)]
 #[serde(rename_all = "kebab-case")]
+#[cfg_attr(feature = "mcp-support", derive(JsonSchema))]
 #[cfg_attr(feature = "sea-orm-support", derive(DeriveActiveEnum))]
 #[cfg_attr(
     feature = "sea-orm-support",

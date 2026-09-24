@@ -8,6 +8,7 @@ chrono = { workspace = true }
 domain = { version = "0.1.0", path = "../domain" }
 gateway = { version = "0.1.0", path = "../gateway", default-features = false }
 infra = { version = "0.1.0", path = "../infra" }
+schemars = { version = "1.2.2", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }
@@ -20,3 +21,6 @@ tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true
+
+[features]
+mcp-support = ["dep:schemars"]

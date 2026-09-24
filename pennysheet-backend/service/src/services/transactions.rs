@@ -17,6 +17,8 @@ use infra::{
         TransactionProjectionTrait,
     },
 };
+#[cfg(feature = "mcp-support")]
+use schemars::JsonSchema;
 use serde::{
     Deserialize,
     Serialize,
@@ -32,6 +34,7 @@ use crate::errors::{
 /// The kind of transaction to query for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "mcp-support", derive(JsonSchema))]
 pub enum TransactionKind {
     /// Income transactions.
     Income,

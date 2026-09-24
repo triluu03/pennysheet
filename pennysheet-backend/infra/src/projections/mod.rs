@@ -5,6 +5,8 @@ use domain::events::{
     TransactionClassification,
     budgets::BudgetData,
 };
+#[cfg(feature = "mcp-support")]
+use schemars::JsonSchema;
 use sea_orm::{
     entity::prelude::*,
     prelude::{
@@ -41,6 +43,7 @@ pub mod weekly_budgets;
 /// Time aggregation for aggregating the transactions projections.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "mcp-support", derive(JsonSchema))]
 pub enum TimeAggregation {
     Daily,
     Weekly,
