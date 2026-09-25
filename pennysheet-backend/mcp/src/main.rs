@@ -6,6 +6,7 @@ use chrono::NaiveDate;
 use domain::events::{
     TransactionCategory,
     TransactionClassification,
+    budgets::BudgetType,
 };
 use infra::projections::TimeAggregation;
 use rmcp::{
@@ -19,9 +20,15 @@ use rmcp::{
 use service::{
     AppState,
     database::connect_and_prepare,
-    services::transactions::{
-        self,
-        TransactionKind,
+    services::{
+        budgets as budget_service,
+        import_requests as import_request_service,
+        sessions as session_service,
+        transactions::{
+            self,
+            TransactionKind,
+        },
+        user_settings as user_setting_service,
     },
 };
 use uuid::Uuid;
@@ -83,6 +90,14 @@ struct AggregateTransactionsParams {
     /// Transaction classification filters.
     #[serde(default)]
     classifications: Vec<TransactionClassification>,
+}
+
+/// Parameters for the `get_budget` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct GetBudgetParams {
+    /// Budget type: `weekly` or `monthly`.
+    budget_type: BudgetType,
 }
 
 /// Parameters for the `pivot_expenses` tool.
@@ -178,6 +193,54 @@ impl PennysheetMcpServer {
 
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
+
+    #[tool(description = "List weekly and monthly budget projections.")]
+    async fn list_budgets(&self) -> Result<String, String> {
+        let value = budget_service::list_budgets(&self.state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Get a single budget type's projection rows.")]
+    async fn get_budget(
+        &self,
+        Parameters(params): Parameters<GetBudgetParams>,
+    ) -> Result<String, String> {
+        let value = budget_service::get_budget(&self.state.db, params.budget_type)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "List stored Enable Banking sessions split into valid and expired.")]
+    async fn list_sessions(&self) -> Result<String, String> {
+        let value = session_service::list_sessions(&self.state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "List all user settings.")]
+    async fn list_settings(&self) -> Result<String, String> {
+        let value = user_setting_service::list_settings(&self.state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "List import request projections.")]
+    async fn list_import_requests(&self) -> Result<String, String> {
+        let value = import_request_service::list_import_requests(&self.state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
 }
 
 #[tool_handler(name = "pennysheet-mcp", instructions = "Pennysheet MCP server.")]
@@ -242,6 +305,61 @@ mod tests {
             }))
             .await
             .unwrap();
+
+        assert_eq!(result, "[]");
+    }
+
+    /// `list_budgets` against an empty database returns empty weekly and monthly arrays.
+    #[tokio::test]
+    async fn list_budgets_returns_empty_json_object() {
+        let server = in_memory_server().await;
+
+        let result = server.list_budgets().await.unwrap();
+
+        assert_eq!(result, "{\"weekly\":[],\"monthly\":[]}");
+    }
+
+    /// `get_budget` against an empty database returns an empty JSON array.
+    #[tokio::test]
+    async fn get_budget_returns_empty_json_array() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .get_budget(Parameters(GetBudgetParams {
+                budget_type: BudgetType::Monthly,
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(result, "[]");
+    }
+
+    /// `list_sessions` against an empty database returns empty valid and expired arrays.
+    #[tokio::test]
+    async fn list_sessions_returns_empty_json_object() {
+        let server = in_memory_server().await;
+
+        let result = server.list_sessions().await.unwrap();
+
+        assert_eq!(result, "{\"valid_sessions\":[],\"expired_sessions\":[]}");
+    }
+
+    /// `list_settings` against an empty database returns an empty JSON array.
+    #[tokio::test]
+    async fn list_settings_returns_empty_json_array() {
+        let server = in_memory_server().await;
+
+        let result = server.list_settings().await.unwrap();
+
+        assert_eq!(result, "[]");
+    }
+
+    /// `list_import_requests` against an empty database returns an empty JSON array.
+    #[tokio::test]
+    async fn list_import_requests_returns_empty_json_array() {
+        let server = in_memory_server().await;
+
+        let result = server.list_import_requests().await.unwrap();
 
         assert_eq!(result, "[]");
     }
