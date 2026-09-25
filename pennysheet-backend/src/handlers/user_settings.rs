@@ -12,24 +12,25 @@ use domain::events::{
     TransactionCategory,
     TransactionClassification,
 };
-use infra::{
-    UserSettingsResult,
-    create_user_setting,
-    delete_user_setting,
-    get_user_settings,
-    update_user_setting,
-};
+use infra::UserSettingsResult;
 use serde::Deserialize;
+use service::services::user_settings::{
+    create_setting,
+    delete_setting,
+    list_settings,
+    update_setting,
+};
 use std::sync::Arc;
 use tracing::instrument;
 
 use crate::{
     AppState,
-    background_jobs::apply_user_settings_to_projections,
     errors::AppError,
 };
 
 /// Handler for GET request to /settings
+///
+/// Delegates to the read-only user settings service.
 ///
 /// # Errors
 ///
@@ -39,7 +40,7 @@ use crate::{
 pub async fn get_user_settings_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<UserSettingsResult>>, AppError> {
-    get_user_settings(&state.db)
+    list_settings(&state.db)
         .await
         .map(Json)
         .map_err(AppError::from)
@@ -63,17 +64,14 @@ pub async fn create_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateUserSettingsPayload>,
 ) -> axum::response::Result<Json<UserSettingsResult>, AppError> {
-    create_user_setting(
+    create_setting(
         &state.db,
         payload.regex_rule,
         payload.category,
         payload.classification,
     )
     .await
-    .map(|result| {
-        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
-        Json(result)
-    })
+    .map(Json)
     .map_err(AppError::from)
 }
 
@@ -89,7 +87,7 @@ pub struct UpdateUserSettingsPayload {
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] if creating fails.
+/// Returns [`AppError`] if updating fails.
 #[instrument(skip(state))]
 // TODO: write tests for this handler!
 pub async fn update_user_settings_handler(
@@ -97,7 +95,7 @@ pub async fn update_user_settings_handler(
     Path(setting_id): Path<i64>,
     Json(payload): Json<UpdateUserSettingsPayload>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    update_user_setting(
+    update_setting(
         &state.db,
         setting_id,
         payload.priority,
@@ -106,10 +104,7 @@ pub async fn update_user_settings_handler(
         payload.classification,
     )
     .await
-    .map(|_| {
-        tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
-        StatusCode::NO_CONTENT
-    })
+    .map(|_| StatusCode::NO_CONTENT)
     .map_err(AppError::from)
 }
 
@@ -117,19 +112,16 @@ pub async fn update_user_settings_handler(
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] if creating fails.
+/// Returns [`AppError`] if deleting fails.
 #[instrument(skip(state))]
 // TODO: write tests for this handler!
 pub async fn delete_user_settings_handler(
     State(state): State<Arc<AppState>>,
     Path(setting_id): Path<i64>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    delete_user_setting(&state.db, setting_id)
+    delete_setting(&state.db, setting_id)
         .await
-        .map(|_| {
-            tokio::spawn(apply_user_settings_to_projections(state.db.clone()));
-            StatusCode::NO_CONTENT
-        })
+        .map(|_| StatusCode::NO_CONTENT)
         .map_err(AppError::from)
 }
 

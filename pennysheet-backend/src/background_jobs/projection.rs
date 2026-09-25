@@ -2,11 +2,6 @@
 
 use infra::{
     DatabaseConnection,
-    get_user_settings,
-    projections::{
-        self,
-        AutoUserSettingTrait,
-    },
     projectors::ProjectorTrait,
 };
 use std::time::Duration;
@@ -50,35 +45,5 @@ pub async fn spawn_and_subscribe_projector<P: ProjectorTrait + Send>(db: Databas
     }
 }
 
-/// Apply the user settings to the whole expenses projection.
-///
-/// # Panics
-///
-/// Panic in any of the following scenarios:
-/// - Cannot query the user settings from the table.
-/// - Applying the user settings fails.
-#[instrument(skip(db))]
-pub async fn apply_user_settings_to_projections(db: DatabaseConnection) {
-    let user_settings = get_user_settings(&db)
-        .await
-        .expect("querying user settings from the database should succeed!");
-
-    // TODO: make this go through a transaction.
-    info!(
-        n_settings = user_settings.len(),
-        "re-applying user settings to projections"
-    );
-    projections::expenses::Entity::apply_user_settings_all(&db, &user_settings)
-        .await
-        .expect("apply user settings to the expenses projection should succeed");
-    projections::weekly_budgets::Entity::apply_user_settings_all(&db, &user_settings)
-        .await
-        .expect("apply user settings to the weekly budget projection should succeed");
-    projections::monthly_budgets::Entity::apply_user_settings_all(&db, &user_settings)
-        .await
-        .expect("apply user settings to the monthly budget projection should succeed");
-}
-
-// TODO: add tests for spawn_and_subscribe_projector and
-// apply_user_settings_to_projections once Postgres projector fixtures
-// are available without new dependencies.
+// TODO: add tests for spawn_and_subscribe_projector once Postgres projector
+// fixtures are available without new dependencies.

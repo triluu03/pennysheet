@@ -2,6 +2,8 @@
 
 use chrono::NaiveDate;
 use core::fmt;
+#[cfg(feature = "mcp-support")]
+use schemars::JsonSchema;
 use serde::{
     Deserialize,
     Serialize,
@@ -12,6 +14,7 @@ use super::transactions::TransactionData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "mcp-support", derive(JsonSchema))]
 pub enum BudgetType {
     Weekly,
     Monthly,

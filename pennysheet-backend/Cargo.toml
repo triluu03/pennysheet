@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = [".", "domain", "gateway", "infra"]
+members = [".", "domain", "gateway", "infra", "mcp", "service"]
 
 [workspace.dependencies]
 chrono = { version = "0.4.45", features = ["serde"] }
@@ -32,6 +32,7 @@ chrono = { workspace = true }
 domain = { version = "0.1.0", path = "domain" }
 gateway = { version = "0.1.0", path = "gateway", features = ["with-client"] }
 infra = { version = "0.1.0", path = "infra" }
+service = { version = "0.1.0", path = "service" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { workspace = true }

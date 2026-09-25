@@ -8,16 +8,12 @@ use axum::{
     },
     http::StatusCode,
 };
-use gateway::schema::enable_banking_session::EnableBankingSession;
-use infra::{
-    SessionMetadata,
-    create_new_session,
+use infra::SessionMetadata;
+use serde::Deserialize;
+use service::services::sessions::{
+    create_session,
     delete_session,
-    get_all_sessions_metadata,
-};
-use serde::{
-    Deserialize,
-    Serialize,
+    list_sessions,
 };
 use std::sync::Arc;
 use tracing::instrument;
@@ -33,13 +29,9 @@ pub struct ImportSessionPayload {
     pub session: String,
 }
 
-#[derive(Serialize)]
-pub struct GetSessionResponse {
-    pub valid_sessions: Vec<SessionMetadata>,
-    pub expired_sessions: Vec<SessionMetadata>,
-}
-
 /// Handler for GET request to /sessions
+///
+/// Delegates to the read-only session service.
 ///
 /// # Errors
 ///
@@ -49,13 +41,11 @@ pub struct GetSessionResponse {
 // TODO: write tests for this handler!
 pub async fn get_sessions_handler(
     State(state): State<Arc<AppState>>,
-) -> axum::response::Result<Json<GetSessionResponse>, AppError> {
-    let (valid_sessions, expired_sessions) = get_all_sessions_metadata(&state.db).await?;
-
-    Ok(Json(GetSessionResponse {
-        valid_sessions,
-        expired_sessions,
-    }))
+) -> axum::response::Result<Json<service::services::sessions::GetSessionResponse>, AppError> {
+    list_sessions(&state.db)
+        .await
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 /// Handler for POST request to /sessions
@@ -64,7 +54,7 @@ pub async fn get_sessions_handler(
 ///
 /// Return [`AppError`] in the following scenarios:
 /// - Failed to parse the payload into expected format.
-/// - Failed to parse the session from the payload into [`EnableBankingSession`].
+/// - Failed to parse the session from the payload into an Enable Banking session.
 /// - Failed to insert the new session into the database.
 #[instrument(skip(state, payload), fields(session_name = ?payload.name))]
 // TODO: write tests for this handler!
@@ -72,8 +62,7 @@ pub async fn create_sessions_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ImportSessionPayload>,
 ) -> axum::response::Result<Json<SessionMetadata>, AppError> {
-    let session = EnableBankingSession::from_json(&payload.session)?;
-    create_new_session(&state.db, payload.name, session)
+    create_session(&state.db, payload.name, payload.session)
         .await
         .map(Json)
         .map_err(AppError::from)

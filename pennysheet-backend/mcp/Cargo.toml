@@ -1,0 +1,24 @@
+[package]
+name = "pennysheet-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { version = "0.1.0", path = "../domain", features = ["mcp-support"] }
+infra = { version = "0.1.0", path = "../infra", features = ["mcp-support"] }
+service = { version = "0.1.0", path = "../service", features = ["mcp-support"] }
+rmcp = { version = "3.4.0", features = ["transport-io"] }
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
+uuid = { workspace = true }
+schemars = { version = "1.2.2", features = ["uuid1"] }
+
+[dev-dependencies]
+sea-orm = { version = "2.0.0-rc", features = ["sqlx-sqlite"] }
+
+[lints]
+workspace = true

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 chrono = { workspace = true }
 gateway = { version = "0.1.0", path = "../gateway" }
+schemars = { version = "1.2.2", optional = true }
 sea-orm = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -16,6 +17,7 @@ uuid = { workspace = true }
 [features]
 default = []
 sea-orm-support = ["dep:sea-orm", "dep:serde_json"]
+mcp-support = ["dep:schemars"]
 
 [lints]
 workspace = true

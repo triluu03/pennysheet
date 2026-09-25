@@ -21,19 +21,27 @@ use domain::{
     },
 };
 use infra::{
-    append_event_to_db,
     append_multi_events_to_db,
     get_all_events,
     get_all_sessions,
     projections::{
         self,
         TimeAggregation,
-        TransactionProjectionTrait,
     },
 };
 use serde::Deserialize;
+use service::services::transactions::{
+    TransactionKind,
+    aggregate_transactions,
+    categorize_transaction,
+    classify_transaction,
+    get_transaction,
+    list_transactions,
+    pivot_expenses,
+    update_transaction_note,
+};
+use std::str::FromStr;
 use std::sync::Arc;
-use strum::IntoEnumIterator;
 use tracing::{
     info,
     instrument,
@@ -56,13 +64,6 @@ pub struct GetTransactionsQuery {
     classifications: Vec<TransactionClassification>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum TransactionKind {
-    Income,
-    Expenses,
-}
-
 /// Handler for GET request to /transactions
 ///
 /// # Errors
@@ -82,48 +83,17 @@ pub async fn get_transactions_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            let data = projections::income::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            let data = projections::transactions::Entity::get_transactions(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                None,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-    };
-
-    result
-        .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+    list_transactions(
+        &state.db,
+        params.start_date,
+        params.end_date,
+        params.kind,
+        params.categories,
+        params.classifications,
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 /// Handler for GET request to /transactions/aggregate/{aggregated_level}
@@ -146,48 +116,18 @@ pub async fn get_transactions_time_aggregated_handler(
     Path(aggregated_level): Path<TimeAggregation>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            let data = projections::income::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            let data = projections::transactions::Entity::get_transactions_time_aggregated(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                aggregated_level,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-    };
-
-    result
-        .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+    aggregate_transactions(
+        &state.db,
+        params.start_date,
+        params.end_date,
+        aggregated_level,
+        params.kind,
+        params.categories,
+        params.classifications,
+    )
+    .await
+    .map(Json)
+    .map_err(AppError::from)
 }
 
 /// Handler for GET request to /transactions/pivot
@@ -211,33 +151,24 @@ pub async fn get_transactions_pivot_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<GetTransactionsQuery>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match params.kind {
-        Some(TransactionKind::Income) => {
-            return Err(AppError::NotImplemented(
-                "Getting pivot table for Income is not supported yet!".to_string(),
-            ));
-        },
-        Some(TransactionKind::Expenses) => {
-            let data = projections::expenses::get_expenses_pivot_table(
-                &state.db,
-                params.start_date,
-                params.end_date,
-                params.categories,
-                params.classifications,
-            )
-            .await?;
-            serde_json::to_value(data)
-        },
-        None => {
-            return Err(AppError::NotImplemented(
-                "Getting pivot table for general transactions is not supported yet!".to_string(),
-            ));
-        },
-    };
-
-    result
+    match params.kind {
+        Some(TransactionKind::Income) => Err(AppError::NotImplemented(
+            "Getting pivot table for Income is not supported yet!".to_string(),
+        )),
+        Some(TransactionKind::Expenses) => pivot_expenses(
+            &state.db,
+            params.start_date,
+            params.end_date,
+            params.categories,
+            params.classifications,
+        )
+        .await
         .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+        .map_err(AppError::from),
+        None => Err(AppError::NotImplemented(
+            "Getting pivot table for general transactions is not supported yet!".to_string(),
+        )),
+    }
 }
 
 /// Handler for GET request to /transactions/{transaction_id}
@@ -251,17 +182,10 @@ pub async fn get_one_transaction_handler(
     State(state): State<Arc<AppState>>,
     Path(transaction_id): Path<Uuid>,
 ) -> axum::response::Result<Json<Vec<projections::transactions::Model>>, AppError> {
-    projections::transactions::Entity::get_transactions(
-        &state.db,
-        None,
-        None,
-        Some(transaction_id),
-        TransactionCategory::iter().collect(),
-        TransactionClassification::iter().collect(),
-    )
-    .await
-    .map(Json)
-    .map_err(AppError::from)
+    get_transaction(&state.db, transaction_id)
+        .await
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 #[derive(Deserialize)]
@@ -370,16 +294,11 @@ pub async fn categorize_transaction_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CategorizeTransactionPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command =
-        Command::create_categorize_transaction(&payload.transaction_id, &payload.category)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let category = TransactionCategory::from_str(&payload.category)?;
+    let msg = categorize_transaction(&state.db, transaction_id, category).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction categorized");
-
-    Ok((StatusCode::CREATED, "Transaction categorized!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[derive(Deserialize)]
@@ -407,16 +326,11 @@ pub async fn classify_transaction_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ClassifyTransactionPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command =
-        Command::create_classify_transaction(&payload.transaction_id, &payload.classification)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let classification = TransactionClassification::from_str(&payload.classification)?;
+    let msg = classify_transaction(&state.db, transaction_id, classification).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction classified");
-
-    Ok((StatusCode::CREATED, "Transaction classified!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[derive(Deserialize)]
@@ -444,15 +358,10 @@ pub async fn update_transaction_note_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateTransactionNotePayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = Command::create_update_transaction_note(&payload.transaction_id, &payload.note)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let msg = update_transaction_note(&state.db, transaction_id, payload.note).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction note updated");
-
-    Ok((StatusCode::CREATED, "Transaction note updated!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[cfg(test)]
