@@ -1,5 +1,6 @@
-//! Read-only session services shared by the REST API and the MCP server.
+//! Session services shared by the REST API and the MCP server.
 
+use gateway::schema::enable_banking_session::EnableBankingSession;
 use infra::DatabaseConnection;
 
 use crate::errors::Result;
@@ -27,11 +28,39 @@ pub async fn list_sessions(db: &DatabaseConnection) -> Result<GetSessionResponse
     })
 }
 
+/// Create a new session from its raw JSON payload.
+///
+/// # Errors
+///
+/// Returns [`ServiceError::Gateway`] if the JSON payload cannot be parsed into an
+/// [`EnableBankingSession`], or [`ServiceError::Database`] if the insert fails.
+pub async fn create_session(
+    db: &DatabaseConnection,
+    name: String,
+    session_json: String,
+) -> Result<infra::SessionMetadata> {
+    let session = EnableBankingSession::from_json(&session_json)?;
+    Ok(infra::create_new_session(db, name, session).await?)
+}
+
+/// Delete a session by ID.
+///
+/// # Errors
+///
+/// Returns [`ServiceError::Database`] if the delete fails or the session is not found.
+pub async fn delete_session(db: &DatabaseConnection, session_id: i64) -> Result<()> {
+    infra::delete_session(db, session_id).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::utils::in_memory_db;
+    use crate::{
+        errors::ServiceError,
+        utils::in_memory_db,
+    };
 
     /// A session whose access is valid far in the future.
     const VALID_SESSION: &str = r#"{
@@ -69,5 +98,49 @@ mod tests {
 
         assert_eq!(response.valid_sessions.len(), 1);
         assert!(response.expired_sessions.is_empty());
+    }
+
+    /// [`create_session`] succeeds with valid JSON and returns metadata.
+    #[tokio::test]
+    async fn create_session_succeeds_with_valid_json() {
+        let db = in_memory_db().await;
+
+        let metadata = create_session(&db, "test-session".to_string(), VALID_SESSION.to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(metadata.session_name, "test-session");
+        assert!(metadata.session_id > 0);
+    }
+
+    /// [`create_session`] rejects invalid JSON.
+    #[tokio::test]
+    async fn create_session_rejects_invalid_json() {
+        let db = in_memory_db().await;
+
+        let result = create_session(&db, "bad".to_string(), "{ not valid json".to_string()).await;
+        assert!(matches!(result, Err(ServiceError::Gateway(_))));
+    }
+
+    /// [`delete_session`] succeeds after a session is created.
+    #[tokio::test]
+    async fn delete_session_succeeds_after_create() {
+        let db = in_memory_db().await;
+        let metadata = create_session(&db, "test".to_string(), VALID_SESSION.to_string())
+            .await
+            .unwrap();
+
+        delete_session(&db, metadata.session_id).await.unwrap();
+    }
+
+    /// [`delete_session`] rejects a missing session.
+    #[tokio::test]
+    async fn delete_session_rejects_missing_session() {
+        let db = in_memory_db().await;
+
+        assert!(matches!(
+            delete_session(&db, 999).await,
+            Err(ServiceError::Database(_))
+        ));
     }
 }

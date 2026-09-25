@@ -9,27 +9,20 @@ use axum::{
     http::StatusCode,
 };
 use chrono::NaiveDate;
-use domain::{
-    aggregates::CoreAggregate,
-    commands::Command,
-    events::budgets::BudgetType,
-    process_managers::budget::BudgetProcessManager,
-};
-use infra::{
-    append_event_to_db,
-    get_all_events,
-};
+use domain::events::budgets::BudgetType;
 use serde::Deserialize;
 use service::services::budgets::{
     BudgetsResponse,
+    ResetBudgetOutcome,
+    create_budget,
+    delete_budget,
     get_budget,
     list_budgets,
+    reset_budget,
+    update_budget,
 };
 use std::sync::Arc;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     AppState,
@@ -82,24 +75,18 @@ pub async fn create_budget_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateBudgetPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = Command::create_budget(
-        &payload.start_date,
+    let start_date = NaiveDate::parse_from_str(&payload.start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::Domain(e.into()))?;
+    let msg = create_budget(
+        &state.db,
+        start_date,
         payload.budget_type,
         payload.amount,
         payload.threshold,
-    )?;
+    )
+    .await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(
-        event_id = %res.last_insert_id,
-        budget_type = %payload.budget_type,
-        "budget created"
-    );
-
-    Ok((StatusCode::CREATED, "Budget created!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 /// Handler for PATCH /budgets/{budget_type} — update an existing budget.
@@ -125,22 +112,16 @@ pub async fn update_budget_handler(
     Path(budget_type): Path<BudgetType>,
     Json(payload): Json<UpdateBudgetPayload>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    let command = Command::create_update_budget(
-        &payload.start_date,
+    let start_date = NaiveDate::parse_from_str(&payload.start_date, "%Y-%m-%d")
+        .map_err(|e| AppError::Domain(e.into()))?;
+    update_budget(
+        &state.db,
+        start_date,
         budget_type,
         payload.amount,
         payload.threshold,
-    )?;
-
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(
-        event_id = %res.last_insert_id,
-        %budget_type,
-        "budget updated"
-    );
+    )
+    .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -158,17 +139,7 @@ pub async fn delete_budget_handler(
     State(state): State<Arc<AppState>>,
     Path(budget_type): Path<BudgetType>,
 ) -> axum::response::Result<StatusCode, AppError> {
-    let command = Command::create_delete_budget(budget_type)?;
-
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(
-        event_id = %res.last_insert_id,
-        %budget_type,
-        "budget deleted"
-    );
+    delete_budget(&state.db, budget_type).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -207,39 +178,12 @@ pub async fn reset_budget_handler(
     let new_start = NaiveDate::parse_from_str(&payload.start_date, "%Y-%m-%d")
         .map_err(|e| AppError::Domain(e.into()))?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let process_manager = BudgetProcessManager::new(&all_events)?;
-
-    // Skip if the current budget period hasn't started yet.
-    if let Some(current_start) = process_manager.start_date(budget_type)
-        && current_start >= new_start
-    {
-        info!(
-            %budget_type,
-            %current_start,
-            %new_start,
-            "skipping budget reset: current budget period has not started yet"
-        );
-        return Ok((
-            StatusCode::OK,
-            "Budget period has not started yet".to_string(),
-        ));
+    match reset_budget(&state.db, new_start, budget_type).await? {
+        ResetBudgetOutcome::Reset => Ok((StatusCode::ACCEPTED, "Budget reset!".to_string())),
+        ResetBudgetOutcome::NotStarted => {
+            Ok((StatusCode::OK, "Budget period has not started yet".to_string()))
+        },
     }
-
-    let previous_remaining = process_manager.remaining_amount(budget_type);
-
-    let command = Command::create_reset_budget(new_start, budget_type, previous_remaining)?;
-
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(
-        event_id = %res.last_insert_id,
-        %budget_type,
-        "budget reset"
-    );
-
-    Ok((StatusCode::ACCEPTED, "Budget reset!".to_string()))
 }
 
 /// Handler for GET /budgets — return both weekly and monthly budget data.

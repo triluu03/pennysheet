@@ -100,6 +100,52 @@ struct GetBudgetParams {
     budget_type: BudgetType,
 }
 
+/// Parameters for the `create_budget` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct CreateBudgetParams {
+    /// Start date of the budget in `YYYY-MM-DD` format.
+    start_date: NaiveDate,
+    /// Budget type: `weekly` or `monthly`.
+    budget_type: BudgetType,
+    /// Total budget amount (positive).
+    amount: f64,
+    /// Per-transaction threshold below which spending counts.
+    threshold: f64,
+}
+
+/// Parameters for the `update_budget` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct UpdateBudgetParams {
+    /// Budget type: `weekly` or `monthly`.
+    budget_type: BudgetType,
+    /// New start date in `YYYY-MM-DD` format.
+    start_date: NaiveDate,
+    /// New budget amount (positive).
+    amount: f64,
+    /// New per-transaction threshold.
+    threshold: f64,
+}
+
+/// Parameters for the `delete_budget` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct DeleteBudgetParams {
+    /// Budget type: `weekly` or `monthly`.
+    budget_type: BudgetType,
+}
+
+/// Parameters for the `reset_budget` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct ResetBudgetParams {
+    /// Budget type: `weekly` or `monthly`.
+    budget_type: BudgetType,
+    /// New start date in `YYYY-MM-DD` format.
+    start_date: NaiveDate,
+}
+
 /// Parameters for the `pivot_expenses` tool.
 #[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
@@ -146,6 +192,64 @@ struct UpdateTransactionNoteParams {
     transaction_id: Uuid,
     /// Note to store.
     note: String,
+}
+
+/// Parameters for the `create_session` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct CreateSessionParams {
+    /// Human-readable session name.
+    name: String,
+    /// Enable Banking session JSON payload.
+    session: String,
+}
+
+/// Parameters for the `delete_session` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct DeleteSessionParams {
+    /// Session ID.
+    session_id: i64,
+}
+
+/// Parameters for the `create_setting` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct CreateSettingParams {
+    /// Regex rule to match transaction descriptions.
+    regex_rule: String,
+    /// Category to apply to matching transactions.
+    category: TransactionCategory,
+    /// Classification to apply to matching transactions.
+    classification: TransactionClassification,
+}
+
+/// Parameters for the `update_setting` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct UpdateSettingParams {
+    /// Setting ID.
+    setting_id: i64,
+    /// New priority.
+    #[serde(default)]
+    priority: Option<i64>,
+    /// New regex rule.
+    #[serde(default)]
+    regex_rule: Option<String>,
+    /// New category.
+    #[serde(default)]
+    category: Option<TransactionCategory>,
+    /// New classification.
+    #[serde(default)]
+    classification: Option<TransactionClassification>,
+}
+
+/// Parameters for the `delete_setting` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct DeleteSettingParams {
+    /// Setting ID.
+    setting_id: i64,
 }
 
 #[tool_router]
@@ -279,6 +383,68 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
+    #[tool(description = "Create a new budget.")]
+    async fn create_budget(
+        &self,
+        Parameters(params): Parameters<CreateBudgetParams>,
+    ) -> Result<String, String> {
+        budget_service::create_budget(
+            &self.state.db,
+            params.start_date,
+            params.budget_type,
+            params.amount,
+            params.threshold,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Update an existing budget.")]
+    async fn update_budget(
+        &self,
+        Parameters(params): Parameters<UpdateBudgetParams>,
+    ) -> Result<String, String> {
+        budget_service::update_budget(
+            &self.state.db,
+            params.start_date,
+            params.budget_type,
+            params.amount,
+            params.threshold,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok("Budget updated!".to_string())
+    }
+
+    #[tool(description = "Delete an existing budget.")]
+    async fn delete_budget(
+        &self,
+        Parameters(params): Parameters<DeleteBudgetParams>,
+    ) -> Result<String, String> {
+        budget_service::delete_budget(&self.state.db, params.budget_type)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok("Budget deleted!".to_string())
+    }
+
+    #[tool(description = "Reset budget tracking to a new start date.")]
+    async fn reset_budget(
+        &self,
+        Parameters(params): Parameters<ResetBudgetParams>,
+    ) -> Result<String, String> {
+        match budget_service::reset_budget(&self.state.db, params.start_date, params.budget_type)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            budget_service::ResetBudgetOutcome::Reset => Ok("Budget reset!".to_string()),
+            budget_service::ResetBudgetOutcome::NotStarted => {
+                Ok("Budget period has not started yet".to_string())
+            },
+        }
+    }
+
     #[tool(description = "List stored Enable Banking sessions split into valid and expired.")]
     async fn list_sessions(&self) -> Result<String, String> {
         let value = session_service::list_sessions(&self.state.db)
@@ -288,6 +454,30 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
+    #[tool(description = "Create a new Enable Banking session from its JSON payload.")]
+    async fn create_session(
+        &self,
+        Parameters(params): Parameters<CreateSessionParams>,
+    ) -> Result<String, String> {
+        let metadata = session_service::create_session(&self.state.db, params.name, params.session)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&metadata).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Delete an existing Enable Banking session.")]
+    async fn delete_session(
+        &self,
+        Parameters(params): Parameters<DeleteSessionParams>,
+    ) -> Result<String, String> {
+        session_service::delete_session(&self.state.db, params.session_id)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok("Session deleted!".to_string())
+    }
+
     #[tool(description = "List all user settings.")]
     async fn list_settings(&self) -> Result<String, String> {
         let value = user_setting_service::list_settings(&self.state.db)
@@ -295,6 +485,54 @@ impl PennysheetMcpServer {
             .map_err(|e| e.to_string())?;
 
         serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Create a new user setting.")]
+    async fn create_setting(
+        &self,
+        Parameters(params): Parameters<CreateSettingParams>,
+    ) -> Result<String, String> {
+        let result = user_setting_service::create_setting(
+            &self.state.db,
+            params.regex_rule,
+            params.category,
+            params.classification,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        serde_json::to_string(&result).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Update an existing user setting.")]
+    async fn update_setting(
+        &self,
+        Parameters(params): Parameters<UpdateSettingParams>,
+    ) -> Result<String, String> {
+        user_setting_service::update_setting(
+            &self.state.db,
+            params.setting_id,
+            params.priority,
+            params.regex_rule,
+            params.category,
+            params.classification,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok("Setting updated!".to_string())
+    }
+
+    #[tool(description = "Delete an existing user setting.")]
+    async fn delete_setting(
+        &self,
+        Parameters(params): Parameters<DeleteSettingParams>,
+    ) -> Result<String, String> {
+        user_setting_service::delete_setting(&self.state.db, params.setting_id)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok("Setting deleted!".to_string())
     }
 
     #[tool(description = "List import requests.")]
@@ -553,5 +791,129 @@ mod tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    /// `create_budget` succeeds and returns a confirmation string.
+    #[tokio::test]
+    async fn create_budget_succeeds() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .create_budget(Parameters(CreateBudgetParams {
+                start_date: NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 50.0,
+            }))
+            .await;
+
+        assert_eq!(result, Ok("Budget created!".to_string()));
+    }
+
+    /// `create_budget` rejects a duplicate budget type.
+    #[tokio::test]
+    async fn create_budget_rejects_duplicate() {
+        let server = in_memory_server().await;
+        server
+            .create_budget(Parameters(CreateBudgetParams {
+                start_date: NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 50.0,
+            }))
+            .await
+            .unwrap();
+
+        let result = server
+            .create_budget(Parameters(CreateBudgetParams {
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 200.0,
+                threshold: 20.0,
+            }))
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    /// `reset_budget` returns the not-started message when the current period
+    /// has not started yet.
+    #[tokio::test]
+    async fn reset_budget_skips_when_not_started() {
+        let server = in_memory_server().await;
+        server
+            .create_budget(Parameters(CreateBudgetParams {
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+                budget_type: BudgetType::Weekly,
+                amount: 500.0,
+                threshold: 50.0,
+            }))
+            .await
+            .unwrap();
+
+        let result = server
+            .reset_budget(Parameters(ResetBudgetParams {
+                budget_type: BudgetType::Weekly,
+                start_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            }))
+            .await;
+
+        assert_eq!(result, Ok("Budget period has not started yet".to_string()));
+    }
+
+    /// `create_session` succeeds and serializes JSON containing the session name.
+    #[tokio::test]
+    async fn create_session_succeeds() {
+        const VALID_SESSION: &str = r#"{
+            "session_id": "sess-valid",
+            "accounts": [{"name": "Checking", "currency": "EUR", "uid": "acc-uid-1"}],
+            "aspsp": {"name": "Mock Bank", "country": "FI"},
+            "psu_type": "personal",
+            "access": {"valid_until": "2999-12-31T23:59:59Z"}
+        }"#;
+
+        let server = in_memory_server().await;
+
+        let result = server
+            .create_session(Parameters(CreateSessionParams {
+                name: "test-session".to_string(),
+                session: VALID_SESSION.to_string(),
+            }))
+            .await
+            .unwrap();
+
+        assert!(result.contains("test-session"));
+    }
+
+    /// `create_session` rejects invalid JSON.
+    #[tokio::test]
+    async fn create_session_rejects_invalid_json() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .create_session(Parameters(CreateSessionParams {
+                name: "bad".to_string(),
+                session: "{ not valid json".to_string(),
+            }))
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    /// `create_setting` succeeds and serializes JSON containing the regex rule.
+    #[tokio::test]
+    async fn create_setting_succeeds() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .create_setting(Parameters(CreateSettingParams {
+                regex_rule: "Netflix".to_string(),
+                category: TransactionCategory::Leisure,
+                classification: TransactionClassification::NiceToHave,
+            }))
+            .await
+            .unwrap();
+
+        assert!(result.contains("Netflix"));
     }
 }
