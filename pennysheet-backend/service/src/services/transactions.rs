@@ -1,13 +1,18 @@
-//! Read-only transaction services shared by the REST API and the MCP server.
+//! Transaction services shared by the REST API and the MCP server.
 
 use std::str::FromStr;
 
 use chrono::NaiveDate;
 use domain::{
+    aggregates::CoreAggregate,
+    commands::Command,
     errors::DomainError,
     events::{
         TransactionCategory,
+        TransactionCategoryData,
         TransactionClassification,
+        TransactionClassificationData,
+        TransactionNoteData,
     },
 };
 use infra::{
@@ -24,6 +29,7 @@ use serde::{
     Serialize,
 };
 use strum::IntoEnumIterator;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -213,11 +219,78 @@ pub async fn pivot_expenses(
     to_json_value(data)
 }
 
+/// Assign a category to a transaction.
+///
+/// # Errors
+///
+/// Returns [`ServiceError::Domain`] if the command is rejected by the aggregate, or
+/// [`ServiceError::Database`] if loading events or appending the resulting event fails.
+pub async fn categorize_transaction(
+    db: &DatabaseConnection,
+    transaction_id: Uuid,
+    category: TransactionCategory,
+) -> Result<String> {
+    let command = Command::CategorizeTransaction(TransactionCategoryData {
+        transaction_id,
+        category,
+    });
+    let all_events = infra::get_all_events(db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+    let res = infra::append_event_to_db(db, event).await?;
+    info!(event_id = %res.last_insert_id, "transaction categorized");
+    Ok("Transaction categorized!".to_string())
+}
+
+/// Assign a classification to a transaction.
+///
+/// # Errors
+///
+/// Returns [`ServiceError::Domain`] if the command is rejected by the aggregate, or
+/// [`ServiceError::Database`] if loading events or appending the resulting event fails.
+pub async fn classify_transaction(
+    db: &DatabaseConnection,
+    transaction_id: Uuid,
+    classification: TransactionClassification,
+) -> Result<String> {
+    let command = Command::ClassifyTransaction(TransactionClassificationData {
+        transaction_id,
+        classification,
+    });
+    let all_events = infra::get_all_events(db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+    let res = infra::append_event_to_db(db, event).await?;
+    info!(event_id = %res.last_insert_id, "transaction classified");
+    Ok("Transaction classified!".to_string())
+}
+
+/// Update the note of a transaction.
+///
+/// # Errors
+///
+/// Returns [`ServiceError::Domain`] if the command is rejected by the aggregate, or
+/// [`ServiceError::Database`] if loading events or appending the resulting event fails.
+pub async fn update_transaction_note(
+    db: &DatabaseConnection,
+    transaction_id: Uuid,
+    note: String,
+) -> Result<String> {
+    let command = Command::UpdateTransactionNote(TransactionNoteData {
+        transaction_id,
+        note,
+    });
+    let all_events = infra::get_all_events(db).await?;
+    let event = CoreAggregate::new(&all_events).execute(command)?;
+    let res = infra::append_event_to_db(db, event).await?;
+    info!(event_id = %res.last_insert_id, "transaction note updated");
+    Ok("Transaction note updated!".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use sea_orm::ActiveModelTrait;
 
     use super::*;
+    use domain::events::Event;
 
     use crate::utils::in_memory_db;
 
@@ -332,5 +405,127 @@ mod tests {
         let income_rows = income.as_array().unwrap();
         assert_eq!(income_rows.len(), 1);
         assert_eq!(income_rows[0]["amount"], 100.0);
+    }
+
+    /// Build a minimal [`TransactionData`] for service tests.
+    fn minimal_transaction_data(txn_id: Uuid) -> domain::events::transactions::TransactionData {
+        domain::events::transactions::TransactionData {
+            transaction_id: txn_id,
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: None,
+            entry_reference: None,
+            aspsp_name: "test-aspsp".to_string(),
+        }
+    }
+
+    /// Categorize succeeds for a recorded transaction and appends the matching event.
+    #[tokio::test]
+    async fn categorize_transaction_succeeds_for_recorded_transaction() {
+        let db = in_memory_db().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let msg = categorize_transaction(&db, txn_id, TransactionCategory::Groceries)
+            .await
+            .unwrap();
+        assert_eq!(msg, "Transaction categorized!");
+
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, Event::TransactionCategorized(_)))
+        );
+    }
+
+    /// Categorize rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn categorize_transaction_rejects_unknown_transaction() {
+        let db = in_memory_db().await;
+
+        let result =
+            categorize_transaction(&db, Uuid::new_v4(), TransactionCategory::Groceries).await;
+        assert!(result.is_err());
+        assert!(infra::get_all_events(&db).await.unwrap().is_empty());
+    }
+
+    /// Classify succeeds for a recorded transaction.
+    #[tokio::test]
+    async fn classify_transaction_succeeds_for_recorded_transaction() {
+        let db = in_memory_db().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let msg = classify_transaction(&db, txn_id, TransactionClassification::MustHave)
+            .await
+            .unwrap();
+        assert_eq!(msg, "Transaction classified!");
+
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, Event::TransactionClassified(_)))
+        );
+    }
+
+    /// Classify rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn classify_transaction_rejects_unknown_transaction() {
+        let db = in_memory_db().await;
+
+        let result =
+            classify_transaction(&db, Uuid::new_v4(), TransactionClassification::MustHave).await;
+        assert!(result.is_err());
+        assert!(infra::get_all_events(&db).await.unwrap().is_empty());
+    }
+
+    /// Updating a note succeeds for a recorded transaction.
+    #[tokio::test]
+    async fn update_transaction_note_succeeds_for_recorded_transaction() {
+        let db = in_memory_db().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let msg = update_transaction_note(&db, txn_id, "my note".to_string())
+            .await
+            .unwrap();
+        assert_eq!(msg, "Transaction note updated!");
+
+        let events = infra::get_all_events(&db).await.unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, Event::TransactionNoteUpdated(_)))
+        );
+    }
+
+    /// Updating a note rejects unknown transaction ids without appending events.
+    #[tokio::test]
+    async fn update_transaction_note_rejects_unknown_transaction() {
+        let db = in_memory_db().await;
+
+        let result = update_transaction_note(&db, Uuid::new_v4(), "my note".to_string()).await;
+        assert!(result.is_err());
+        assert!(infra::get_all_events(&db).await.unwrap().is_empty());
     }
 }

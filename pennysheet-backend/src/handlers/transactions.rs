@@ -21,7 +21,6 @@ use domain::{
     },
 };
 use infra::{
-    append_event_to_db,
     append_multi_events_to_db,
     get_all_events,
     get_all_sessions,
@@ -34,10 +33,14 @@ use serde::Deserialize;
 use service::services::transactions::{
     TransactionKind,
     aggregate_transactions,
+    categorize_transaction,
+    classify_transaction,
     get_transaction,
     list_transactions,
     pivot_expenses,
+    update_transaction_note,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{
     info,
@@ -291,16 +294,11 @@ pub async fn categorize_transaction_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CategorizeTransactionPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command =
-        Command::create_categorize_transaction(&payload.transaction_id, &payload.category)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let category = TransactionCategory::from_str(&payload.category)?;
+    let msg = categorize_transaction(&state.db, transaction_id, category).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction categorized");
-
-    Ok((StatusCode::CREATED, "Transaction categorized!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[derive(Deserialize)]
@@ -328,16 +326,11 @@ pub async fn classify_transaction_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ClassifyTransactionPayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command =
-        Command::create_classify_transaction(&payload.transaction_id, &payload.classification)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let classification = TransactionClassification::from_str(&payload.classification)?;
+    let msg = classify_transaction(&state.db, transaction_id, classification).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction classified");
-
-    Ok((StatusCode::CREATED, "Transaction classified!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[derive(Deserialize)]
@@ -365,15 +358,10 @@ pub async fn update_transaction_note_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateTransactionNotePayload>,
 ) -> axum::response::Result<(StatusCode, String), AppError> {
-    let command = Command::create_update_transaction_note(&payload.transaction_id, &payload.note)?;
+    let transaction_id = Uuid::parse_str(&payload.transaction_id).map_err(DomainError::from)?;
+    let msg = update_transaction_note(&state.db, transaction_id, payload.note).await?;
 
-    let all_events = get_all_events(&state.db).await?;
-    let event = CoreAggregate::new(&all_events).execute(command)?;
-
-    let res = append_event_to_db(&state.db, event.clone()).await?;
-    info!(event_id = %res.last_insert_id, "transaction note updated");
-
-    Ok((StatusCode::CREATED, "Transaction note updated!".to_string()))
+    Ok((StatusCode::CREATED, msg))
 }
 
 #[cfg(test)]

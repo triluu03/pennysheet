@@ -118,6 +118,36 @@ struct PivotExpensesParams {
     classifications: Vec<TransactionClassification>,
 }
 
+/// Parameters for the `categorize_transaction` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct CategorizeTransactionParams {
+    /// Transaction ID.
+    transaction_id: Uuid,
+    /// Transaction category.
+    category: TransactionCategory,
+}
+
+/// Parameters for the `classify_transaction` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct ClassifyTransactionParams {
+    /// Transaction ID.
+    transaction_id: Uuid,
+    /// Transaction classification.
+    classification: TransactionClassification,
+}
+
+/// Parameters for the `update_transaction_note` tool.
+#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct UpdateTransactionNoteParams {
+    /// Transaction ID.
+    transaction_id: Uuid,
+    /// Note to store.
+    note: String,
+}
+
 #[tool_router]
 impl PennysheetMcpServer {
     #[tool(description = "Ping the Pennysheet MCP server.")]
@@ -192,6 +222,40 @@ impl PennysheetMcpServer {
         .map_err(|e| e.to_string())?;
 
         serde_json::to_string(&value).map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Assign a category to a transaction.")]
+    async fn categorize_transaction(
+        &self,
+        Parameters(params): Parameters<CategorizeTransactionParams>,
+    ) -> Result<String, String> {
+        transactions::categorize_transaction(&self.state.db, params.transaction_id, params.category)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Assign a classification to a transaction.")]
+    async fn classify_transaction(
+        &self,
+        Parameters(params): Parameters<ClassifyTransactionParams>,
+    ) -> Result<String, String> {
+        transactions::classify_transaction(
+            &self.state.db,
+            params.transaction_id,
+            params.classification,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
+
+    #[tool(description = "Update the note of a transaction.")]
+    async fn update_transaction_note(
+        &self,
+        Parameters(params): Parameters<UpdateTransactionNoteParams>,
+    ) -> Result<String, String> {
+        transactions::update_transaction_note(&self.state.db, params.transaction_id, params.note)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     #[tool(description = "List weekly and monthly budget tracking data.")]
@@ -280,6 +344,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use domain::events::Event;
 
     /// Build a server backed by an empty in-memory database.
     async fn in_memory_server() -> PennysheetMcpServer {
@@ -362,5 +427,131 @@ mod tests {
         let result = server.list_import_requests().await.unwrap();
 
         assert_eq!(result, "[]");
+    }
+
+    /// Build a minimal [`TransactionData`] for MCP tool tests.
+    fn minimal_transaction_data(txn_id: Uuid) -> domain::events::transactions::TransactionData {
+        domain::events::transactions::TransactionData {
+            transaction_id: txn_id,
+            booking_date: None,
+            transaction_date: None,
+            amount: 10.0,
+            currency: "EUR".into(),
+            creditor_name: None,
+            debtor_name: None,
+            entry_reference: None,
+            aspsp_name: "test-aspsp".to_string(),
+        }
+    }
+
+    /// `categorize_transaction` succeeds for a recorded transaction.
+    #[tokio::test]
+    async fn categorize_transaction_succeeds_for_recorded_transaction() {
+        let server = in_memory_server().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &server.state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let result = server
+            .categorize_transaction(Parameters(CategorizeTransactionParams {
+                transaction_id: txn_id,
+                category: TransactionCategory::Groceries,
+            }))
+            .await;
+
+        assert_eq!(result, Ok("Transaction categorized!".to_string()));
+    }
+
+    /// `categorize_transaction` rejects an unknown transaction id.
+    #[tokio::test]
+    async fn categorize_transaction_rejects_unknown_transaction() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .categorize_transaction(Parameters(CategorizeTransactionParams {
+                transaction_id: Uuid::new_v4(),
+                category: TransactionCategory::Groceries,
+            }))
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    /// `classify_transaction` succeeds for a recorded transaction.
+    #[tokio::test]
+    async fn classify_transaction_succeeds_for_recorded_transaction() {
+        let server = in_memory_server().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &server.state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let result = server
+            .classify_transaction(Parameters(ClassifyTransactionParams {
+                transaction_id: txn_id,
+                classification: TransactionClassification::MustHave,
+            }))
+            .await;
+
+        assert_eq!(result, Ok("Transaction classified!".to_string()));
+    }
+
+    /// `classify_transaction` rejects an unknown transaction id.
+    #[tokio::test]
+    async fn classify_transaction_rejects_unknown_transaction() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .classify_transaction(Parameters(ClassifyTransactionParams {
+                transaction_id: Uuid::new_v4(),
+                classification: TransactionClassification::MustHave,
+            }))
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    /// `update_transaction_note` succeeds for a recorded transaction.
+    #[tokio::test]
+    async fn update_transaction_note_succeeds_for_recorded_transaction() {
+        let server = in_memory_server().await;
+        let txn_id = Uuid::new_v4();
+        infra::append_event_to_db(
+            &server.state.db,
+            Event::TransactionRecorded(minimal_transaction_data(txn_id)),
+        )
+        .await
+        .unwrap();
+
+        let result = server
+            .update_transaction_note(Parameters(UpdateTransactionNoteParams {
+                transaction_id: txn_id,
+                note: "my note".to_string(),
+            }))
+            .await;
+
+        assert_eq!(result, Ok("Transaction note updated!".to_string()));
+    }
+
+    /// `update_transaction_note` rejects an unknown transaction id.
+    #[tokio::test]
+    async fn update_transaction_note_rejects_unknown_transaction() {
+        let server = in_memory_server().await;
+
+        let result = server
+            .update_transaction_note(Parameters(UpdateTransactionNoteParams {
+                transaction_id: Uuid::new_v4(),
+                note: "my note".to_string(),
+            }))
+            .await;
+
+        assert!(result.is_err());
     }
 }
