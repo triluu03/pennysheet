@@ -22,7 +22,6 @@ use service::{
     database::connect_and_prepare,
     services::{
         budgets as budget_service,
-        import_requests as import_request_service,
         sessions as session_service,
         transactions::{
             self,
@@ -43,7 +42,7 @@ struct PennysheetMcpServer {
 /// Parameters for the `list_transactions` tool.
 #[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
-struct ListTransactionsParams {
+struct GetTransactionsParams {
     /// Start date filter in `YYYY-MM-DD` format.
     #[serde(default)]
     start_date: Option<NaiveDate>,
@@ -59,14 +58,6 @@ struct ListTransactionsParams {
     /// Transaction classification filters.
     #[serde(default)]
     classifications: Vec<TransactionClassification>,
-}
-
-/// Parameters for the `get_transaction` tool.
-#[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
-#[schemars(crate = "rmcp::schemars")]
-struct GetTransactionParams {
-    /// Transaction ID.
-    transaction_id: Uuid,
 }
 
 /// Parameters for the `aggregate_transactions` tool.
@@ -260,9 +251,9 @@ impl PennysheetMcpServer {
     }
 
     #[tool(description = "Get transactions matching the given filters.")]
-    async fn list_transactions(
+    async fn get_transactions(
         &self,
-        Parameters(params): Parameters<ListTransactionsParams>,
+        Parameters(params): Parameters<GetTransactionsParams>,
     ) -> Result<String, String> {
         let value = transactions::list_transactions(
             &self.state.db,
@@ -274,18 +265,6 @@ impl PennysheetMcpServer {
         )
         .await
         .map_err(|e| e.to_string())?;
-
-        serde_json::to_string(&value).map_err(|e| e.to_string())
-    }
-
-    #[tool(description = "Get a single transaction by ID.")]
-    async fn get_transaction(
-        &self,
-        Parameters(params): Parameters<GetTransactionParams>,
-    ) -> Result<String, String> {
-        let value = transactions::get_transaction(&self.state.db, params.transaction_id)
-            .await
-            .map_err(|e| e.to_string())?;
 
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
@@ -479,7 +458,7 @@ impl PennysheetMcpServer {
     }
 
     #[tool(description = "List all user settings.")]
-    async fn list_settings(&self) -> Result<String, String> {
+    async fn list_user_settings(&self) -> Result<String, String> {
         let value = user_setting_service::list_settings(&self.state.db)
             .await
             .map_err(|e| e.to_string())?;
@@ -488,7 +467,7 @@ impl PennysheetMcpServer {
     }
 
     #[tool(description = "Create a new user setting.")]
-    async fn create_setting(
+    async fn create_user_setting(
         &self,
         Parameters(params): Parameters<CreateSettingParams>,
     ) -> Result<String, String> {
@@ -505,7 +484,7 @@ impl PennysheetMcpServer {
     }
 
     #[tool(description = "Update an existing user setting.")]
-    async fn update_setting(
+    async fn update_user_setting(
         &self,
         Parameters(params): Parameters<UpdateSettingParams>,
     ) -> Result<String, String> {
@@ -524,7 +503,7 @@ impl PennysheetMcpServer {
     }
 
     #[tool(description = "Delete an existing user setting.")]
-    async fn delete_setting(
+    async fn delete_user_setting(
         &self,
         Parameters(params): Parameters<DeleteSettingParams>,
     ) -> Result<String, String> {
@@ -533,15 +512,6 @@ impl PennysheetMcpServer {
             .map_err(|e| e.to_string())?;
 
         Ok("Setting deleted!".to_string())
-    }
-
-    #[tool(description = "List import requests.")]
-    async fn list_import_requests(&self) -> Result<String, String> {
-        let value = import_request_service::list_import_requests(&self.state.db)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 }
 
@@ -599,7 +569,7 @@ mod tests {
         let server = in_memory_server().await;
 
         let result = server
-            .list_transactions(Parameters(ListTransactionsParams {
+            .get_transactions(Parameters(GetTransactionsParams {
                 start_date: None,
                 end_date: None,
                 kind: None,
@@ -652,17 +622,7 @@ mod tests {
     async fn list_settings_returns_empty_json_array() {
         let server = in_memory_server().await;
 
-        let result = server.list_settings().await.unwrap();
-
-        assert_eq!(result, "[]");
-    }
-
-    /// `list_import_requests` against an empty database returns an empty JSON array.
-    #[tokio::test]
-    async fn list_import_requests_returns_empty_json_array() {
-        let server = in_memory_server().await;
-
-        let result = server.list_import_requests().await.unwrap();
+        let result = server.list_user_settings().await.unwrap();
 
         assert_eq!(result, "[]");
     }
@@ -906,7 +866,7 @@ mod tests {
         let server = in_memory_server().await;
 
         let result = server
-            .create_setting(Parameters(CreateSettingParams {
+            .create_user_setting(Parameters(CreateSettingParams {
                 regex_rule: "Netflix".to_string(),
                 category: TransactionCategory::Leisure,
                 classification: TransactionClassification::NiceToHave,
