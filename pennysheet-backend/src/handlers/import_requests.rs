@@ -5,6 +5,7 @@ use axum::{
     extract::State,
 };
 use infra::projections::import_requests;
+use service::services::import_requests::list_import_requests;
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -15,6 +16,8 @@ use crate::{
 
 /// Handler for GET request to /import_requests
 ///
+/// Delegates to the read-only import request service.
+///
 /// # Errors
 ///
 /// Returns [`AppError`] if querying the import requests metadata fails.
@@ -23,7 +26,7 @@ use crate::{
 pub async fn get_import_requests_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<import_requests::Model>>, AppError> {
-    import_requests::get_import_requests(&state.db)
+    list_import_requests(&state.db)
         .await
         .map(Json)
         .map_err(AppError::from)

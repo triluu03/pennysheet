@@ -16,10 +16,10 @@ use infra::{
     UserSettingsResult,
     create_user_setting,
     delete_user_setting,
-    get_user_settings,
     update_user_setting,
 };
 use serde::Deserialize;
+use service::services::user_settings::list_settings;
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -31,6 +31,8 @@ use crate::{
 
 /// Handler for GET request to /settings
 ///
+/// Delegates to the read-only user settings service.
+///
 /// # Errors
 ///
 /// Returns [`AppError`] if querying the user settings fails.
@@ -39,7 +41,7 @@ use crate::{
 pub async fn get_user_settings_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<Vec<UserSettingsResult>>, AppError> {
-    get_user_settings(&state.db)
+    list_settings(&state.db)
         .await
         .map(Json)
         .map_err(AppError::from)

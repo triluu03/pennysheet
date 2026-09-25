@@ -13,12 +13,9 @@ use infra::{
     SessionMetadata,
     create_new_session,
     delete_session,
-    get_all_sessions_metadata,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::Deserialize;
+use service::services::sessions::list_sessions;
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -33,13 +30,9 @@ pub struct ImportSessionPayload {
     pub session: String,
 }
 
-#[derive(Serialize)]
-pub struct GetSessionResponse {
-    pub valid_sessions: Vec<SessionMetadata>,
-    pub expired_sessions: Vec<SessionMetadata>,
-}
-
 /// Handler for GET request to /sessions
+///
+/// Delegates to the read-only session service.
 ///
 /// # Errors
 ///
@@ -49,13 +42,11 @@ pub struct GetSessionResponse {
 // TODO: write tests for this handler!
 pub async fn get_sessions_handler(
     State(state): State<Arc<AppState>>,
-) -> axum::response::Result<Json<GetSessionResponse>, AppError> {
-    let (valid_sessions, expired_sessions) = get_all_sessions_metadata(&state.db).await?;
-
-    Ok(Json(GetSessionResponse {
-        valid_sessions,
-        expired_sessions,
-    }))
+) -> axum::response::Result<Json<service::services::sessions::GetSessionResponse>, AppError> {
+    list_sessions(&state.db)
+        .await
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 /// Handler for POST request to /sessions

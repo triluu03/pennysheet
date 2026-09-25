@@ -26,9 +26,12 @@ use serde::{
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 
-use crate::errors::{
-    Result,
-    ServiceError,
+use crate::{
+    errors::{
+        Result,
+        ServiceError,
+    },
+    utils::to_json_value,
 };
 
 /// The kind of transaction to query for.
@@ -54,15 +57,6 @@ impl FromStr for TransactionKind {
             ))),
         }
     }
-}
-
-/// Serialize a value into a JSON [`serde_json::Value`].
-///
-/// # Errors
-///
-/// Returns [`ServiceError::Serialization`] if serialization fails.
-fn to_json_value<T: Serialize>(value: T) -> Result<serde_json::Value> {
-    serde_json::to_value(value).map_err(|err| ServiceError::Serialization(err.to_string()))
 }
 
 /// List transactions matching the given filters.
@@ -225,12 +219,7 @@ mod tests {
 
     use super::*;
 
-    /// Build an in-memory database with the Pennysheet schema synced.
-    async fn in_memory_db() -> DatabaseConnection {
-        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        infra::sync_database_schema(&db).await.unwrap();
-        db
-    }
+    use crate::utils::in_memory_db;
 
     /// Listing transactions against an empty database returns an empty JSON array.
     #[tokio::test]

@@ -18,13 +18,13 @@ use domain::{
 use infra::{
     append_event_to_db,
     get_all_events,
-    projections::{
-        BudgetProjectionTrait,
-        monthly_budgets,
-        weekly_budgets,
-    },
 };
 use serde::Deserialize;
+use service::services::budgets::{
+    BudgetsResponse,
+    get_budget,
+    list_budgets,
+};
 use std::sync::Arc;
 use tracing::{
     info,
@@ -58,15 +58,6 @@ pub struct UpdateBudgetPayload {
     pub amount: f64,
     /// New per-transaction threshold.
     pub threshold: f64,
-}
-
-/// Combined response for GET /budgets returning both weekly and monthly data.
-#[derive(Debug, serde::Serialize)]
-pub struct BudgetsResponse {
-    /// Weekly budget rows (budget row + tracked transactions).
-    pub weekly: Vec<weekly_budgets::Model>,
-    /// Monthly budget rows (budget row + tracked transactions).
-    pub monthly: Vec<monthly_budgets::Model>,
 }
 
 /// Handler for POST /budgets — create a new budget.
@@ -253,8 +244,7 @@ pub async fn reset_budget_handler(
 
 /// Handler for GET /budgets — return both weekly and monthly budget data.
 ///
-/// Queries the `weekly_budgets` and `monthly_budgets` projection tables
-/// directly and returns their current contents.
+/// Delegates to the read-only budget service.
 ///
 /// # Errors
 ///
@@ -263,17 +253,15 @@ pub async fn reset_budget_handler(
 pub async fn get_budgets_handler(
     State(state): State<Arc<AppState>>,
 ) -> axum::response::Result<Json<BudgetsResponse>, AppError> {
-    let weekly = weekly_budgets::Entity::get_all(&state.db)
+    list_budgets(&state.db)
         .await
-        .map_err(AppError::from)?;
-    let monthly = monthly_budgets::Entity::get_all(&state.db)
-        .await
-        .map_err(AppError::from)?;
-
-    Ok(Json(BudgetsResponse { weekly, monthly }))
+        .map(Json)
+        .map_err(AppError::from)
 }
 
 /// Handler for GET /budgets/{budget_type} — return budget data for one type.
+///
+/// Delegates to the read-only budget service.
 ///
 /// # Errors
 ///
@@ -283,24 +271,10 @@ pub async fn get_one_budget_handler(
     State(state): State<Arc<AppState>>,
     Path(budget_type): Path<BudgetType>,
 ) -> axum::response::Result<Json<serde_json::Value>, AppError> {
-    let result = match budget_type {
-        BudgetType::Weekly => {
-            let rows = weekly_budgets::Entity::get_all(&state.db)
-                .await
-                .map_err(AppError::from)?;
-            serde_json::to_value(rows)
-        },
-        BudgetType::Monthly => {
-            let rows = monthly_budgets::Entity::get_all(&state.db)
-                .await
-                .map_err(AppError::from)?;
-            serde_json::to_value(rows)
-        },
-    };
-
-    result
+    get_budget(&state.db, budget_type)
+        .await
         .map(Json)
-        .map_err(|err| AppError::Database(err.to_string()))
+        .map_err(AppError::from)
 }
 
 #[cfg(test)]

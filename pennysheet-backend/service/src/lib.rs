@@ -5,6 +5,8 @@ pub mod errors;
 pub mod services;
 pub mod state;
 
+mod utils;
+
 pub use state::AppState;
 
 pub use errors::{
