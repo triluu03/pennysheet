@@ -4,13 +4,14 @@ BUILD_DIR := builds
 
 BACKEND_BIN := pennysheet-backend
 FRONTEND_DIST := $(FRONTEND_DIR)/dist
+MCP_BIN := pennysheet-mcp
 
 PROJECT_DIR := $(shell pwd)
 PLIST := $(PROJECT_DIR)/com.triluu.pennysheet.plist
 
-.PHONY: all build-backend build-frontend clean test generate launch stop relaunch
+.PHONY: all build-backend build-frontend build-mcp clean test generate launch stop relaunch
 
-all: build-backend build-frontend
+all: build-backend build-frontend build-mcp
 
 test:
 	cd $(BACKEND_DIR) && cargo test
@@ -24,6 +25,11 @@ build-frontend:
 	cd $(FRONTEND_DIR) && npm run build
 	mkdir -p $(BUILD_DIR)/dist
 	cp -r $(FRONTEND_DIST)/. $(BUILD_DIR)/dist/
+
+build-mcp:
+	cd $(BACKEND_DIR) && cargo build --release -p pennysheet-mcp
+	mkdir -p $(BUILD_DIR)
+	cp $(BACKEND_DIR)/target/release/$(MCP_BIN) $(BUILD_DIR)/
 
 clean:
 	rm -rf $(BUILD_DIR)
