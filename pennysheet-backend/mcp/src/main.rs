@@ -125,7 +125,7 @@ impl PennysheetMcpServer {
         "pong".to_string()
     }
 
-    #[tool(description = "List transactions matching the given filters.")]
+    #[tool(description = "Get transactions matching the given filters.")]
     async fn list_transactions(
         &self,
         Parameters(params): Parameters<ListTransactionsParams>,
@@ -156,7 +156,7 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    #[tool(description = "List transactions time-aggregated at the given level.")]
+    #[tool(description = "Get time-aggregated transactions at the given level.")]
     async fn aggregate_transactions(
         &self,
         Parameters(params): Parameters<AggregateTransactionsParams>,
@@ -194,7 +194,7 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    #[tool(description = "List weekly and monthly budget projections.")]
+    #[tool(description = "List weekly and monthly budget tracking data.")]
     async fn list_budgets(&self) -> Result<String, String> {
         let value = budget_service::list_budgets(&self.state.db)
             .await
@@ -203,7 +203,7 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    #[tool(description = "Get a single budget type's projection rows.")]
+    #[tool(description = "Get a single budget type's tracking data.")]
     async fn get_budget(
         &self,
         Parameters(params): Parameters<GetBudgetParams>,
@@ -233,7 +233,7 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    #[tool(description = "List import request projections.")]
+    #[tool(description = "List import requests.")]
     async fn list_import_requests(&self) -> Result<String, String> {
         let value = import_request_service::list_import_requests(&self.state.db)
             .await
