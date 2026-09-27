@@ -39,19 +39,16 @@ struct PennysheetMcpServer {
     state: Arc<AppState>,
 }
 
-/// Parameters for the `list_transactions` tool.
+/// Parameters for the `list_expenses` tool.
 #[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
-struct GetTransactionsParams {
+struct GetExpensesParams {
     /// Start date filter in `YYYY-MM-DD` format.
     #[serde(default)]
     start_date: Option<NaiveDate>,
     /// End date filter in `YYYY-MM-DD` format.
     #[serde(default)]
     end_date: Option<NaiveDate>,
-    /// Transaction kind filter: `income` or `expenses`.
-    #[serde(default)]
-    kind: Option<TransactionKind>,
     /// Transaction category filters.
     #[serde(default)]
     categories: Vec<TransactionCategory>,
@@ -60,10 +57,10 @@ struct GetTransactionsParams {
     classifications: Vec<TransactionClassification>,
 }
 
-/// Parameters for the `aggregate_transactions` tool.
+/// Parameters for the `aggregate_expenses` tool.
 #[derive(serde::Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
-struct AggregateTransactionsParams {
+struct AggregateExpensesParams {
     /// Start date filter in `YYYY-MM-DD` format.
     #[serde(default)]
     start_date: Option<NaiveDate>,
@@ -72,9 +69,6 @@ struct AggregateTransactionsParams {
     end_date: Option<NaiveDate>,
     /// Aggregation level: `daily`, `weekly`, or `monthly`.
     aggregated_level: TimeAggregation,
-    /// Transaction kind filter: `income` or `expenses`.
-    #[serde(default)]
-    kind: Option<TransactionKind>,
     /// Transaction category filters.
     #[serde(default)]
     categories: Vec<TransactionCategory>,
@@ -250,16 +244,16 @@ impl PennysheetMcpServer {
         "pong".to_string()
     }
 
-    #[tool(description = "Get transactions matching the given filters.")]
-    async fn get_transactions(
+    #[tool(description = "Get expenses matching the given filters.")]
+    async fn get_expenses(
         &self,
-        Parameters(params): Parameters<GetTransactionsParams>,
+        Parameters(params): Parameters<GetExpensesParams>,
     ) -> Result<String, String> {
         let value = transactions::list_transactions(
             &self.state.db,
             params.start_date,
             params.end_date,
-            params.kind,
+            Some(TransactionKind::Expenses),
             params.categories,
             params.classifications,
         )
@@ -269,17 +263,17 @@ impl PennysheetMcpServer {
         serde_json::to_string(&value).map_err(|e| e.to_string())
     }
 
-    #[tool(description = "Get time-aggregated transactions at the given level.")]
-    async fn aggregate_transactions(
+    #[tool(description = "Get time-aggregated expenses at the given level.")]
+    async fn aggregate_expenses(
         &self,
-        Parameters(params): Parameters<AggregateTransactionsParams>,
+        Parameters(params): Parameters<AggregateExpensesParams>,
     ) -> Result<String, String> {
         let value = transactions::aggregate_transactions(
             &self.state.db,
             params.start_date,
             params.end_date,
             params.aggregated_level,
-            params.kind,
+            Some(TransactionKind::Expenses),
             params.categories,
             params.classifications,
         )
@@ -569,10 +563,9 @@ mod tests {
         let server = in_memory_server().await;
 
         let result = server
-            .get_transactions(Parameters(GetTransactionsParams {
+            .get_expenses(Parameters(GetExpensesParams {
                 start_date: None,
                 end_date: None,
-                kind: None,
                 categories: vec![],
                 classifications: vec![],
             }))
