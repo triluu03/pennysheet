@@ -20,7 +20,10 @@ use domain::{
     },
     process_managers::transaction::TransactionProcessManager,
 };
-use gateway::client::enable_banking_client::EnableBankingClient;
+use gateway::client::{
+    enable_banking_client::EnableBankingClient,
+    telegram_bot_client::TelegramBotClient,
+};
 use infra::{
     DatabaseConnection,
     SessionData,
@@ -73,7 +76,10 @@ pub async fn scheduled_transaction_import(db: DatabaseConnection) {
             last_run = Some((today, target));
             match run_scheduled_polling_job(&db).await {
                 Ok(()) => info!("scheduled transactions import completed"),
-                Err(error) => error!(%error, "scheduled transactions import failed"),
+                Err(error) => {
+                    error!(%error, "scheduled transactions import failed");
+                    notify_import_failure().await;
+                },
             }
         }
     }
@@ -299,6 +305,7 @@ pub async fn run_transaction_import(
         }
         if failed_event.is_some() {
             error!("transaction import ended with failure event");
+            notify_import_failure().await;
             return;
         }
     }
@@ -315,7 +322,7 @@ async fn fail_import(
     error: &str,
 ) {
     error!(%request_id, context, error, "transaction import failed");
-
+    notify_import_failure().await;
     let failed_event = Event::ImportTransactionsFailed(ImportStatusData {
         request_id,
         session_id,
@@ -330,5 +337,20 @@ async fn fail_import(
     }
 }
 
-// TODO: add tests for fail_import, run_transaction_import, and run_scheduled_polling_job once
-// Enable Banking/JWT fixtures are available without new dependencies.
+/// Best-effort notification of a failed import; errors are logged, never propagated.
+async fn notify_import_failure() {
+    let client = match TelegramBotClient::new_from_env() {
+        Ok(client) => client,
+        Err(error) => {
+            error!(%error, "failed to init Telegram client for import-failure notify");
+            return;
+        },
+    };
+
+    if let Err(error) = client
+        .send_message("Requested transaction import has failed!")
+        .await
+    {
+        error!(%error, "failed to send import-failure Telegram message");
+    }
+}
