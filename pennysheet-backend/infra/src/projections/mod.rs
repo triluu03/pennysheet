@@ -195,43 +195,41 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .apply_if(
                 Self::auto_category_column(),
                 |query, auto_category_column| {
+                    let effective_category = Expr::cust_with_exprs(
+                        "COALESCE($1, $2)",
+                        [
+                            Expr::col(Self::category_column()),
+                            Expr::col(auto_category_column),
+                        ],
+                    );
+
                     query
                         .filter(
                             Condition::any()
-                                .add(auto_category_column.is_null())
-                                .add(auto_category_column.is_in(categories)),
+                                .add(effective_category.clone().is_null())
+                                .add(effective_category.clone().is_in(categories)),
                         )
-                        .column_as(
-                            Expr::cust_with_exprs(
-                                "COALESCE($1, $2)",
-                                [
-                                    Expr::col(Self::category_column()),
-                                    Expr::col(auto_category_column),
-                                ],
-                            ),
-                            Self::category_column(),
-                        )
+                        .column_as(effective_category, Self::category_column())
                 },
             )
             .apply_if(
                 Self::auto_classification_column(),
                 |query, auto_classification_column| {
+                    let effective_classification = Expr::cust_with_exprs(
+                        "COALESCE($1, $2)",
+                        [
+                            Expr::col(Self::classification_column()),
+                            Expr::col(auto_classification_column),
+                        ],
+                    );
+
                     query
                         .filter(
                             Condition::any()
-                                .add(auto_classification_column.is_null())
-                                .add(auto_classification_column.is_in(classifications)),
+                                .add(effective_classification.clone().is_null())
+                                .add(effective_classification.clone().is_in(classifications)),
                         )
-                        .column_as(
-                            Expr::cust_with_exprs(
-                                "COALESCE($1, $2)",
-                                [
-                                    Expr::col(Self::classification_column()),
-                                    Expr::col(auto_classification_column),
-                                ],
-                            ),
-                            Self::classification_column(),
-                        )
+                        .column_as(effective_classification, Self::classification_column())
                 },
             )
             .order_by_desc(Self::booking_date_column())
@@ -295,20 +293,36 @@ pub trait TransactionProjectionTrait: EntityTrait {
             .apply_if(
                 Self::auto_category_column(),
                 |query, auto_category_column| {
+                    let effective_category = Expr::cust_with_exprs(
+                        "COALESCE($1, $2)",
+                        [
+                            Expr::col(Self::category_column()),
+                            Expr::col(auto_category_column),
+                        ],
+                    );
+
                     query.filter(
                         Condition::any()
-                            .add(auto_category_column.is_null())
-                            .add(auto_category_column.is_in(categories)),
+                            .add(effective_category.clone().is_null())
+                            .add(effective_category.clone().is_in(categories)),
                     )
                 },
             )
             .apply_if(
                 Self::auto_classification_column(),
                 |query, auto_classification_column| {
+                    let effective_classification = Expr::cust_with_exprs(
+                        "COALESCE($1, $2)",
+                        [
+                            Expr::col(Self::classification_column()),
+                            Expr::col(auto_classification_column),
+                        ],
+                    );
+
                     query.filter(
                         Condition::any()
-                            .add(auto_classification_column.is_null())
-                            .add(auto_classification_column.is_in(classifications)),
+                            .add(effective_classification.clone().is_null())
+                            .add(effective_classification.clone().is_in(classifications)),
                     )
                 },
             )
