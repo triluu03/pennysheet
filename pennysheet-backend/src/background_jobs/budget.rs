@@ -8,7 +8,7 @@
 //!
 //! ## Daily budget-status notification
 //! A summary of remaining weekly and monthly budget amounts is sent twice daily
-//! at 8:30 AM and 12:30 PM local time via Telegram.
+//! at 8:30 AM and 3:30 PM local time via Telegram.
 
 use chrono::{
     Datelike,
@@ -47,9 +47,9 @@ const SCHEDULED_TIME: NaiveTime =
 const MORNING_STATUS_SCHEDULED_TIME: NaiveTime =
     NaiveTime::from_hms_opt(8, 30, 0).expect("hard-coded 08:30:00 must be a valid time");
 
-/// Target wall-clock time for the noon budget-status notification (12:30 PM local).
-const NOON_STATUS_SCHEDULED_TIME: NaiveTime =
-    NaiveTime::from_hms_opt(12, 30, 0).expect("hard-coded 12:30:00 must be a valid time");
+/// Target wall-clock time for the afternoon budget-status notification (3:30 PM local).
+const AFTERNOON_STATUS_SCHEDULED_TIME: NaiveTime =
+    NaiveTime::from_hms_opt(15, 30, 0).expect("hard-coded 15:30:00 must be a valid time");
 
 /// Width of the window (in minutes) after a target time during which
 /// scheduled background jobs are eligible to fire.
@@ -208,7 +208,7 @@ fn first_of_next_month(today: NaiveDate) -> NaiveDate {
 }
 
 /// Scheduled-polling loop that sends a budget-status summary via Telegram twice
-/// daily at 8:30 AM and 12:30 PM local time.
+/// daily at 8:30 AM and 3:30 PM local time.
 ///
 /// Checks once per minute whether the current wall-clock time triggers either
 /// daily notification. After a notification fires for a given date and window,
@@ -218,7 +218,7 @@ fn first_of_next_month(today: NaiveDate) -> NaiveDate {
 #[instrument(skip(db))]
 pub async fn scheduled_budget_status_notification(db: DatabaseConnection) {
     let mut last_run_morning: Option<NaiveDate> = None;
-    let mut last_run_noon: Option<NaiveDate> = None;
+    let mut last_run_afternoon: Option<NaiveDate> = None;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
@@ -239,14 +239,16 @@ pub async fn scheduled_budget_status_notification(db: DatabaseConnection) {
             }
         }
 
-        if time_in_window(now.time(), NOON_STATUS_SCHEDULED_TIME) && last_run_noon != Some(today) {
-            info!("triggering noon budget status notification");
+        if time_in_window(now.time(), AFTERNOON_STATUS_SCHEDULED_TIME)
+            && last_run_afternoon != Some(today)
+        {
+            info!("triggering afternoon budget status notification");
             match run_budget_status_job(&db).await {
                 Ok(()) => {
-                    info!("noon budget status notification sent");
-                    last_run_noon = Some(today);
+                    info!("afternoon budget status notification sent");
+                    last_run_afternoon = Some(today);
                 },
-                Err(error) => warn!(%error, "noon budget status notification failed"),
+                Err(error) => warn!(%error, "afternoon budget status notification failed"),
             }
         }
     }
@@ -439,20 +441,26 @@ mod tests {
         assert!(!time_in_window(t, MORNING_STATUS_SCHEDULED_TIME));
     }
 
-    /// Returns true at 12:30:00 and false at 12:36:00 for the noon window.
+    /// Returns true at 15:30:00 and false at 15:36:00 for the afternoon window.
     #[test]
-    fn time_in_window_noon_status_window() {
-        let at_noon = NaiveTime::from_hms_opt(12, 30, 0).unwrap();
-        assert!(time_in_window(at_noon, NOON_STATUS_SCHEDULED_TIME));
+    fn time_in_window_afternoon_status_window() {
+        let at_afternoon = NaiveTime::from_hms_opt(15, 30, 0).unwrap();
+        assert!(time_in_window(at_afternoon, AFTERNOON_STATUS_SCHEDULED_TIME));
 
-        let noon_boundary = NaiveTime::from_hms_opt(12, 34, 59).unwrap();
-        assert!(time_in_window(noon_boundary, NOON_STATUS_SCHEDULED_TIME));
+        let afternoon_boundary = NaiveTime::from_hms_opt(15, 34, 59).unwrap();
+        assert!(time_in_window(
+            afternoon_boundary,
+            AFTERNOON_STATUS_SCHEDULED_TIME
+        ));
 
-        let noon_out = NaiveTime::from_hms_opt(12, 35, 0).unwrap();
-        assert!(!time_in_window(noon_out, NOON_STATUS_SCHEDULED_TIME));
+        let afternoon_out = NaiveTime::from_hms_opt(15, 35, 0).unwrap();
+        assert!(!time_in_window(afternoon_out, AFTERNOON_STATUS_SCHEDULED_TIME));
 
-        let past_window = NaiveTime::from_hms_opt(12, 36, 0).unwrap();
-        assert!(!time_in_window(past_window, NOON_STATUS_SCHEDULED_TIME));
+        let past_window = NaiveTime::from_hms_opt(15, 36, 0).unwrap();
+        assert!(!time_in_window(
+            past_window,
+            AFTERNOON_STATUS_SCHEDULED_TIME
+        ));
     }
 
     /// Build an empty in-memory [`DatabaseConnection`] with schema synced.

@@ -47,9 +47,9 @@ use crate::errors::AppError;
 #[instrument(skip(db))]
 pub async fn scheduled_transaction_import(db: DatabaseConnection) {
     let morning = NaiveTime::from_hms_opt(8, 15, 0).unwrap();
-    let noon = NaiveTime::from_hms_opt(12, 0, 0).unwrap();
+    let afternoon = NaiveTime::from_hms_opt(15, 0, 0).unwrap();
     let evening = NaiveTime::from_hms_opt(20, 0, 0).unwrap();
-    let scheduled_times = [morning, noon, evening];
+    let scheduled_times = [morning, afternoon, evening];
 
     let mut last_run: Option<(NaiveDate, NaiveTime)> = None;
 
@@ -339,6 +339,10 @@ async fn fail_import(
 
 /// Best-effort notification of a failed import; errors are logged, never propagated.
 async fn notify_import_failure() {
+    // Never send real Telegram notifications while running under the test harness.
+    if cfg!(test) {
+        return;
+    }
     let client = match TelegramBotClient::new_from_env() {
         Ok(client) => client,
         Err(error) => {
