@@ -30,6 +30,7 @@ use service::{
         user_settings as user_setting_service,
     },
 };
+use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 /// Pennysheet MCP server that exposes Pennysheet tools over stdio.
@@ -249,13 +250,26 @@ impl PennysheetMcpServer {
         &self,
         Parameters(params): Parameters<GetExpensesParams>,
     ) -> Result<String, String> {
+        // Match the frontend's default behavior: empty filter lists mean
+        // "all categories and classifications", not "uncategorized only".
+        let categories = if params.categories.is_empty() {
+            TransactionCategory::iter().collect()
+        } else {
+            params.categories
+        };
+        let classifications = if params.classifications.is_empty() {
+            TransactionClassification::iter().collect()
+        } else {
+            params.classifications
+        };
+
         let value = transactions::list_transactions(
             &self.state.db,
             params.start_date,
             params.end_date,
             Some(TransactionKind::Expenses),
-            params.categories,
-            params.classifications,
+            categories,
+            classifications,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -268,14 +282,27 @@ impl PennysheetMcpServer {
         &self,
         Parameters(params): Parameters<AggregateExpensesParams>,
     ) -> Result<String, String> {
+        // Match the frontend's default behavior: empty filter lists mean
+        // "all categories and classifications", not "uncategorized only".
+        let categories = if params.categories.is_empty() {
+            TransactionCategory::iter().collect()
+        } else {
+            params.categories
+        };
+        let classifications = if params.classifications.is_empty() {
+            TransactionClassification::iter().collect()
+        } else {
+            params.classifications
+        };
+
         let value = transactions::aggregate_transactions(
             &self.state.db,
             params.start_date,
             params.end_date,
             params.aggregated_level,
             Some(TransactionKind::Expenses),
-            params.categories,
-            params.classifications,
+            categories,
+            classifications,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -288,12 +315,25 @@ impl PennysheetMcpServer {
         &self,
         Parameters(params): Parameters<PivotExpensesParams>,
     ) -> Result<String, String> {
+        // Match the frontend's default behavior: empty filter lists mean
+        // "all categories and classifications", not "uncategorized only".
+        let categories = if params.categories.is_empty() {
+            TransactionCategory::iter().collect()
+        } else {
+            params.categories
+        };
+        let classifications = if params.classifications.is_empty() {
+            TransactionClassification::iter().collect()
+        } else {
+            params.classifications
+        };
+
         let value = transactions::pivot_expenses(
             &self.state.db,
             params.start_date,
             params.end_date,
-            params.categories,
-            params.classifications,
+            categories,
+            classifications,
         )
         .await
         .map_err(|e| e.to_string())?;
