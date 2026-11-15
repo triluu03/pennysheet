@@ -16,6 +16,12 @@ pennysheet/
 
 For more information of each module, check its corresponding README.md.
 
+## Event-sourcing Design Preview
+
+For a full architecture design, please check out: https://triluu03.github.io/pennysheet/
+
+<img width="2557" height="1289" alt="Core domain design" src="https://github.com/user-attachments/assets/138158b1-f2fb-482b-a95b-30eb1554094a" />
+
 ## Environment Variables
 
 Each module reads its configuration from environment files. Actual `.env*` files are git-ignored, so you must create them locally before running the project. The tracked `.env.example` files serve as templates.
@@ -55,7 +61,3 @@ SANDBOX_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----...'
 ### Catalog (`pennysheet-catalog`)
 
 Optional — Event Catalog reads `pennysheet-catalog/.env` for a scale license key and/or an OpenAI API key. Neither is required to build the catalog documentation.
-
-## Event-sourcing Design Preview
-
-<img width="2557" height="1289" alt="Core domain design" src="https://github.com/user-attachments/assets/138158b1-f2fb-482b-a95b-30eb1554094a" />
