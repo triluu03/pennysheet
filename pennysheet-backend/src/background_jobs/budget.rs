@@ -24,11 +24,18 @@ use domain::{
     events::budgets::BudgetType,
     process_managers::budget::BudgetProcessManager,
 };
-use gateway::client::telegram_bot_client::TelegramBotClient;
+use gateway::{
+    client::{
+        enable_banking_client::EnableBankingClient,
+        telegram_bot_client::TelegramBotClient,
+    },
+    schema::enable_banking_api::balance::BalanceResource,
+};
 use infra::{
     DatabaseConnection,
     append_event_to_db,
     get_all_events,
+    get_all_sessions,
 };
 use tracing::{
     error,
@@ -274,7 +281,7 @@ async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> 
     let process_manager = BudgetProcessManager::new(&all_events)?;
     let command = process_manager.create_gateway_command(Local::now().date_naive())?;
 
-    let body = match command {
+    let mut body = match command {
         domain::commands::GatewayCommand::SendTelegramMessage(body) => body,
         _ => {
             return Err(AppError::Domain(
@@ -285,10 +292,89 @@ async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> 
         },
     };
 
+    let mut bank_balances: Vec<BalanceResource> = Vec::new();
+    let mut balance_fetch_failed = false;
+
+    match get_all_sessions(db).await {
+        Ok((valid_sessions, _expired_sessions)) => {
+            if valid_sessions.is_empty() {
+                body.push_str("\n\n💰 <b>Bank Balance</b>\nNo connected accounts");
+            } else {
+                for session_data in valid_sessions {
+                    match EnableBankingClient::new(session_data.enable_banking_session.clone()) {
+                        Ok(client) => match client.get_account_balances().await {
+                            Ok(response) => bank_balances.extend(response.balances),
+                            Err(error) => {
+                                warn!(
+                                    session_id = %session_data.session_id,
+                                    %error,
+                                    "failed to fetch bank balance"
+                                );
+                                balance_fetch_failed = true;
+                            },
+                        },
+                        Err(error) => {
+                            warn!(
+                                session_id = %session_data.session_id,
+                                %error,
+                                "failed to initialise Enable Banking client"
+                            );
+                            balance_fetch_failed = true;
+                        },
+                    }
+                }
+
+                if !bank_balances.is_empty() {
+                    body.push_str("\n\n");
+                    body.push_str(&format_bank_balance_section(&bank_balances));
+                } else if balance_fetch_failed {
+                    body.push_str("\n\n💰 <b>Bank Balance</b>\nCould not fetch balance");
+                }
+            }
+        },
+        Err(error) => {
+            warn!(%error, "failed to load Enable Banking sessions");
+            body.push_str("\n\n💰 <b>Bank Balance</b>\nCould not fetch balance");
+        },
+    }
+
     let client = TelegramBotClient::new_from_env()?;
     client.send_message(&body).await?;
 
     Ok(())
+}
+
+/// Format the bank-balance section appended to the budget-status message.
+///
+/// Emits a heading followed by one line per balance resource in the form
+/// `<name>: <amount> <currency>`. External values are HTML-escaped because
+/// the surrounding Telegram message is sent with `parse_mode: "HTML"`.
+fn format_bank_balance_section(balances: &[BalanceResource]) -> String {
+    let mut section = String::from("💰 <b>Bank Balance</b>");
+    for balance in balances {
+        section.push_str(&format!(
+            "\n{}: {} {}",
+            escape_html(&balance.name),
+            escape_html(&balance.balance_amount.amount),
+            escape_html(&balance.balance_amount.currency)
+        ));
+    }
+    section
+}
+
+/// Escape the HTML special characters that Telegram `parse_mode: "HTML"`
+/// interprets, so external values render literally.
+fn escape_html(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 #[cfg(test)]
@@ -632,5 +718,70 @@ mod tests {
             Event::BudgetReset(data) => assert_eq!(data.previous_remaining, 200.0),
             other => panic!("expected BudgetReset, got {other:?}"),
         }
+    }
+
+    /// The bank-balance section has a heading and one line per balance.
+    #[test]
+    fn format_bank_balance_section_lists_each_balance() {
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            balance::BalanceResource,
+        };
+
+        let balances = vec![
+            BalanceResource {
+                name: "Main".to_string(),
+                balance_amount: AmountType {
+                    currency: "EUR".to_string(),
+                    amount: "123.45".to_string(),
+                },
+            },
+            BalanceResource {
+                name: "Savings".to_string(),
+                balance_amount: AmountType {
+                    currency: "USD".to_string(),
+                    amount: "67.89".to_string(),
+                },
+            },
+        ];
+
+        let section = format_bank_balance_section(&balances);
+
+        assert_eq!(
+            section,
+            "💰 <b>Bank Balance</b>\nMain: 123.45 EUR\nSavings: 67.89 USD"
+        );
+    }
+
+    /// An empty balance list still includes the heading.
+    #[test]
+    fn format_bank_balance_section_empty_balances_keeps_heading() {
+        let section = format_bank_balance_section(&[]);
+        assert_eq!(section, "💰 <b>Bank Balance</b>");
+    }
+
+    /// External bank values containing HTML special characters are escaped so
+    /// they render literally in a `parse_mode: "HTML"` Telegram message.
+    #[test]
+    fn format_bank_balance_section_escapes_html_special_characters() {
+        use gateway::schema::enable_banking_api::{
+            AmountType,
+            balance::BalanceResource,
+        };
+
+        let balances = vec![BalanceResource {
+            name: "A&B <Savings>".to_string(),
+            balance_amount: AmountType {
+                currency: "EUR".to_string(),
+                amount: "1<2".to_string(),
+            },
+        }];
+
+        let section = format_bank_balance_section(&balances);
+
+        assert_eq!(
+            section,
+            "💰 <b>Bank Balance</b>\nA&amp;B &lt;Savings&gt;: 1&lt;2 EUR"
+        );
     }
 }

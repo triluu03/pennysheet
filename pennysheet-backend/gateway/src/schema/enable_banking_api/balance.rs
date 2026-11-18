@@ -9,11 +9,11 @@ use crate::schema::enable_banking_api::AmountType;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BalanceResponse {
-    balances: Vec<BalanceResource>,
+    pub balances: Vec<BalanceResource>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BalanceResource {
-    name: String,
-    balance_amount: AmountType,
+pub struct BalanceResource {
+    pub name: String,
+    pub balance_amount: AmountType,
 }
