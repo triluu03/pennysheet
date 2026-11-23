@@ -100,6 +100,7 @@ where
 #[derive(Debug, Clone, Serialize, FromQueryResult)]
 pub struct SessionData {
     pub session_id: i64,
+    pub session_name: String,
     pub enable_banking_session: EnableBankingSession,
 }
 
@@ -115,6 +116,7 @@ pub async fn get_all_sessions(
     let all_sessions: Vec<SessionData> = Entity::find()
         .select_only()
         .column(Column::SessionId)
+        .column(Column::SessionName)
         .column(Column::EnableBankingSession)
         .order_by_id_desc()
         .into_model()
@@ -141,6 +143,7 @@ pub async fn get_session_by_id(
     let session_data: SessionData = Entity::find_by_id(session_id)
         .select_only()
         .column(Column::SessionId)
+        .column(Column::SessionName)
         .column(Column::EnableBankingSession)
         .order_by_id_desc()
         .into_model()

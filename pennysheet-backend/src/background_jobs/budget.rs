@@ -292,7 +292,7 @@ async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> 
         },
     };
 
-    let mut bank_balances: Vec<BalanceResource> = Vec::new();
+    let mut bank_balances: Vec<(String, BalanceResource)> = Vec::new();
     let mut balance_fetch_failed = false;
 
     match get_all_sessions(db).await {
@@ -301,9 +301,15 @@ async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> 
                 body.push_str("\n\n💰 <b>Bank Balance</b>\nNo connected accounts");
             } else {
                 for session_data in valid_sessions {
+                    let session_name = session_data.session_name.clone();
                     match EnableBankingClient::new(session_data.enable_banking_session.clone()) {
                         Ok(client) => match client.get_account_balances().await {
-                            Ok(response) => bank_balances.extend(response.balances),
+                            Ok(response) => bank_balances.extend(
+                                response
+                                    .balances
+                                    .into_iter()
+                                    .map(|balance| (session_name.clone(), balance)),
+                            ),
                             Err(error) => {
                                 warn!(
                                     session_id = %session_data.session_id,
@@ -346,15 +352,15 @@ async fn run_budget_status_job(db: &DatabaseConnection) -> Result<(), AppError> 
 
 /// Format the bank-balance section appended to the budget-status message.
 ///
-/// Emits a heading followed by one line per balance resource in the form
-/// `<name>: <amount> <currency>`. External values are HTML-escaped because
-/// the surrounding Telegram message is sent with `parse_mode: "HTML"`.
-fn format_bank_balance_section(balances: &[BalanceResource]) -> String {
+/// Emits a heading followed by one line per balance in the form
+/// `<session_name>: <amount> <currency>`. External values are HTML-escaped
+/// because the surrounding Telegram message is sent with `parse_mode: "HTML"`.
+fn format_bank_balance_section(balances: &[(String, BalanceResource)]) -> String {
     let mut section = String::from("💰 <b>Bank Balance</b>");
-    for balance in balances {
+    for (session_name, balance) in balances {
         section.push_str(&format!(
             "\n{}: {} {}",
-            escape_html(&balance.name),
+            escape_html(session_name),
             escape_html(&balance.balance_amount.amount),
             escape_html(&balance.balance_amount.currency)
         ));
@@ -729,27 +735,33 @@ mod tests {
         };
 
         let balances = vec![
-            BalanceResource {
-                name: "Main".to_string(),
-                balance_amount: AmountType {
-                    currency: "EUR".to_string(),
-                    amount: "123.45".to_string(),
+            (
+                "My Main Account".to_string(),
+                BalanceResource {
+                    name: "Provider Main".to_string(),
+                    balance_amount: AmountType {
+                        currency: "EUR".to_string(),
+                        amount: "123.45".to_string(),
+                    },
                 },
-            },
-            BalanceResource {
-                name: "Savings".to_string(),
-                balance_amount: AmountType {
-                    currency: "USD".to_string(),
-                    amount: "67.89".to_string(),
+            ),
+            (
+                "My Savings Account".to_string(),
+                BalanceResource {
+                    name: "Provider Savings".to_string(),
+                    balance_amount: AmountType {
+                        currency: "USD".to_string(),
+                        amount: "67.89".to_string(),
+                    },
                 },
-            },
+            ),
         ];
 
         let section = format_bank_balance_section(&balances);
 
         assert_eq!(
             section,
-            "💰 <b>Bank Balance</b>\nMain: 123.45 EUR\nSavings: 67.89 USD"
+            "💰 <b>Bank Balance</b>\nMy Main Account: 123.45 EUR\nMy Savings Account: 67.89 USD"
         );
     }
 
@@ -769,13 +781,16 @@ mod tests {
             balance::BalanceResource,
         };
 
-        let balances = vec![BalanceResource {
-            name: "A&B <Savings>".to_string(),
-            balance_amount: AmountType {
-                currency: "EUR".to_string(),
-                amount: "1<2".to_string(),
+        let balances = vec![(
+            "A&B <Savings>".to_string(),
+            BalanceResource {
+                name: "Provider A&B <Savings>".to_string(),
+                balance_amount: AmountType {
+                    currency: "EUR".to_string(),
+                    amount: "1<2".to_string(),
+                },
             },
-        }];
+        )];
 
         let section = format_bank_balance_section(&balances);
 
